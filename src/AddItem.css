@@ -1,0 +1,52 @@
+.input-group {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.input {
+  padding: 12px 18px;
+  border: 2px solid #e1e8ed;
+  border-radius: 10px;
+  font-size: 1rem;
+  outline: none;
+  transition: all 0.2s ease;
+  width: 280px;
+  background-color: white;
+}
+
+.input:focus {
+  border-color: #bf44d4;
+  box-shadow: 0 0 0 3px rgba(191, 68, 212, 0.1);
+}
+
+.button {
+  padding: 12px 26px;
+  background-color: #bf44d4;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 6px rgba(191, 68, 212, 0.2);
+}
+
+.bag-select {
+  padding: 12px 18px;
+  font-size: 1rem;
+  border: 2px solid #e1e8ed;
+  border-radius: 10px;
+  outline: none;
+  background-color: white;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.bag-select:focus {
+  border-color: #bf44d4;
+}

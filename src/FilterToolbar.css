@@ -1,0 +1,41 @@
+.filter-toolbar {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  margin-top: 20px;
+  margin-bottom: 20px;
+}
+
+.filter-btn {
+  padding: 8px 16px;
+  font-size: 1rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  background-color: #f0f2f5;
+  color: #65676b;
+  transition: all 0.2s ease-in-out;
+}
+
+.filter-btn:hover {
+  background-color: #e4e6eb;
+}
+
+.filter-btn.active {
+  background-color: #bd2df5;
+  color: white;
+}
+
+/* Specific colors for specific buttons based on UI from slides - optionally use if desired */
+.filter-btn.all.active {
+  background-color: #8D99AE;
+}
+
+.filter-btn.unpacked-btn.active {
+  background-color: #F4A261;
+}
+
+.filter-btn.packed-btn.active {
+  background-color: #2A9D8F;
+}
