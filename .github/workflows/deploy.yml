@@ -1,0 +1,47 @@
+name: CD Deployment (Docker Compose via SSH)
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # Optional: Connect to your Tailscale network if your VPS is not publicly reachable
+      # Requires adding TAILSCALE_AUTH_KEY to your GitHub Secrets.
+      # If your SSH host is already accessible or you handle routing differently, you can remove this step.
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v2
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+        continue-on-error: true # Allow deployment to proceed if Tailscale is not fully configured
+
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_SSH_HOST }}
+          username: ${{ secrets.VPS_SSH_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          script: |
+            echo "Starting Deployment..."
+            # Adjust the path to your project folder on the VPS
+            cd ~/packing_app || cd /var/www/packing_app || (echo "Project folder not found!" && exit 1)
+            
+            # Pull latest changes
+            git pull origin main
+            
+            # Build and launch Docker Compose stack
+            echo "Rebuilding and restarting docker containers..."
+            docker compose down
+            docker compose up --build -d
+            
+            # Clean up old unused Docker images
+            docker image prune -f
+            echo "Deployment Completed Successfully!"

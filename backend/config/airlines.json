@@ -1,0 +1,74 @@
+{
+  "EL AL": {
+    "cabin": {
+      "weightKg": 8,
+      "dimensionsCm": "56x45x25",
+      "count": 1
+    },
+    "checked": {
+      "weightKg": 23,
+      "dimensionsCm": "158 total linear",
+      "count": 1
+    }
+  },
+  "Ryanair": {
+    "cabin": {
+      "weightKg": 10,
+      "dimensionsCm": "55x40x20",
+      "count": 1
+    },
+    "checked": {
+      "weightKg": 20,
+      "dimensionsCm": "119x119x81",
+      "count": 1
+    }
+  },
+  "Wizz Air": {
+    "cabin": {
+      "weightKg": 10,
+      "dimensionsCm": "40x30x20",
+      "count": 1
+    },
+    "checked": {
+      "weightKg": 20,
+      "dimensionsCm": "149x119x171",
+      "count": 1
+    }
+  },
+  "EasyJet": {
+    "cabin": {
+      "weightKg": 15,
+      "dimensionsCm": "45x36x20",
+      "count": 1
+    },
+    "checked": {
+      "weightKg": 23,
+      "dimensionsCm": "275 total linear",
+      "count": 1
+    }
+  },
+  "Delta": {
+    "cabin": {
+      "weightKg": 10,
+      "dimensionsCm": "56x35x23",
+      "count": 1
+    },
+    "checked": {
+      "weightKg": 23,
+      "dimensionsCm": "158 total linear",
+      "count": 1
+    }
+  },
+  "United": {
+    "cabin": {
+      "weightKg": 10,
+      "dimensionsCm": "56x35x22",
+      "count": 1
+    },
+    "checked": {
+      "weightKg": 23,
+      "dimensionsCm": "158 total linear",
+      "count": 1
+    }
+  }
+}
