@@ -30,10 +30,10 @@ jobs:
           cd backend
           npm ci
 
-      - name: Test Backend Connection
+      - name: Run Backend Unit Tests
         run: |
           cd backend
-          node -e "const { sequelize } = require('./models'); console.log('Database configuration check passed.');"
+          npm test
 
   docker-build-test:
     runs-on: ubuntu-latest
