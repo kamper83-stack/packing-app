@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../services/api";
 
@@ -18,11 +18,7 @@ export default function Dashboard() {
 
   const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchTrips();
-  }, []);
-
-  const fetchTrips = async () => {
+  const fetchTrips = useCallback(async () => {
     setLoading(true);
     try {
       const data = await api.getTrips();
@@ -34,7 +30,11 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [navigate]);
+
+  useEffect(() => {
+    fetchTrips();
+  }, [fetchTrips]);
 
   const handleCreateTrip = async (e) => {
     e.preventDefault();

@@ -1,4 +1,5 @@
 const jwt = require("jsonwebtoken");
+const { JWT_SECRET } = require("../config/jwt");
 
 function authMiddleware(req, res, next) {
   const authHeader = req.headers["authorization"];
@@ -9,7 +10,6 @@ function authMiddleware(req, res, next) {
   }
 
   try {
-    const JWT_SECRET = process.env.JWT_SECRET || "super_secret_jwt_token_change_me";
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
     next();

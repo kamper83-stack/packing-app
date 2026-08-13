@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { api } from "../services/api";
-import { Plus, Trash2, CheckCircle2, ChevronLeft } from "lucide-react";
+import { Plus, Trash2, ChevronLeft } from "lucide-react";
 
 export default function TripView() {
   const { id } = useParams();
@@ -17,11 +17,7 @@ export default function TripView() {
   const [customQty, setCustomQty] = useState(1);
   const [customBag, setCustomBag] = useState("Suitcase");
 
-  useEffect(() => {
-    fetchTripDetails();
-  }, [id]);
-
-  const fetchTripDetails = async () => {
+  const fetchTripDetails = useCallback(async () => {
     setLoading(true);
     try {
       const data = await api.getTrip(id);
@@ -32,7 +28,11 @@ export default function TripView() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    fetchTripDetails();
+  }, [fetchTripDetails]);
 
   const handleTogglePack = async (item) => {
     try {
