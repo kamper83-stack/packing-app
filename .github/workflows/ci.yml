@@ -3,6 +3,7 @@ name: CI Pipeline
 on:
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   lint-and-test:
@@ -21,8 +22,11 @@ jobs:
       - name: Install Frontend Dependencies
         run: npm ci
 
-      - name: Lint Frontend
-        run: npm run build --if-present
+      - name: Run Frontend Tests
+        run: npm test -- --watchAll=false
+
+      - name: Build Frontend
+        run: npm run build
 
       # Backend Checks
       - name: Install Backend Dependencies
@@ -30,10 +34,21 @@ jobs:
           cd backend
           npm ci
 
-      - name: Test Backend Connection
+      - name: Boot Backend and Verify Health
         run: |
           cd backend
-          node -e "const { sequelize } = require('./models'); console.log('Database configuration check passed.');"
+          PORT=5001 USE_MOCKS=true JWT_SECRET=ci_test_secret node server.js &
+          SERVER_PID=$!
+          # Wait for the server to become reachable
+          for i in $(seq 1 20); do
+            if curl -sf http://localhost:5001/health > /dev/null 2>&1; then
+              echo "Health check passed."
+              break
+            fi
+            sleep 1
+          done
+          curl -fsS http://localhost:5001/health
+          kill $SERVER_PID 2>/dev/null || true
 
   docker-build-test:
     runs-on: ubuntu-latest

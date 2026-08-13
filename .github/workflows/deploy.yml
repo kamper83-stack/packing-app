@@ -29,19 +29,31 @@ jobs:
           username: ${{ secrets.VPS_SSH_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
+          envs: JWT_SECRET
           script: |
             echo "Starting Deployment..."
             # Adjust the path to your project folder on the VPS
             cd ~/packing_app || cd /var/www/packing_app || (echo "Project folder not found!" && exit 1)
-            
+
+            # Refuse to deploy with an unset or placeholder JWT secret.
+            if [ -z "$JWT_SECRET" ] || [ "$JWT_SECRET" = "dev_insecure_jwt_secret_change_me" ]; then
+              echo "JWT_SECRET is missing or still the dev placeholder. Add it to repo secrets and retry."
+              exit 1
+            fi
+
             # Pull latest changes
             git pull origin main
-            
+
+            # Write production secrets consumed by docker-compose interpolation.
+            cat > .env <<EOF
+            JWT_SECRET=$JWT_SECRET
+            EOF
+
             # Build and launch Docker Compose stack
             echo "Rebuilding and restarting docker containers..."
             docker compose down
             docker compose up --build -d
-            
+
             # Clean up old unused Docker images
             docker image prune -f
             echo "Deployment Completed Successfully!"

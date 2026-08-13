@@ -1,8 +1,6 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # dependencies
-/node_modules
-/.pnp
+node_modules/
+.pnp
 .pnp.js
 
 # testing
@@ -10,6 +8,17 @@
 
 # production
 /build
+
+# environment / secrets
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# runtime data (SQLite database is generated at runtime and volume-backed)
+backend/data/
 
 # misc
 .DS_Store

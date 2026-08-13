@@ -172,4 +172,5 @@ Go to `Settings -> Secrets and variables -> Actions` and add:
 * `VPS_SSH_HOST`: Tailscale IP of your VPS.
 * `VPS_SSH_USERNAME`: Your SSH username (e.g. `root` or `ubuntu`).
 * `VPS_SSH_KEY`: Private SSH Key.
+* `JWT_SECRET`: A strong, random secret used to sign JWTs in production. The CD pipeline **refuses to deploy** if this is missing or still the dev placeholder.
 * `TS_OAUTH_CLIENT_ID` & `TS_OAUTH_SECRET`: Tailscale Auth credentials (if using Tailscale action).

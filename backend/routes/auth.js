@@ -4,8 +4,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { User } = require("../models");
 const authMiddleware = require("../middleware/auth");
-
-const JWT_SECRET = process.env.JWT_SECRET || "super_secret_jwt_token_change_me";
+const { JWT_SECRET } = require("../config/jwt");
 
 // POST /api/auth/register
 router.post("/register", async (req, res) => {
