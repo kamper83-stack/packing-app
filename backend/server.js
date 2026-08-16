@@ -37,4 +37,10 @@ async function startServer() {
   }
 }
 
-startServer();
+// Only auto-start when run directly (e.g. `node server.js`), so tests can
+// import the Express app without opening a listening socket.
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = app;

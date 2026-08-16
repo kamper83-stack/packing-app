@@ -34,6 +34,14 @@ jobs:
           cd backend
           npm ci
 
+      - name: Run Backend Tests
+        run: |
+          cd backend
+          npm test
+        env:
+          USE_MOCKS: "true"
+          JWT_SECRET: ci_test_secret
+
       - name: Boot Backend and Verify Health
         run: |
           cd backend
