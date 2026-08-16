@@ -35,6 +35,8 @@ jobs:
           npm ci
 
       - name: Run Backend Tests
+        env:
+          NODE_ENV: test
         run: |
           cd backend
           npm test
