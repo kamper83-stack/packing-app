@@ -6,15 +6,32 @@ const { User } = require("../models");
 const authMiddleware = require("../middleware/auth");
 const { JWT_SECRET } = require("../config/jwt");
 
+// Email validation helper
+const isValidEmail = (email) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
+
 // POST /api/auth/register
 router.post("/register", async (req, res) => {
   const { email, password } = req.body;
+  
   if (!email || !password) {
     return res.status(400).json({ error: "Email and password are required." });
   }
 
+  const cleanEmail = email.trim().toLowerCase();
+
+  if (!isValidEmail(cleanEmail)) {
+    return res.status(400).json({ error: "Invalid email format." });
+  }
+
+  if (typeof password !== "string" || password.length < 6) {
+    return res.status(400).json({ error: "Password must be at least 6 characters long." });
+  }
+
   try {
-    const existingUser = await User.findOne({ where: { email: email.toLowerCase() } });
+    const existingUser = await User.findOne({ where: { email: cleanEmail } });
     if (existingUser) {
       return res.status(400).json({ error: "User already exists with this email." });
     }
@@ -23,7 +40,7 @@ router.post("/register", async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     const user = await User.create({
-      email: email.toLowerCase(),
+      email: cleanEmail,
       password: hashedPassword,
     });
 
@@ -42,8 +59,10 @@ router.post("/login", async (req, res) => {
     return res.status(400).json({ error: "Email and password are required." });
   }
 
+  const cleanEmail = email.trim().toLowerCase();
+
   try {
-    const user = await User.findOne({ where: { email: email.toLowerCase() } });
+    const user = await User.findOne({ where: { email: cleanEmail } });
     if (!user) {
       return res.status(400).json({ error: "Invalid email or password." });
     }
