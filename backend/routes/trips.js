@@ -9,6 +9,9 @@ const airlines = require("../config/airlines.json");
 // Protect all routes
 router.use(authMiddleware);
 
+// Returns true when the value is a valid calendar date string (e.g. "2026-08-16").
+const isValidDate = (value) => !Number.isNaN(new Date(value).getTime());
+
 // GET /api/trips - Fetch all trips of the user
 router.get("/", async (req, res) => {
   try {
@@ -48,12 +51,29 @@ router.post("/", async (req, res) => {
     return res.status(400).json({ error: "All required fields must be filled." });
   }
 
+  // Validate dates: both must be real dates and the trip cannot end before it starts.
+  if (!isValidDate(startDate) || !isValidDate(endDate)) {
+    return res.status(400).json({ error: "Invalid start or end date." });
+  }
+  if (new Date(endDate) < new Date(startDate)) {
+    return res.status(400).json({ error: "End date cannot be before start date." });
+  }
+
+  // numPeople is optional but, when provided, must be a positive integer.
+  if (numPeople !== undefined && (!Number.isInteger(numPeople) || numPeople < 1)) {
+    return res.status(400).json({ error: "Number of people must be a positive integer." });
+  }
+
+  const cleanDestination = destination.trim();
+  const cleanVacationType = vacationType.trim();
+  const cleanAirline = airline.trim();
+
   try {
     // 1. Fetch weather forecast
-    const weatherInfo = await weatherService.getForecast(destination, startDate, endDate);
+    const weatherInfo = await weatherService.getForecast(cleanDestination, startDate, endDate);
 
     // 2. Fetch baggage allowance for airline (fallback to estimating if not listed)
-    const airlineInfo = airlines[airline] || {
+    const airlineInfo = airlines[cleanAirline] || {
       cabin: { weightKg: 8, dimensionsCm: "Unknown", count: 1 },
       checked: { weightKg: 23, dimensionsCm: "Unknown", count: 1 },
       isEstimated: true,
@@ -66,23 +86,23 @@ router.post("/", async (req, res) => {
 
     // 3. Call Gemini to generate packing list
     const generatedItems = await geminiService.generatePackingList({
-      destination,
+      destination: cleanDestination,
       days,
       numPeople: numPeople || 1,
-      vacationType,
-      airline,
+      vacationType: cleanVacationType,
+      airline: cleanAirline,
       weatherSummary: weatherInfo.forecast,
       baggageAllowance: airlineInfo,
     });
 
     // 4. Create Trip in DB
     const trip = await Trip.create({
-      destination,
+      destination: cleanDestination,
       startDate,
       endDate,
-      airline,
+      airline: cleanAirline,
       numPeople: numPeople || 1,
-      vacationType,
+      vacationType: cleanVacationType,
       weatherData: weatherInfo.forecast,
       userId: req.user.id,
     });
@@ -130,6 +150,10 @@ router.post("/:id/custom-item", async (req, res) => {
   const { name, category, quantity, targetBag } = req.body;
   if (!name || !category) {
     return res.status(400).json({ error: "Name and category are required." });
+  }
+
+  if (quantity !== undefined && (!Number.isInteger(quantity) || quantity < 1)) {
+    return res.status(400).json({ error: "Quantity must be a positive integer." });
   }
 
   try {

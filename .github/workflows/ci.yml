@@ -37,6 +37,8 @@ jobs:
       - name: Run Backend Tests
         env:
           NODE_ENV: test
+          USE_MOCKS: "true"
+          JWT_SECRET: ci_test_secret
         run: |
           cd backend
           npm test
