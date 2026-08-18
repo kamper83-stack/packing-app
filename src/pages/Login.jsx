@@ -43,8 +43,9 @@ export default function Login() {
           )}
           <div className="rounded-md shadow-sm space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Email Address</label>
+              <label htmlFor="login-email" className="block text-sm font-medium text-gray-700">Email Address</label>
               <input
+                id="login-email"
                 type="email"
                 required
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
@@ -53,8 +54,9 @@ export default function Login() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Password</label>
+              <label htmlFor="login-password" className="block text-sm font-medium text-gray-700">Password</label>
               <input
+                id="login-password"
                 type="password"
                 required
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
