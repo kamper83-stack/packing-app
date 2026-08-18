@@ -49,8 +49,9 @@ export default function Signup() {
           )}
           <div className="rounded-md shadow-sm space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Email Address</label>
+              <label htmlFor="signup-email" className="block text-sm font-medium text-gray-700">Email Address</label>
               <input
+                id="signup-email"
                 type="email"
                 required
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
@@ -59,8 +60,9 @@ export default function Signup() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Password</label>
+              <label htmlFor="signup-password" className="block text-sm font-medium text-gray-700">Password</label>
               <input
+                id="signup-password"
                 type="password"
                 required
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
@@ -69,8 +71,9 @@ export default function Signup() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Confirm Password</label>
+              <label htmlFor="signup-confirm-password" className="block text-sm font-medium text-gray-700">Confirm Password</label>
               <input
+                id="signup-confirm-password"
                 type="password"
                 required
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
