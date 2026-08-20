@@ -1,5 +1,17 @@
 const axios = require("axios");
 
+// Values that look like a key but aren't one. The docker-compose / .env.example
+// default is a placeholder, so it must behave like "no key" — otherwise we call
+// WeatherAPI with a bad key, get a 401, and silently fall back to mock, which
+// looks exactly like a real key that "doesn't work".
+const PLACEHOLDER_KEYS = new Set(["your_weather_api_key_here"]);
+
+// True only when a usable WeatherAPI key is configured.
+function hasRealWeatherKey() {
+  const key = (process.env.WEATHER_API_KEY || "").trim();
+  return key.length > 0 && !PLACEHOLDER_KEYS.has(key);
+}
+
 async function getForecast(destination, startDate, endDate) {
   const start = new Date(startDate);
   const end = new Date(endDate);
@@ -7,7 +19,7 @@ async function getForecast(destination, startDate, endDate) {
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
   const days = Math.min(Math.max(diffDays, 1), 14); // WeatherAPI supports up to 14 days
 
-  const useMocks = process.env.USE_MOCKS === "true" || !process.env.WEATHER_API_KEY;
+  const useMocks = process.env.USE_MOCKS === "true" || !hasRealWeatherKey();
 
   if (useMocks) {
     console.log(`[WEATHER SERVICE] Using mock weather for ${destination}`);
@@ -28,7 +40,8 @@ async function getForecast(destination, startDate, endDate) {
 
   try {
     const apiKey = process.env.WEATHER_API_KEY;
-    const response = await axios.get(`http://api.weatherapi.com/v1/forecast.json`, {
+    console.log(`[WEATHER SERVICE] Fetching live forecast for ${destination} (${days} days)`);
+    const response = await axios.get(`https://api.weatherapi.com/v1/forecast.json`, {
       params: {
         key: apiKey,
         q: destination,
@@ -46,7 +59,12 @@ async function getForecast(destination, startDate, endDate) {
       isMock: false,
     };
   } catch (error) {
-    console.error("[WEATHER SERVICE] Error fetching real weather, falling back to mock:", error.message);
+    // Make a misconfigured/failing live call loud instead of silently mocking,
+    // so a bad key or network issue is obvious during API testing.
+    console.warn(
+      `[WEATHER SERVICE] Live WeatherAPI call failed (${error.response?.status || error.message}); ` +
+        "falling back to mock data. Check WEATHER_API_KEY and network."
+    );
     return {
       forecast: Array.from({ length: days }).map((_, index) => {
         const date = new Date(start);
