@@ -89,6 +89,10 @@ This runs the entire frontend, backend, Nginx proxy, and database locally:
    ```bash
    cp backend/.env.example backend/.env
    ```
+   For **live** weather forecasts, edit `backend/.env` and set a real
+   `WEATHER_API_KEY` (free key at https://www.weatherapi.com/) with
+   `USE_MOCKS=false`. Leaving the placeholder key runs the app in mock mode.
+   Never commit `backend/.env` — it is git-ignored on purpose.
 3. Run the application:
    ```bash
    docker compose up --build
@@ -100,6 +104,9 @@ This runs the entire frontend, backend, Nginx proxy, and database locally:
    ```bash
    cd backend
    cp .env.example .env
+   # For live forecasts, set a real WEATHER_API_KEY in .env and keep USE_MOCKS=false.
+   # Quick check that a real key works (prints `isMock: false` on success):
+   #   node -e "require('dotenv').config(); require('./services/weatherService').getForecast('Tel Aviv','2026-08-21','2026-08-24').then(r=>console.log('isMock:',r.isMock, r.error||''))"
    npm install
    npm run dev
    ```
@@ -119,6 +126,11 @@ To support rapid independent progress between Frontend and Backend, the backend 
 If you do not have active API keys, or if `USE_MOCKS=true` is set in your `backend/.env` file:
 * The weather service generates random daily forecasts for the destination.
 * The Gemini service generates structured, categorized item lists based on travel duration and vacation type.
+
+> **Note:** The placeholder `WEATHER_API_KEY=your_weather_api_key_here` shipped in
+> `.env.example` counts as "no real key" — the backend detects it and stays in
+> mock mode instead of calling WeatherAPI with an invalid key. Set a real key to
+> get live forecasts.
 
 ---
 
