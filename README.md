@@ -15,7 +15,7 @@ PackPlanner is a full-stack travel packing assistant. Users create a trip, provi
 - Airline baggage configuration and a baggage-constraints display.
 - Responsive React UI with Tailwind CSS.
 
-> **Demo scope:** the team decision is to use a 3-day daily weather forecast for the demonstration. The service alignment is tracked in GitHub.
+> **Demo scope:** the team decision is to present a maximum 3-day daily weather forecast. The current service still supports up to 14 days; aligning enforcement with the demo policy is tracked in GitHub.
 
 ## Architecture
 
@@ -34,8 +34,7 @@ packing-app/
 │   └── App.js                # React routes
 ├── nginx/                   # Production reverse proxy configuration
 ├── Dockerfile               # Multi-stage frontend image
-├── docker-compose.yml       # Development stack
-├── docker-compose.prod.yml  # Production backend/frontend stack
+├── docker-compose.yml       # Local and workflow-driven VPS stack
 └── .github/workflows/       # CI and deployment workflows
 ```
 
@@ -90,6 +89,8 @@ Then start the stack:
 docker compose up --build
 ```
 
+Open `http://localhost` when the containers are ready.
+
 Do not commit `.env` or provider keys.
 
 ## Quality commands
@@ -112,18 +113,18 @@ The backend test suite runs offline by mocking external providers. Live provider
 
 ## API overview
 
-Authenticated backend routes include:
+Backend routes include; authentication is required where noted:
 
-- `POST /api/auth/register` — create a user.
-- `POST /api/auth/login` — issue a JWT.
-- `GET /api/auth/me` — return the authenticated user.
-- `GET /api/trips` — list the current user's trips.
-- `POST /api/trips` — create a trip and generate its checklist.
-- `GET /api/trips/:id` — return one trip with packing items.
-- `DELETE /api/trips/:id` — delete a trip.
-- `POST /api/trips/:id/custom-item` — add a custom checklist item.
-- `PUT /api/trips/item/:itemId` — update packing state or item details.
-- `DELETE /api/trips/item/:itemId` — delete an item.
+- `POST /api/auth/register` — public user registration.
+- `POST /api/auth/login` — public login and JWT issuance.
+- `GET /api/auth/me` — authenticated user profile.
+- `GET /api/trips` — authenticated user's trips.
+- `POST /api/trips` — authenticated trip creation and checklist generation.
+- `GET /api/trips/:id` — authenticated trip details with packing items.
+- `DELETE /api/trips/:id` — authenticated trip deletion.
+- `POST /api/trips/:id/custom-item` — authenticated custom checklist item.
+- `PUT /api/trips/item/:itemId` — authenticated packing-item update.
+- `DELETE /api/trips/item/:itemId` — authenticated item deletion.
 
 The packing-item response contract is:
 
@@ -150,9 +151,15 @@ Keep secrets in local/VPS environment files. The application backend calls exter
 
 ## Deployment
 
-The production Compose file binds the frontend and backend to loopback ports for the reverse-proxy layer:
+The repository contains one Compose file: `docker-compose.yml`. It is used for
+local runs and by `.github/workflows/deploy.yml` for the VPS deployment:
 
-- Frontend: `127.0.0.1:3025`
-- Backend: `127.0.0.1:3026`
+- Frontend: `80:80`
+- Backend: `5001:5001`
+- SQLite: named `sqlite-data` volume
 
-The deployment workflow is defined in `.github/workflows/deploy.yml`. Production deployments should use the production Compose file and preserve the SQLite volume.
+The workflow connects to the VPS over SSH after a push to `main`, pulls the
+repository, writes the deployment environment, and runs the same Compose stack.
+Any host-level reverse proxy, firewall, or additional port mapping on the VPS
+is operational state outside this repository and must be documented only after
+checking the live VPS.
