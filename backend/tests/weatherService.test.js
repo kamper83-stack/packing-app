@@ -69,6 +69,27 @@ describe("weatherService.getForecast - mock mode", () => {
     expect(result.isMock).toBe(true);
     expect(axios.get).not.toHaveBeenCalled();
   });
+
+  it("treats the placeholder key as 'no key' and stays in mock mode", async () => {
+    // The docker-compose / .env.example default must not trigger a real call.
+    delete process.env.USE_MOCKS;
+    process.env.WEATHER_API_KEY = "your_weather_api_key_here";
+
+    const result = await getForecast("Barcelona", "2026-09-01", "2026-09-02");
+
+    expect(result.isMock).toBe(true);
+    expect(axios.get).not.toHaveBeenCalled();
+  });
+
+  it("treats a blank/whitespace key as 'no key' and stays in mock mode", async () => {
+    delete process.env.USE_MOCKS;
+    process.env.WEATHER_API_KEY = "   ";
+
+    const result = await getForecast("Barcelona", "2026-09-01", "2026-09-02");
+
+    expect(result.isMock).toBe(true);
+    expect(axios.get).not.toHaveBeenCalled();
+  });
 });
 
 describe("weatherService.getForecast - real API path (mocked axios)", () => {
@@ -93,9 +114,10 @@ describe("weatherService.getForecast - real API path (mocked axios)", () => {
     const result = await getForecast("Barcelona", "2026-09-01", "2026-09-02");
 
     expect(axios.get).toHaveBeenCalledTimes(1);
-    // Sends the destination and computed day count to WeatherAPI.
+    // Sends the destination and computed day count to WeatherAPI over https.
     const [url, config] = axios.get.mock.calls[0];
     expect(url).toContain("api.weatherapi.com");
+    expect(url).toMatch(/^https:\/\//);
     expect(config.params).toMatchObject({ q: "Barcelona", days: 2, key: "test-key" });
 
     expect(result.isMock).toBe(false);

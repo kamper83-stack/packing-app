@@ -7,6 +7,12 @@ services:
     restart: always
     ports:
       - "5001:5001"
+    # Provide real secrets via a root .env file or the shell environment
+    # (e.g. `WEATHER_API_KEY=... docker compose up`). The `:-placeholder`
+    # defaults below only exist so the stack still boots without them — with
+    # a placeholder key the backend runs in mock mode (no live forecasts).
+    # Get a free WeatherAPI key at https://www.weatherapi.com/.
+    # Do NOT hardcode real keys here; this file is committed to git.
     environment:
       - PORT=5001
       - JWT_SECRET=${JWT_SECRET:-dev_insecure_jwt_secret_change_me}
