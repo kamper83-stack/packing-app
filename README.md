@@ -1,176 +1,158 @@
-# PackPlanner - AI-Powered Suitcase Packing Assistant
+# PackPlanner
 
-Welcome to **PackPlanner**, a collaborative graduation software project built by **Eran** (`kamper83-stack`) and **Shiri** (`shirikyky`). 
+PackPlanner is a full-stack travel packing assistant. Users create a trip, provide the destination, dates, airline, group size, and vacation type, and receive a weather-aware packing checklist tailored to the trip.
 
-PackPlanner is a full-stack web application designed to eliminate packing stress. By analyzing a trip's destination, dates, airline baggage allowance, travel group size, and vacation type, PackPlanner uses **Gemini AI** and **WeatherAPI.com** to automatically generate a tailored, categorized checklist of items.
+## Features
 
----
+- JWT-based registration and login.
+- Trip creation and per-user trip listing.
+- Weather-aware packing inputs from WeatherAPI.com through the backend.
+- Gemini-powered packing-list generation with a JSON item contract.
+- Current live model: `gemini-3.5-flash-lite`.
+- Offline Mock mode for development and tests when live credentials are unavailable.
+- Checklist items grouped by category and bag (`Suitcase` or `Backpack`).
+- Packing progress, item completion, custom items, item deletion, and trip deletion.
+- Airline baggage configuration and a baggage-constraints display.
+- Responsive React UI with Tailwind CSS.
 
-## 🌟 Key Features
+> **Demo scope:** the team decision is to use a 3-day daily weather forecast for the demonstration. The service alignment is tracked in GitHub.
 
-* **User Authentication**: Secure user registration and login using JWT.
-* **Smart Packing Calculator**: Dynamically generates packing checklists based on real-time weather forecasts and travel conditions.
-* **Airline Baggage Warning**: Automated validation of checklist size/weight against baggage limits of major airlines (EL AL, Ryanair, EasyJet, Wizz Air, Delta, United).
-* **Responsive Checklist**: Checklist grouped by item category and target bag type (Suitcase vs. Backpack) with real-time progress bars.
-* **Offline Mock Mode**: Support for decoupled development using mock services when API keys are absent.
-
----
-
-## 🛠️ Technology Stack
-
-* **Frontend**: React, React Router, Tailwind CSS v3, Lucide Icons.
-* **Backend**: Node.js, Express.js.
-* **Database**: SQLite (local database file), Sequelize ORM.
-* **Orchestration & Containerization**: Docker, Docker Compose, Nginx (Frontend server & API Reverse Proxy).
-* **CI/CD**: GitHub Actions pipelines.
-* **Deployment & Network**: Private VPS running Docker Compose, connected via Tailscale VPN and SSH.
-* **APIs**: Google Gemini Pro (AI Packing List) & WeatherAPI.com (Forecasts).
-
----
-
-## 📁 Repository Directory Structure
+## Architecture
 
 ```text
-packing_app/
-├── .github/
-│   └── workflows/
-│       ├── ci.yml                 # PR Verification pipeline
-│       └── deploy.yml             # CD deployment pipeline via SSH & Tailscale
+packing-app/
 ├── backend/
-│   ├── config/
-│   │   ├── database.js            # Sequelize SQLite config
-│   │   └── airlines.json          # Predefined baggage rules
-│   ├── models/
-│   │   ├── index.js               # Model loader
-│   │   ├── User.js                # User DB schema
-│   │   ├── Trip.js                # Trip details DB schema
-│   │   └── PackingItem.js         # Checklist items DB schema
-│   ├── routes/
-│   │   ├── auth.js                # Register / Login controllers
-│   │   └── trips.js               # Trips CRUD & checklist controllers
-│   ├── services/
-│   │   ├── weatherService.js      # Weather forecast client (or mock)
-│   │   └── geminiService.js       # Gemini API client (or mock)
-│   ├── .env.example               # Backend config template
-│   ├── Dockerfile                 # Backend Docker configuration
-│   └── server.js                  # Entry server file
-├── nginx/
-│   └── default.conf               # Nginx reverse proxy configuration
+│   ├── config/              # SQLite and airline baggage configuration
+│   ├── middleware/          # Authentication middleware
+│   ├── models/              # Sequelize models for users, trips, and items
+│   ├── routes/              # Auth, trips, checklist, and item endpoints
+│   ├── services/            # WeatherAPI and Gemini integrations
+│   └── tests/               # Jest + Supertest backend tests
 ├── src/
-│   ├── components/                # Shared layout & UI components
-│   ├── pages/                     # Full-page screens (Login, Signup, Dashboard, TripView)
-│   ├── services/
-│   │   └── api.js                 # Frontend API HTTP requests wrapper
-│   ├── App.js                     # React router & App component
-│   ├── index.css                  # CSS file with Tailwind directives
-│   └── index.js                   # React app entry point
-├── Dockerfile                     # Frontend Docker configuration
-├── docker-compose.yml             # Orchestration configuration
-├── tailwind.config.js             # Tailwind CSS settings
-└── README.md                      # Project manual
+│   ├── pages/               # Login, Signup, Dashboard, and TripView
+│   ├── services/api.js      # Frontend API wrapper
+│   └── App.js                # React routes
+├── nginx/                   # Production reverse proxy configuration
+├── Dockerfile               # Multi-stage frontend image
+├── docker-compose.yml       # Development stack
+├── docker-compose.prod.yml  # Production backend/frontend stack
+└── .github/workflows/       # CI and deployment workflows
 ```
 
----
+The browser talks to the PackPlanner backend. The backend owns authentication, SQLite persistence, WeatherAPI calls, Gemini calls, and Mock fallback behavior. Provider keys must remain server-side.
 
-## 🚀 Getting Started
+## Requirements
 
-### Prerequisites
-* [Docker](https://www.docker.com/products/docker-desktop/) and Docker Compose installed.
-* Or Node.js (v20+) installed for local non-containerized running.
+- Node.js 20+
+- npm
+- Docker and Docker Compose for the containerized stack
+- A WeatherAPI.com key for live weather
+- A Gemini API key and available model quota for live packing-list generation
 
-### Option A: Running with Docker Compose (Recommended)
-This runs the entire frontend, backend, Nginx proxy, and database locally:
-1. Clone this repository:
-   ```bash
-   git clone https://github.com/kamper83-stack/packing-app.git
-   cd packing-app
-   ```
-2. Set up backend environment variables in `backend/.env`:
-   ```bash
-   cp backend/.env.example backend/.env
-   ```
-3. Run the application:
-   ```bash
-   docker compose up --build
-   ```
-4. Open your browser and navigate to `http://localhost`.
+## Local development
 
-### Option B: Running Locally (Manual Development Mode)
-1. **Start the Backend**:
-   ```bash
-   cd backend
-   cp .env.example .env
-   npm install
-   npm run dev
-   ```
-   The backend server runs on `http://localhost:5001`.
-2. **Start the Frontend**:
-   ```bash
-   # In the root packing_app/ directory
-   npm install
-   npm start
-   ```
-   The frontend development server runs on `http://localhost:3000`.
+### Backend
 
----
+```bash
+cd backend
+cp .env.example .env
+npm install
+npm run dev
+```
 
-## 🔌 Offline / Mock Mode for Decoupled Development
-To support rapid independent progress between Frontend and Backend, the backend features a **Mock Toggle**. 
-If you do not have active API keys, or if `USE_MOCKS=true` is set in your `backend/.env` file:
-* The weather service generates random daily forecasts for the destination.
-* The Gemini service generates structured, categorized item lists based on travel duration and vacation type.
+The backend listens on `http://localhost:5001` by default. Set `USE_MOCKS=true` for fully offline weather and Gemini development, or provide real keys and set `USE_MOCKS=false`.
 
----
+### Frontend
 
-## 👥 GitHub Issues & Division of Labor
+In a second terminal from the repository root:
 
-The project tasks are split vertically to give both developers full-stack experience:
+```bash
+npm install
+npm start
+```
 
-### Eran's Focus (`kamper83-stack`)
-* **Issue #2**: Backend skeleton, Sequelize, Express, and database config.
-* **Issue #4**: Backend User Auth (JWT, hashing, registration, and login routes).
-* **Issue #5**: Frontend Auth Screens (Login, Signup page, JWT storage, protected routes).
-* **Issue #11**: CI Actions Pipeline setup.
-* **Issue #12**: Dockerfiles & docker-compose configurations.
-* **Issue #13**: CD Actions Deployment setup.
+The frontend uses `REACT_APP_API_URL` when set; otherwise it defaults to `http://localhost:5001/api`.
 
-### Shiri's Focus (`shirikyky`)
-* **Issue #3**: Tailwind CSS v3 integration and base theme settings on React.
-* **Issue #6**: Backend Trip & Packing Item models, CRUD routes.
-* **Issue #7**: Weather service integration and weather mocking logic.
-* **Issue #8**: Gemini AI packing service and packing mock generator.
-* **Issue #9**: Frontend Trip Dashboard screen & new trip planning form.
-* **Issue #10**: Frontend Trip Packing Checklist page (categories, bag indicators, progress bars).
+### Docker Compose
 
----
+Docker Compose reads environment interpolation from the project-root `.env`. For a live containerized run, create that file with the required values:
 
-## 🔀 Branching & PR Guidelines
+```env
+JWT_SECRET=replace-with-a-long-random-secret
+WEATHER_API_KEY=replace-with-a-real-weatherapi-key
+GEMINI_API_KEY=replace-with-a-real-gemini-key
+USE_MOCKS=false
+```
 
-To protect the main branch and ensure mutual code review:
-1. **No direct pushes to `main`**: All changes must go through Pull Requests.
-2. **Feature branch naming**: Use the syntax `feature/issue-<num>-<description>` (e.g. `feature/issue-4-auth`).
-3. **PR Approvals**: Any PR opened by Eran requires Shiri's approval, and vice-versa, before merging is allowed.
+Then start the stack:
 
----
+```bash
+docker compose up --build
+```
 
-## 🏗️ CI/CD Deployment to VPS
+Do not commit `.env` or provider keys.
 
-### CI Pipeline
-Triggers on any PR opened to `main`. It validates:
-* Frontend and backend package compile/build successfully.
-* Code passes dependency caching.
-* Docker images build successfully.
+## Quality commands
 
-### CD Pipeline & VPS setup
-On push/merge to `main`, the CD pipeline:
-1. Connects to your private Tailscale network (if credentials configured).
-2. SSHes into your VPS host using port `22`.
-3. Runs `git pull origin main`, `docker compose down`, and `docker compose up --build -d` to restart the app stack.
+### Backend
 
-#### Required Repository Secrets:
-Go to `Settings -> Secrets and variables -> Actions` and add:
-* `VPS_SSH_HOST`: Tailscale IP of your VPS.
-* `VPS_SSH_USERNAME`: Your SSH username (e.g. `root` or `ubuntu`).
-* `VPS_SSH_KEY`: Private SSH Key.
-* `JWT_SECRET`: A strong, random secret used to sign JWTs in production. The CD pipeline **refuses to deploy** if this is missing or still the dev placeholder.
-* `TS_OAUTH_CLIENT_ID` & `TS_OAUTH_SECRET`: Tailscale Auth credentials (if using Tailscale action).
+```bash
+cd backend
+npm test
+```
+
+### Frontend
+
+```bash
+npm test -- --watchAll=false
+npm run build
+```
+
+The backend test suite runs offline by mocking external providers. Live provider smoke tests should be run separately and must never print credentials.
+
+## API overview
+
+Authenticated backend routes include:
+
+- `POST /api/auth/register` — create a user.
+- `POST /api/auth/login` — issue a JWT.
+- `GET /api/auth/me` — return the authenticated user.
+- `GET /api/trips` — list the current user's trips.
+- `POST /api/trips` — create a trip and generate its checklist.
+- `GET /api/trips/:id` — return one trip with packing items.
+- `DELETE /api/trips/:id` — delete a trip.
+- `POST /api/trips/:id/custom-item` — add a custom checklist item.
+- `PUT /api/trips/item/:itemId` — update packing state or item details.
+- `DELETE /api/trips/item/:itemId` — delete an item.
+
+The packing-item response contract is:
+
+```json
+{
+  "name": "Rain Jacket",
+  "category": "Clothing",
+  "quantity": 1,
+  "targetBag": "Suitcase"
+}
+```
+
+## Environment variables
+
+The backend reads:
+
+- `PORT` — server port, default `5001`.
+- `JWT_SECRET` — JWT signing secret.
+- `WEATHER_API_KEY` — WeatherAPI.com key.
+- `GEMINI_API_KEY` — Gemini API key.
+- `USE_MOCKS` — set to `true` for deterministic offline provider paths.
+
+Keep secrets in local/VPS environment files. The application backend calls external providers; the browser never receives these keys.
+
+## Deployment
+
+The production Compose file binds the frontend and backend to loopback ports for the reverse-proxy layer:
+
+- Frontend: `127.0.0.1:3025`
+- Backend: `127.0.0.1:3026`
+
+The deployment workflow is defined in `.github/workflows/deploy.yml`. Production deployments should use the production Compose file and preserve the SQLite volume.
