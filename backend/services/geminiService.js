@@ -44,11 +44,17 @@ async function generatePackingList({
   destination,
   days,
   numPeople,
+  passengerComposition,
   vacationType,
   airline,
   weatherSummary,
   baggageAllowance,
 }) {
+  // Describe the traveler mix in one line for prompt/mock use.
+  const travelersLine = passengerComposition
+    ? `Traveler Mix: ${JSON.stringify(passengerComposition)}`
+    : `Number of People: ${numPeople}`;
+
   const useMocks = process.env.USE_MOCKS === "true" || !process.env.GEMINI_API_KEY;
 
   if (useMocks) {
@@ -64,7 +70,7 @@ async function generatePackingList({
       You are an expert packing assistant. Generate a highly personalized packing checklist for a trip with these details:
       - Destination: ${destination}
       - Duration: ${days} days
-      - Number of People: ${numPeople}
+      - ${travelersLine}
       - Vacation Type: ${vacationType}
       - Airline: ${airline}
       - Weather forecast summary: ${JSON.stringify(weatherSummary)}

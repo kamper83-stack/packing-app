@@ -86,6 +86,64 @@ describe("Trips API Endpoints (Issue #6)", () => {
       expect(res.body.error).toMatch(/positive integer/i);
     });
 
+    it("should reject creation with both numPeople and passengerComposition (Issue #22)", async () => {
+      const res = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({
+          ...validTrip,
+          numPeople: 2,
+          passengerComposition: { infants: 0, children: 1, women: 1, men: 0 },
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/not both/i);
+    });
+
+    it("should accept a mixed passenger composition and derive the total (Issue #22)", async () => {
+      const res = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({
+          destination: "Rome",
+          startDate: "2026-10-01",
+          endDate: "2026-10-05",
+          airline: "EL AL",
+          vacationType: "City",
+          passengerComposition: { infants: 1, children: 2, women: 1, men: 1 },
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.passengerComposition).toEqual({ infants: 1, children: 2, women: 1, men: 1 });
+      expect(res.body.numPeople).toBe(5); // derived total
+      expect(Array.isArray(res.body.PackingItems)).toBe(true);
+      expect(res.body.PackingItems.length).toBeGreaterThan(0);
+    });
+
+    it.each([
+      { description: "a fractional count", composition: { infants: 0, children: 1.5, women: 1, men: 0 } },
+      { description: "a negative count", composition: { infants: -1, children: 1, women: 1, men: 1 } },
+      { description: "an all-zero composition", composition: { infants: 0, children: 0, women: 0, men: 0 } },
+      { description: "an unknown key", composition: { infants: 1, children: 1, women: 1, men: 1, pets: 2 } },
+      { description: "a missing key", composition: { infants: 1, women: 1, men: 1 } },
+      { description: "a non-object payload", composition: "5 people" },
+    ])("should reject $description in passengerComposition", async ({ composition }) => {
+      const res = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({
+          destination: "Rome",
+          startDate: "2026-10-01",
+          endDate: "2026-10-05",
+          airline: "EL AL",
+          vacationType: "City",
+          passengerComposition: composition,
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/passenger composition/i);
+    });
+
     it("should create a trip, trim the destination, and generate a packing list", async () => {
       const res = await request(app)
         .post("/api/trips")
