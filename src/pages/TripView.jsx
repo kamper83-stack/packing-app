@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { api } from "../services/api";
 import { Plus, Trash2, ChevronLeft } from "lucide-react";
+import { summarizePassengers } from "../utils/passengers";
 
 export default function TripView() {
   const { id } = useParams();
@@ -117,7 +118,9 @@ export default function TripView() {
             </Link>
             <h2 className="text-2xl font-bold text-gray-900">{trip.destination}</h2>
             <p className="text-sm text-gray-500 mt-1">
-              🗓️ {trip.startDate} to {trip.endDate} | 🛫 {trip.airline} | 👤 {trip.numPeople} {trip.numPeople > 1 ? "people" : "person"}
+              🗓️ {trip.startDate} to {trip.endDate} | 🛫 {trip.airline} | 👤{" "}
+              {summarizePassengers(trip.passengerComposition) ||
+                `${trip.numPeople} ${trip.numPeople > 1 ? "people" : "person"}`}
             </p>
           </div>
           <button
