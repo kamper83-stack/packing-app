@@ -1,6 +1,13 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../services/api";
+import {
+  PASSENGER_CATEGORIES,
+  buildComposition,
+  emptyComposition,
+  summarizePassengers,
+  totalPassengers,
+} from "../utils/passengers";
 import DestinationAutocomplete from "../components/DestinationAutocomplete";
 
 export default function Dashboard() {
@@ -13,7 +20,7 @@ export default function Dashboard() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [airline, setAirline] = useState("EL AL");
-  const [numPeople, setNumPeople] = useState(1);
+  const [passengers, setPassengers] = useState(emptyComposition());
   const [vacationType, setVacationType] = useState("City Trip");
   const [creating, setCreating] = useState(false);
 
@@ -37,17 +44,30 @@ export default function Dashboard() {
     fetchTrips();
   }, [fetchTrips]);
 
+  const handlePassengerChange = (key, value) => {
+    setPassengers((prev) => ({ ...prev, [key]: value }));
+  };
+
   const handleCreateTrip = async (e) => {
     e.preventDefault();
-    setCreating(true);
     setError("");
+
+    // Build the canonical passengerComposition (Issue #22 contract) and block
+    // submission when no travellers were selected at all.
+    const passengerComposition = buildComposition(passengers);
+    if (totalPassengers(passengerComposition) === 0) {
+      setError("Please add at least one passenger (infant, child, woman or man).");
+      return;
+    }
+
+    setCreating(true);
     try {
       const newTrip = await api.createTrip({
         destination,
         startDate,
         endDate,
         airline,
-        numPeople: parseInt(numPeople),
+        passengerComposition,
         vacationType,
       });
       // Redirect to the trip details view
@@ -129,35 +149,46 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase">Airline</label>
-                  <select
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                    value={airline}
-                    onChange={(e) => setAirline(e.target.value)}
-                  >
-                    <option value="EL AL">EL AL</option>
-                    <option value="Ryanair">Ryanair</option>
-                    <option value="Wizz Air">Wizz Air</option>
-                    <option value="EasyJet">EasyJet</option>
-                    <option value="Delta">Delta</option>
-                    <option value="United">United</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase">People Count</label>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                    value={numPeople}
-                    onChange={(e) => setNumPeople(e.target.value)}
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase">Airline</label>
+                <select
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  value={airline}
+                  onChange={(e) => setAirline(e.target.value)}
+                >
+                  <option value="EL AL">EL AL</option>
+                  <option value="Ryanair">Ryanair</option>
+                  <option value="Wizz Air">Wizz Air</option>
+                  <option value="EasyJet">EasyJet</option>
+                  <option value="Delta">Delta</option>
+                  <option value="United">United</option>
+                  <option value="Other">Other</option>
+                </select>
               </div>
+
+              <fieldset>
+                <legend className="block text-xs font-semibold text-gray-500 uppercase">
+                  Passengers
+                </legend>
+                <div className="mt-2 grid grid-cols-2 gap-3">
+                  {PASSENGER_CATEGORIES.map((c) => (
+                    <label key={c.key} className="block">
+                      <span className="block text-xs text-gray-600 mb-1">
+                        <span className="mr-1" aria-hidden="true">{c.emoji}</span>
+                        {c.label}
+                      </span>
+                      <input
+                        type="number"
+                        min="0"
+                        aria-label={c.label}
+                        className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                        value={passengers[c.key]}
+                        onChange={(e) => handlePassengerChange(c.key, e.target.value)}
+                      />
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
 
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase">Vacation Type</label>
@@ -195,28 +226,32 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="space-y-4">
-                {trips.map((trip) => (
-                  <div
-                    key={trip.id}
-                    className="flex justify-between items-center p-4 border border-gray-200 rounded-lg hover:border-indigo-300 transition-colors"
-                  >
-                    <div>
-                      <h4 className="font-bold text-gray-900 text-base">{trip.destination}</h4>
-                      <p className="text-xs text-gray-500">
-                        🗓️ {trip.startDate} to {trip.endDate} | 🛫 {trip.airline} | 👥 {trip.numPeople}
-                      </p>
-                      <span className="inline-block mt-2 px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded text-xs font-semibold">
-                        {trip.vacationType}
-                      </span>
-                    </div>
-                    <Link
-                      to={`/trip/${trip.id}`}
-                      className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-md text-sm font-semibold transition-colors"
+                {trips.map((trip) => {
+                  const summary = summarizePassengers(trip.passengerComposition);
+                  return (
+                    <div
+                      key={trip.id}
+                      className="flex justify-between items-center p-4 border border-gray-200 rounded-lg hover:border-indigo-300 transition-colors"
                     >
-                      View Checklist
-                    </Link>
-                  </div>
-                ))}
+                      <div>
+                        <h4 className="font-bold text-gray-900 text-base">{trip.destination}</h4>
+                        <p className="text-xs text-gray-500">
+                          🗓️ {trip.startDate} to {trip.endDate} | 🛫 {trip.airline} | 👥{" "}
+                          {summary || trip.numPeople}
+                        </p>
+                        <span className="inline-block mt-2 px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded text-xs font-semibold">
+                          {trip.vacationType}
+                        </span>
+                      </div>
+                      <Link
+                        to={`/trip/${trip.id}`}
+                        className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-md text-sm font-semibold transition-colors"
+                      >
+                        View Checklist
+                      </Link>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

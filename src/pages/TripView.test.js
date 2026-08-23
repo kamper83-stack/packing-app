@@ -28,6 +28,7 @@ const sampleTrip = {
   endDate: "2026-09-05",
   airline: "EL AL",
   numPeople: 2,
+  passengerComposition: { infants: 0, children: 0, women: 1, men: 1 },
   weatherData: [{ date: "2026-09-01", tempC: 22, condition: "Sunny" }],
   PackingItems: [
     { id: "i1", name: "Shirts", category: "Clothing", quantity: 3, targetBag: "Suitcase", isPacked: false },
@@ -61,6 +62,19 @@ describe("TripView (Issue #10)", () => {
     // 1 of 2 items packed -> 50%.
     expect(container.textContent).toContain("50%");
     expect(container.textContent).toContain("1 of 2 items");
+    // Passenger composition is shown in place of the generic count.
+    expect(container.textContent).toContain("1 נשים");
+    expect(container.textContent).toContain("1 גברים");
+  });
+
+  it("falls back to the legacy numPeople count when no composition is stored", async () => {
+    const legacy = { ...sampleTrip, passengerComposition: undefined, numPeople: 3 };
+    api.getTrip.mockResolvedValue(legacy);
+
+    const { container } = renderTripView();
+
+    await screen.findByRole("heading", { name: "Barcelona" });
+    expect(container.textContent).toContain("3 people");
   });
 
   it("toggles an item's packed status via its checkbox", async () => {
