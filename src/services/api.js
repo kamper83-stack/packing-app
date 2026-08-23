@@ -76,4 +76,6 @@ export const api = {
     }),
 
   getAirlines: () => request("/trips/config/airlines"),
+
+  getDestinations: () => request("/trips/destinations"),
 };
