@@ -7,10 +7,11 @@
 // A single controllable stand-in for model.generateContent(). Referenced inside
 // the jest.mock factory below (allowed because the name is `mock*`-prefixed).
 const mockGenerateContent = jest.fn();
+const mockGetGenerativeModel = jest.fn(() => ({ generateContent: mockGenerateContent }));
 
 jest.mock("@google/generative-ai", () => ({
   GoogleGenerativeAI: jest.fn().mockImplementation(() => ({
-    getGenerativeModel: jest.fn(() => ({ generateContent: mockGenerateContent })),
+    getGenerativeModel: mockGetGenerativeModel,
   })),
 }));
 
@@ -28,6 +29,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   mockGenerateContent.mockReset();
+  mockGetGenerativeModel.mockClear();
   // Default each test to deterministic mock mode; real-path tests opt out.
   delete process.env.GEMINI_API_KEY;
   process.env.USE_MOCKS = "true";
@@ -142,6 +144,7 @@ describe("geminiService.generatePackingList - real API path (mocked SDK)", () =>
 
     const items = await generatePackingList(baseArgs);
 
+    expect(mockGetGenerativeModel).toHaveBeenCalledWith({ model: "gemini-3.5-flash-lite" });
     expect(mockGenerateContent).toHaveBeenCalledTimes(1);
     expect(items).toEqual(aiItems);
   });

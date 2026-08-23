@@ -27,6 +27,10 @@ const Trip = sequelize.define("Trip", {
     type: DataTypes.INTEGER,
     defaultValue: 1,
   },
+  passengerComposition: {
+    type: DataTypes.JSON, // { infants, children, women, men } — Issue #22
+    allowNull: true,
+  },
   vacationType: {
     type: DataTypes.STRING,
     allowNull: false,

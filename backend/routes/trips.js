@@ -12,6 +12,34 @@ router.use(authMiddleware);
 // Returns true when the value is a valid calendar date string (e.g. "2026-08-16").
 const isValidDate = (value) => !Number.isNaN(new Date(value).getTime());
 
+// Validates the passenger composition contract (Issue #22): exactly the four
+// canonical keys, each a non-negative integer, with at least one passenger in
+// total. Returns the validated object or null when invalid.
+function validatePassengerComposition(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return null;
+  }
+
+  const keys = ["infants", "children", "women", "men"];
+  const counts = {};
+  let total = 0;
+  for (const key of keys) {
+    const count = value[key];
+    if (!Number.isInteger(count) || count < 0) {
+      return null;
+    }
+    counts[key] = count;
+    total += count;
+  }
+
+  // Reject unknown keys so callers cannot smuggle extra fields into storage.
+  if (Object.keys(value).length !== keys.length) {
+    return null;
+  }
+
+  return total >= 1 ? counts : null;
+}
+
 // GET /api/trips - Fetch all trips of the user
 router.get("/", async (req, res) => {
   try {
@@ -45,7 +73,7 @@ router.get("/:id", async (req, res) => {
 
 // POST /api/trips - Create new trip & generate packing list
 router.post("/", async (req, res) => {
-  const { destination, startDate, endDate, airline, numPeople, vacationType } = req.body;
+  const { destination, startDate, endDate, airline, numPeople, passengerComposition, vacationType } = req.body;
 
   if (!destination || !startDate || !endDate || !airline || !vacationType) {
     return res.status(400).json({ error: "All required fields must be filled." });
@@ -59,8 +87,19 @@ router.post("/", async (req, res) => {
     return res.status(400).json({ error: "End date cannot be before start date." });
   }
 
-  // numPeople is optional but, when provided, must be a positive integer.
-  if (numPeople !== undefined && (!Number.isInteger(numPeople) || numPeople < 1)) {
+  // Passenger mix (Issue #22): either an explicit valid passengerComposition,
+  // or the legacy single numPeople field. Exactly one source of truth.
+  let composition;
+  let effectiveNumPeople;
+  if (passengerComposition !== undefined && numPeople !== undefined) {
+    return res.status(400).json({ error: "Provide either numPeople or passengerComposition, not both." });
+  } else if (passengerComposition !== undefined) {
+    composition = validatePassengerComposition(passengerComposition);
+    if (!composition) {
+      return res.status(400).json({ error: "Invalid passenger composition." });
+    }
+    effectiveNumPeople = Object.values(composition).reduce((sum, count) => sum + count, 0);
+  } else if (numPeople !== undefined && (!Number.isInteger(numPeople) || numPeople < 1)) {
     return res.status(400).json({ error: "Number of people must be a positive integer." });
   }
 
@@ -88,7 +127,8 @@ router.post("/", async (req, res) => {
     const generatedItems = await geminiService.generatePackingList({
       destination: cleanDestination,
       days,
-      numPeople: numPeople || 1,
+      numPeople: effectiveNumPeople ?? numPeople ?? 1,
+      ...(composition ? { passengerComposition: composition } : {}),
       vacationType: cleanVacationType,
       airline: cleanAirline,
       weatherSummary: weatherInfo.forecast,
@@ -101,7 +141,8 @@ router.post("/", async (req, res) => {
       startDate,
       endDate,
       airline: cleanAirline,
-      numPeople: numPeople || 1,
+      numPeople: effectiveNumPeople ?? numPeople ?? 1,
+      ...(composition ? { passengerComposition: composition } : {}),
       vacationType: cleanVacationType,
       weatherData: weatherInfo.forecast,
       userId: req.user.id,
