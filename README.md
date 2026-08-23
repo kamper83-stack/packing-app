@@ -15,7 +15,7 @@ PackPlanner is a full-stack travel packing assistant. Users create a trip, provi
 - Airline baggage configuration and a baggage-constraints display.
 - Responsive React UI with Tailwind CSS.
 
-> **Demo scope:** the team decision is to present a maximum 3-day daily weather forecast. The current service still supports up to 14 days; aligning enforcement with the demo policy is tracked in GitHub.
+> **Demo scope:** the team decision is to present a maximum 3-day daily weather forecast. The weather service enforces this window (requests are capped at 3 days) so an out-of-range request can never be silently presented as valid data.
 
 ## Architecture
 
