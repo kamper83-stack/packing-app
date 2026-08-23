@@ -1,5 +1,39 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
+// The only bags the app knows how to place items into.
+const SUPPORTED_TARGET_BAGS = ["Suitcase", "Backpack"];
+
+// Validate a model-generated packing list before it is persisted (Issue #34).
+// The Gemini output is untrusted: it may not be an array, may miss required
+// fields, or carry nonsense quantities/bags. Returns the array unchanged when
+// every item is valid; throws a descriptive Error otherwise so the caller can
+// route invalid output through the same fallback as a failed API call.
+function validatePackingItems(items) {
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new Error("packing list must be a non-empty array");
+  }
+
+  items.forEach((item, index) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      throw new Error(`item ${index} is not an object`);
+    }
+    if (typeof item.name !== "string" || item.name.trim() === "") {
+      throw new Error(`item ${index} has an invalid name`);
+    }
+    if (typeof item.category !== "string" || item.category.trim() === "") {
+      throw new Error(`item ${index} has an invalid category`);
+    }
+    if (!Number.isInteger(item.quantity) || item.quantity <= 0) {
+      throw new Error(`item ${index} has a non-positive or non-integer quantity`);
+    }
+    if (!SUPPORTED_TARGET_BAGS.includes(item.targetBag)) {
+      throw new Error(`item ${index} has an unsupported targetBag`);
+    }
+  });
+
+  return items;
+}
+
 // Mock list generator based on vacation type
 function getMockPackingList(vacationType, days, numPeople) {
   const baseItems = [
@@ -96,11 +130,18 @@ async function generatePackingList({
     });
 
     const text = result.response.text();
-    return JSON.parse(text);
+    // Parse and validate before returning: invalid model output must not reach
+    // persistence. On failure we throw, which the catch below turns into the
+    // agreed mock fallback (same contract as a failed API call).
+    const parsed = JSON.parse(text);
+    return validatePackingItems(parsed);
   } catch (error) {
-    console.error("[GEMINI SERVICE] Error calling Gemini API, falling back to mock:", error.message);
+    console.error(
+      "[GEMINI SERVICE] Invalid or failed live generation, falling back to mock:",
+      error.message
+    );
     return getMockPackingList(vacationType, days, numPeople);
   }
 }
 
-module.exports = { generatePackingList };
+module.exports = { generatePackingList, validatePackingItems };
