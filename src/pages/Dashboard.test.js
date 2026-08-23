@@ -15,6 +15,7 @@ jest.mock("../services/api", () => ({
   api: {
     getTrips: jest.fn(),
     createTrip: jest.fn(),
+    getDestinations: jest.fn(),
   },
 }));
 
@@ -36,6 +37,9 @@ const fillTripForm = (container) => {
 beforeEach(() => {
   jest.clearAllMocks();
   localStorage.clear();
+  // The destination field loads suggestions on mount; keep it empty so the
+  // dropdown never appears and these Dashboard tests stay focused on the form.
+  api.getDestinations.mockResolvedValue({ destinations: [] });
 });
 
 describe("Dashboard (Issue #9)", () => {

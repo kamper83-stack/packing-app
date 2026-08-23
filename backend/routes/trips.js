@@ -5,9 +5,18 @@ const authMiddleware = require("../middleware/auth");
 const weatherService = require("../services/weatherService");
 const geminiService = require("../services/geminiService");
 const airlines = require("../config/airlines.json");
+const destinations = require("../config/destinations.json");
 
 // Protect all routes
 router.use(authMiddleware);
+
+// GET /api/trips/destinations - Popular destinations for the create-trip
+// autocomplete (Issue #38). Declared before the "/:id" route so the literal
+// path is not captured as a trip id. The POST contract is unchanged:
+// `destination` is still a free string, this only powers type-ahead hints.
+router.get("/destinations", (req, res) => {
+  res.json({ destinations });
+});
 
 // Returns true when the value is a valid calendar date string (e.g. "2026-08-16").
 const isValidDate = (value) => !Number.isNaN(new Date(value).getTime());
