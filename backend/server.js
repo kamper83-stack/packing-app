@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const { sequelize } = require("./models");
+const ensureSchema = require("./config/ensureSchema");
 const authRoutes = require("./routes/auth");
 const tripRoutes = require("./routes/trips");
 
@@ -26,6 +27,9 @@ async function startServer() {
   try {
     // Sync Database
     await sequelize.sync({ force: false }); // Change to true to reset database schema
+    // sync({ force: false }) creates missing tables but never ALTERs existing
+    // ones, so reconcile columns added after the DB was first provisioned.
+    await ensureSchema();
     console.log("[DB] SQLite database synchronized successfully.");
 
     app.listen(PORT, () => {
