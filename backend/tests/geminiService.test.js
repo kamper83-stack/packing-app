@@ -15,7 +15,7 @@ jest.mock("@google/generative-ai", () => ({
   })),
 }));
 
-const { generatePackingList } = require("../services/geminiService");
+const { generatePackingList, validatePackingItems } = require("../services/geminiService");
 
 // The two env vars the service reads. Snapshot them so tests start clean and
 // the surrounding process env is restored afterwards.
@@ -170,5 +170,61 @@ describe("geminiService.generatePackingList - real API path (mocked SDK)", () =>
 
     // JSON.parse throws -> caught -> mock fallback.
     expect(items.map((i) => i.name)).toContain("Underwear");
+  });
+
+  // Issue #34: valid JSON that is not a valid packing list must not be
+  // persisted — it is routed through the same mock fallback as a failed call.
+  it.each([
+    { label: "an empty array", output: [] },
+    { label: "a non-array object", output: { name: "Camera" } },
+    { label: "an item missing required fields", output: [{ name: "Camera" }] },
+    {
+      label: "a non-integer quantity",
+      output: [{ name: "Camera", category: "Electronics", quantity: 1.5, targetBag: "Backpack" }],
+    },
+    {
+      label: "a non-positive quantity",
+      output: [{ name: "Camera", category: "Electronics", quantity: 0, targetBag: "Backpack" }],
+    },
+    {
+      label: "an unsupported targetBag",
+      output: [{ name: "Camera", category: "Electronics", quantity: 1, targetBag: "Trunk" }],
+    },
+  ])("falls back to the mock list when the model returns $label", async ({ output }) => {
+    enableRealPath();
+    mockGenerateContent.mockResolvedValue({
+      response: { text: () => JSON.stringify(output) },
+    });
+
+    const items = await generatePackingList(baseArgs);
+
+    expect(items.map((i) => i.name)).toContain("Underwear"); // deterministic mock
+  });
+});
+
+describe("geminiService.validatePackingItems (Issue #34)", () => {
+  const validItems = [
+    { name: "Camera", category: "Electronics", quantity: 1, targetBag: "Backpack" },
+    { name: "Novel", category: "Leisure", quantity: 2, targetBag: "Suitcase" },
+  ];
+
+  it("returns the array unchanged when every item is valid", () => {
+    expect(validatePackingItems(validItems)).toBe(validItems);
+  });
+
+  it.each([
+    ["a non-array", "nope"],
+    ["an empty array", []],
+    ["a null item", [null]],
+    ["a missing name", [{ category: "Electronics", quantity: 1, targetBag: "Backpack" }]],
+    ["a blank name", [{ name: "  ", category: "Electronics", quantity: 1, targetBag: "Backpack" }]],
+    ["a missing category", [{ name: "Camera", quantity: 1, targetBag: "Backpack" }]],
+    ["a fractional quantity", [{ name: "Camera", category: "Electronics", quantity: 1.5, targetBag: "Backpack" }]],
+    ["a zero quantity", [{ name: "Camera", category: "Electronics", quantity: 0, targetBag: "Backpack" }]],
+    ["a negative quantity", [{ name: "Camera", category: "Electronics", quantity: -2, targetBag: "Backpack" }]],
+    ["a string quantity", [{ name: "Camera", category: "Electronics", quantity: "1", targetBag: "Backpack" }]],
+    ["an unsupported bag", [{ name: "Camera", category: "Electronics", quantity: 1, targetBag: "Trunk" }]],
+  ])("throws for %s", (_label, input) => {
+    expect(() => validatePackingItems(input)).toThrow();
   });
 });
