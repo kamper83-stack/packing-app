@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../services/api";
+import DestinationAutocomplete from "../components/DestinationAutocomplete";
 
 export default function Dashboard() {
   const [trips, setTrips] = useState([]);
@@ -96,13 +97,12 @@ export default function Dashboard() {
             <form onSubmit={handleCreateTrip} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase">Destination</label>
-                <input
-                  type="text"
+                <DestinationAutocomplete
+                  value={destination}
+                  onChange={setDestination}
                   required
                   placeholder="e.g. Paris, London, Tokyo"
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  value={destination}
-                  onChange={(e) => setDestination(e.target.value)}
                 />
               </div>
 
