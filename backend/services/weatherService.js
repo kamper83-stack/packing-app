@@ -6,9 +6,20 @@ const axios = require("axios");
 // looks exactly like a real key that "doesn't work".
 const PLACEHOLDER_KEYS = new Set(["your_weather_api_key_here"]);
 
+// WeatherAPI's Free plan (and this project's demo policy) only serves up to a
+// 3-day forecast, so never request more — otherwise the live call fails and we
+// silently present mock data as if it were real.
+const MAX_FORECAST_DAYS = 3;
+
+// The configured WeatherAPI key, normalized (trimmed) so a padded value in the
+// environment is validated and sent consistently.
+function weatherApiKey() {
+  return (process.env.WEATHER_API_KEY || "").trim();
+}
+
 // True only when a usable WeatherAPI key is configured.
 function hasRealWeatherKey() {
-  const key = (process.env.WEATHER_API_KEY || "").trim();
+  const key = weatherApiKey();
   return key.length > 0 && !PLACEHOLDER_KEYS.has(key);
 }
 
@@ -17,7 +28,7 @@ async function getForecast(destination, startDate, endDate) {
   const end = new Date(endDate);
   const diffTime = Math.abs(end - start);
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-  const days = Math.min(Math.max(diffDays, 1), 14); // WeatherAPI supports up to 14 days
+  const days = Math.min(Math.max(diffDays, 1), MAX_FORECAST_DAYS);
 
   const useMocks = process.env.USE_MOCKS === "true" || !hasRealWeatherKey();
 
@@ -39,7 +50,7 @@ async function getForecast(destination, startDate, endDate) {
   }
 
   try {
-    const apiKey = process.env.WEATHER_API_KEY;
+    const apiKey = weatherApiKey();
     console.log(`[WEATHER SERVICE] Fetching live forecast for ${destination} (${days} days)`);
     const response = await axios.get(`https://api.weatherapi.com/v1/forecast.json`, {
       params: {
