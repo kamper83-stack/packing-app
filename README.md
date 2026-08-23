@@ -15,7 +15,7 @@ PackPlanner is a full-stack travel packing assistant. Users create a trip, provi
 - Airline baggage configuration and a baggage-constraints display.
 - Responsive React UI with Tailwind CSS.
 
-> **Demo scope:** the team decision is to present a maximum 3-day daily weather forecast. The current service still supports up to 14 days; aligning enforcement with the demo policy is tracked in GitHub.
+> **Demo scope:** the team decision is to present a maximum 3-day daily weather forecast. The weather service enforces this window (requests are capped at 3 days) so an out-of-range request can never be silently presented as valid data.
 
 ## Architecture
 
@@ -60,6 +60,18 @@ npm run dev
 ```
 
 The backend listens on `http://localhost:5001` by default. Set `USE_MOCKS=true` for fully offline weather and Gemini development, or provide real keys and set `USE_MOCKS=false`.
+
+> **Note:** The placeholder `WEATHER_API_KEY=your_weather_api_key_here` shipped in
+> `.env.example` counts as "no real key" — the backend detects it and stays in
+> mock mode instead of calling WeatherAPI with an invalid key. Set a real key to
+> get live forecasts.
+
+After installing dependencies, you can confirm a real key works (prints `isMock: false` on success):
+
+```bash
+cd backend
+node -e "require('dotenv').config(); require('./services/weatherService').getForecast('Tel Aviv','2026-08-21','2026-08-23').then(r=>console.log('isMock:',r.isMock, r.error||''))"
+```
 
 ### Frontend
 
