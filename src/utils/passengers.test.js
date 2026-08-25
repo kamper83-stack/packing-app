@@ -2,6 +2,8 @@ import {
   PASSENGER_CATEGORIES,
   buildComposition,
   emptyComposition,
+  invalidPassengerCategories,
+  isValidCount,
   summarizePassengers,
   toCount,
   totalPassengers,
@@ -42,6 +44,38 @@ describe("passenger composition helpers (Issue #23)", () => {
     expect(totalPassengers({ infants: 0, children: 2, women: 1, men: 1 })).toBe(4);
     expect(totalPassengers(emptyComposition())).toBe(0);
     expect(totalPassengers(null)).toBe(0);
+  });
+
+  it("isValidCount accepts blanks and whole numbers but rejects fractional/garbage input (Issue #35)", () => {
+    // Blank fields are allowed and later treated as zero.
+    expect(isValidCount("")).toBe(true);
+    expect(isValidCount(undefined)).toBe(true);
+    expect(isValidCount(null)).toBe(true);
+    // Non-negative whole numbers are valid.
+    expect(isValidCount("0")).toBe(true);
+    expect(isValidCount("3")).toBe(true);
+    expect(isValidCount(2)).toBe(true);
+    // Fractional values must be rejected rather than truncated to an int.
+    expect(isValidCount("1.5")).toBe(false);
+    expect(isValidCount(2.5)).toBe(false);
+    // Negative and otherwise non-numeric values are rejected too.
+    expect(isValidCount("-1")).toBe(false);
+    expect(isValidCount("abc")).toBe(false);
+    expect(isValidCount("1e2")).toBe(false);
+  });
+
+  it("invalidPassengerCategories reports the labels of fields that are not whole numbers (Issue #35)", () => {
+    // A fractional "women" count surfaces that specific category label.
+    expect(invalidPassengerCategories({ infants: 0, children: 0, women: "1.5", men: 1 })).toEqual([
+      "נשים",
+    ]);
+    // A fully valid composition reports nothing.
+    expect(
+      invalidPassengerCategories({ infants: "1", children: "2", women: "1", men: "1" })
+    ).toEqual([]);
+    // Missing keys are treated as blank (valid), not as invalid input.
+    expect(invalidPassengerCategories({})).toEqual([]);
+    expect(invalidPassengerCategories(null)).toEqual([]);
   });
 
   it("summarizePassengers renders only the non-zero categories", () => {

@@ -20,6 +20,22 @@ export const toCount = (value) => {
   return Number.isFinite(n) && n > 0 ? n : 0;
 };
 
+// Whether a raw form value is an acceptable passenger count: a blank field
+// (treated as zero) or a non-negative whole number. Fractional, negative or
+// otherwise non-numeric values are rejected here instead of being silently
+// truncated by parseInt (e.g. "1.5" -> 1). See Issue #35.
+export const isValidCount = (value) => {
+  if (value === "" || value === null || value === undefined) return true;
+  return /^\d+$/.test(String(value).trim());
+};
+
+// Display labels of any passenger categories whose raw value is not a valid
+// non-negative integer, so the form can surface a specific validation message.
+export const invalidPassengerCategories = (form) =>
+  PASSENGER_CATEGORIES.filter((c) => !isValidCount(form ? form[c.key] : undefined)).map(
+    (c) => c.label
+  );
+
 // Total number of passengers across the four categories.
 export const totalPassengers = (composition) => {
   if (!composition) return 0;
