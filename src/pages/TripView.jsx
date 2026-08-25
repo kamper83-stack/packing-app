@@ -18,6 +18,11 @@ export default function TripView() {
   const [customQty, setCustomQty] = useState(1);
   const [customBag, setCustomBag] = useState("Suitcase");
 
+  // Checklist filters (Issue #43): narrow the list by target bag and by
+  // whether an item is still to pack or already packed.
+  const [bagFilter, setBagFilter] = useState("All"); // "All" | "Backpack" | "Suitcase"
+  const [statusFilter, setStatusFilter] = useState("All"); // "All" | "ToPack" | "Packed"
+
   const fetchTripDetails = useCallback(async () => {
     setLoading(true);
     try {
@@ -101,11 +106,23 @@ export default function TripView() {
     );
   }
 
+  // Overall progress always reflects every item, regardless of the active
+  // filters, so the user keeps a stable sense of how much is left to pack.
   const packedCount = items.filter((i) => i.isPacked).length;
   const progressPercent = items.length ? Math.round((packedCount / items.length) * 100) : 0;
 
-  // Group items by category
-  const categories = [...new Set(items.map((i) => i.category))];
+  // Apply the bag + status filters (Issue #43) before grouping, so both the
+  // visible items and their category sections update together.
+  const visibleItems = items.filter((item) => {
+    const bagMatches = bagFilter === "All" || item.targetBag === bagFilter;
+    const statusMatches =
+      statusFilter === "All" ||
+      (statusFilter === "Packed" ? item.isPacked : !item.isPacked);
+    return bagMatches && statusMatches;
+  });
+
+  // Group the visible items by category.
+  const categories = [...new Set(visibleItems.map((i) => i.category))];
 
   return (
     <div className="min-h-screen bg-gray-100 py-8 px-4 sm:px-6 lg:px-8">
@@ -186,9 +203,57 @@ export default function TripView() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Items checklist */}
           <div className="lg:col-span-2 space-y-6">
-            {categories.length === 0 ? (
+            {/* Filter toolbar (Issue #43) */}
+            <div className="bg-white p-4 rounded-xl shadow-md border border-gray-100">
+              <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+                <div className="flex-1">
+                  <label
+                    htmlFor="bag-filter"
+                    className="block text-xs font-semibold text-gray-500 uppercase mb-1"
+                  >
+                    Bag
+                  </label>
+                  <select
+                    id="bag-filter"
+                    aria-label="Filter by bag"
+                    value={bagFilter}
+                    onChange={(e) => setBagFilter(e.target.value)}
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  >
+                    <option value="All">All bags</option>
+                    <option value="Backpack">🎒 Cabin / Backpack</option>
+                    <option value="Suitcase">🧳 Checked Suitcase</option>
+                  </select>
+                </div>
+                <div className="flex-1">
+                  <label
+                    htmlFor="status-filter"
+                    className="block text-xs font-semibold text-gray-500 uppercase mb-1"
+                  >
+                    Status
+                  </label>
+                  <select
+                    id="status-filter"
+                    aria-label="Filter by packing status"
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  >
+                    <option value="All">All items</option>
+                    <option value="ToPack">To Pack</option>
+                    <option value="Packed">Packed</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {items.length === 0 ? (
               <div className="bg-white p-8 rounded-xl shadow-md border border-gray-100 text-center text-gray-400">
                 Your packing list is empty. Add a custom item below.
+              </div>
+            ) : categories.length === 0 ? (
+              <div className="bg-white p-8 rounded-xl shadow-md border border-gray-100 text-center text-gray-400">
+                No items match the selected filters.
               </div>
             ) : (
               categories.map((category) => (
@@ -197,7 +262,7 @@ export default function TripView() {
                     {category}
                   </h4>
                   <div className="space-y-3">
-                    {items
+                    {visibleItems
                       .filter((i) => i.category === category)
                       .map((item) => (
                         <div

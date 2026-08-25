@@ -120,6 +120,82 @@ describe("TripView (Issue #10)", () => {
     expect(await screen.findByText(/Rain Jacket/)).toBeInTheDocument();
   });
 
+  it("filters the checklist by target bag (Issue #43)", async () => {
+    api.getTrip.mockResolvedValue(sampleTrip);
+
+    renderTripView();
+    await screen.findByText(/Shirts/);
+
+    // Shirts -> Suitcase, Passport -> Backpack. Filtering to the cabin
+    // backpack should leave only the Passport visible.
+    fireEvent.change(screen.getByLabelText(/filter by bag/i), { target: { value: "Backpack" } });
+
+    expect(screen.getByText(/Passport/)).toBeInTheDocument();
+    expect(screen.queryByText(/Shirts/)).not.toBeInTheDocument();
+    // The empty category section for the hidden Suitcase item is gone too.
+    expect(screen.queryByRole("heading", { name: "Clothing" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Documents" })).toBeInTheDocument();
+
+    // Switching to the checked suitcase flips which item is shown.
+    fireEvent.change(screen.getByLabelText(/filter by bag/i), { target: { value: "Suitcase" } });
+    expect(screen.getByText(/Shirts/)).toBeInTheDocument();
+    expect(screen.queryByText(/Passport/)).not.toBeInTheDocument();
+  });
+
+  it("filters the checklist by packed status (Issue #43)", async () => {
+    api.getTrip.mockResolvedValue(sampleTrip);
+
+    renderTripView();
+    await screen.findByText(/Shirts/);
+
+    // Shirts is unpacked, Passport is packed.
+    fireEvent.change(screen.getByLabelText(/filter by packing status/i), {
+      target: { value: "Packed" },
+    });
+    expect(screen.getByText(/Passport/)).toBeInTheDocument();
+    expect(screen.queryByText(/Shirts/)).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/filter by packing status/i), {
+      target: { value: "ToPack" },
+    });
+    expect(screen.getByText(/Shirts/)).toBeInTheDocument();
+    expect(screen.queryByText(/Passport/)).not.toBeInTheDocument();
+  });
+
+  it("shows an empty-filter message when no item matches the active filters (Issue #43)", async () => {
+    api.getTrip.mockResolvedValue(sampleTrip);
+
+    renderTripView();
+    await screen.findByText(/Shirts/);
+
+    // Packed items that live in the cabin backpack: Passport is packed but in
+    // the backpack, Shirts is in the suitcase but unpacked -> no match for
+    // "Suitcase" + "Packed".
+    fireEvent.change(screen.getByLabelText(/filter by bag/i), { target: { value: "Suitcase" } });
+    fireEvent.change(screen.getByLabelText(/filter by packing status/i), {
+      target: { value: "Packed" },
+    });
+
+    expect(await screen.findByText(/no items match the selected filters/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Shirts/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Passport/)).not.toBeInTheDocument();
+  });
+
+  it("keeps overall progress based on all items even when a filter is active (Issue #43)", async () => {
+    api.getTrip.mockResolvedValue(sampleTrip);
+
+    const { container } = renderTripView();
+    await screen.findByText(/Shirts/);
+
+    // Filter down to a single item; the progress summary must still reflect
+    // the whole list (1 of 2 packed -> 50%).
+    fireEvent.change(screen.getByLabelText(/filter by packing status/i), {
+      target: { value: "ToPack" },
+    });
+    expect(container.textContent).toContain("50%");
+    expect(container.textContent).toContain("1 of 2 items");
+  });
+
   it("shows an error state when the trip cannot be loaded", async () => {
     api.getTrip.mockRejectedValue(new Error("boom"));
 
