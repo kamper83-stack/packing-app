@@ -154,6 +154,21 @@ describe("Dashboard (Issue #9)", () => {
     expect(mockNavigate).not.toHaveBeenCalledWith(expect.stringContaining("/trip/"));
   });
 
+  it("rejects fractional passenger counts with a clear message instead of truncating (Issue #35)", async () => {
+    api.getTrips.mockResolvedValue([]);
+
+    const { container } = renderDashboard();
+    await screen.findByText(/no trips planned yet/i);
+
+    // A fractional women count such as 1.5 must not be silently truncated to 1.
+    fillTripForm(container, { women: 1.5 });
+    fireEvent.click(screen.getByRole("button", { name: /create trip/i }));
+
+    expect(await screen.findByText(/whole numbers/i)).toBeInTheDocument();
+    expect(api.createTrip).not.toHaveBeenCalled();
+    expect(mockNavigate).not.toHaveBeenCalledWith(expect.stringContaining("/trip/"));
+  });
+
   it("surfaces the server error message when trip creation fails", async () => {
     api.getTrips.mockResolvedValue([]);
     api.createTrip.mockRejectedValue(new Error("Free trip quota exceeded"));

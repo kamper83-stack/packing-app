@@ -5,6 +5,7 @@ import {
   PASSENGER_CATEGORIES,
   buildComposition,
   emptyComposition,
+  invalidPassengerCategories,
   summarizePassengers,
   totalPassengers,
 } from "../utils/passengers";
@@ -51,6 +52,19 @@ export default function Dashboard() {
   const handleCreateTrip = async (e) => {
     e.preventDefault();
     setError("");
+
+    // Reject fractional or otherwise non-integer passenger counts before they
+    // are silently truncated by parseInt (Issue #35). Report the offending
+    // categories so the user knows exactly what to fix.
+    const invalidCategories = invalidPassengerCategories(passengers);
+    if (invalidCategories.length > 0) {
+      setError(
+        `Passenger counts must be whole numbers (no decimals). Please correct: ${invalidCategories.join(
+          ", "
+        )}.`
+      );
+      return;
+    }
 
     // Build the canonical passengerComposition (Issue #22 contract) and block
     // submission when no travellers were selected at all.
@@ -180,6 +194,8 @@ export default function Dashboard() {
                       <input
                         type="number"
                         min="0"
+                        step="1"
+                        inputMode="numeric"
                         aria-label={c.label}
                         className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                         value={passengers[c.key]}
