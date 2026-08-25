@@ -5,6 +5,7 @@ process.env.USE_MOCKS = "true";
 const request = require("supertest");
 const app = require("../server");
 const { sequelize } = require("../models");
+const weatherService = require("../services/weatherService");
 
 // Helper: register a user and return a valid Bearer token.
 async function registerAndGetToken(email) {
@@ -25,6 +26,10 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await sequelize.close();
+});
+
+afterEach(() => {
+  jest.restoreAllMocks();
 });
 
 describe("Trips API Endpoints (Issue #6)", () => {
@@ -155,9 +160,67 @@ describe("Trips API Endpoints (Issue #6)", () => {
       expect(res.body.destination).toBe("Barcelona"); // trimmed
       expect(Array.isArray(res.body.PackingItems)).toBe(true);
       expect(res.body.PackingItems.length).toBeGreaterThan(0);
+      // Explicit mock mode (USE_MOCKS=true) persists mock provenance (Issue #32).
+      expect(res.body.weatherSource).toBe("mock");
+      expect(res.body.weatherError).toBeNull();
+      expect(Array.isArray(res.body.weatherData)).toBe(true);
+      expect(res.body.weatherData.length).toBeGreaterThan(0);
 
       createdTripId = res.body.id;
       firstItemId = res.body.PackingItems[0].id;
+    });
+
+    it("still creates the trip when live weather fails, marked as mock fallback (Issue #32)", async () => {
+      jest.spyOn(weatherService, "getForecast").mockResolvedValueOnce({
+        forecast: [{ date: "2026-09-01", tempC: 20, condition: "Mild" }],
+        isMock: true,
+        error: "Request failed with status code 401",
+      });
+
+      const res = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({
+          destination: "Athens",
+          startDate: "2026-11-01",
+          endDate: "2026-11-03",
+          airline: "EL AL",
+          numPeople: 1,
+          vacationType: "City",
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.weatherSource).toBe("mock");
+      expect(res.body.weatherError).toMatch(/401/);
+      expect(res.body.weatherData).toEqual([
+        { date: "2026-09-01", tempC: 20, condition: "Mild" },
+      ]);
+    });
+
+    it("persists live provenance when WeatherAPI succeeds (Issue #32)", async () => {
+      jest.spyOn(weatherService, "getForecast").mockResolvedValueOnce({
+        forecast: [{ date: "2026-09-01", tempC: 18, condition: "Sunny" }],
+        isMock: false,
+      });
+
+      const res = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({
+          destination: "Lisbon",
+          startDate: "2026-11-10",
+          endDate: "2026-11-12",
+          airline: "EL AL",
+          numPeople: 1,
+          vacationType: "City",
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.weatherSource).toBe("live");
+      expect(res.body.weatherError).toBeNull();
+      expect(res.body.weatherData).toEqual([
+        { date: "2026-09-01", tempC: 18, condition: "Sunny" },
+      ]);
     });
   });
 
