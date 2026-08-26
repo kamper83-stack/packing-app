@@ -154,6 +154,10 @@ router.post("/", async (req, res) => {
       ...(composition ? { passengerComposition: composition } : {}),
       vacationType: cleanVacationType,
       weatherData: weatherInfo.forecast,
+      // Issue #32: persist provenance. Live WeatherAPI failure does not block
+      // trip creation — the service already returns a marked mock forecast.
+      weatherSource: weatherInfo.isMock ? "mock" : "live",
+      weatherError: weatherInfo.error ? String(weatherInfo.error) : null,
       userId: req.user.id,
     });
 

@@ -65,6 +65,11 @@ The backend listens on `http://localhost:5001` by default. Set `USE_MOCKS=true` 
 > `.env.example` counts as "no real key" — the backend detects it and stays in
 > mock mode instead of calling WeatherAPI with an invalid key. Set a real key to
 > get live forecasts.
+>
+> Live WeatherAPI failures do **not** block trip creation. The trip is saved with
+> a mock forecast, `weatherSource: "mock"`, and `weatherError` describing the
+> failure so the UI can show fallback state. Legacy trips without these fields
+> remain readable (`weatherSource` / `weatherError` are null).
 
 After installing dependencies, you can confirm a real key works (prints `isMock: false` on success):
 

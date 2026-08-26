@@ -14,7 +14,7 @@ afterAll(async () => {
   await sequelize.close();
 });
 
-describe("ensureSchema (Issue #22 migration)", () => {
+describe("ensureSchema (Issue #22 / #32 migration)", () => {
   it("adds passengerComposition to a legacy Trips table that lacks it", async () => {
     const queryInterface = sequelize.getQueryInterface();
 
@@ -29,10 +29,28 @@ describe("ensureSchema (Issue #22 migration)", () => {
     expect(described.passengerComposition).toBeDefined();
   });
 
-  it("is a safe no-op when the column already exists", async () => {
+  it("adds weatherSource and weatherError to a legacy Trips table (Issue #32)", async () => {
+    const queryInterface = sequelize.getQueryInterface();
+
+    await queryInterface.removeColumn("Trips", "weatherSource");
+    await queryInterface.removeColumn("Trips", "weatherError");
+    let described = await queryInterface.describeTable("Trips");
+    expect(described.weatherSource).toBeUndefined();
+    expect(described.weatherError).toBeUndefined();
+
+    await ensureSchema();
+
+    described = await queryInterface.describeTable("Trips");
+    expect(described.weatherSource).toBeDefined();
+    expect(described.weatherError).toBeDefined();
+  });
+
+  it("is a safe no-op when the columns already exist", async () => {
     await expect(ensureSchema()).resolves.toBeUndefined();
 
     const described = await sequelize.getQueryInterface().describeTable("Trips");
     expect(described.passengerComposition).toBeDefined();
+    expect(described.weatherSource).toBeDefined();
+    expect(described.weatherError).toBeDefined();
   });
 });

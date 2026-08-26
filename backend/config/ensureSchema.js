@@ -16,6 +16,16 @@ const COLUMNS_TO_ENSURE = [
     column: "passengerComposition",
     definition: { type: DataTypes.JSON, allowNull: true }, // Issue #22
   },
+  {
+    table: "Trips",
+    column: "weatherSource",
+    definition: { type: DataTypes.STRING, allowNull: true }, // Issue #32
+  },
+  {
+    table: "Trips",
+    column: "weatherError",
+    definition: { type: DataTypes.STRING, allowNull: true }, // Issue #32
+  },
 ];
 
 async function ensureSchema() {
