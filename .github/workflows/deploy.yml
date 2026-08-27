@@ -27,13 +27,14 @@ jobs:
         env:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          WEATHER_API_KEY: ${{ secrets.WEATHER_API_KEY }}
           USE_MOCKS: ${{ secrets.USE_MOCKS }}
         with:
           host: ${{ secrets.VPS_SSH_HOST }}
           username: ${{ secrets.VPS_SSH_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
-          envs: JWT_SECRET,GEMINI_API_KEY,USE_MOCKS
+          envs: JWT_SECRET,GEMINI_API_KEY,WEATHER_API_KEY,USE_MOCKS
           script: |
             echo "Starting Deployment..."
             # Adjust the path to your project folder on the VPS
@@ -49,11 +50,12 @@ jobs:
             git pull origin main
 
             # Write production secrets consumed by docker-compose interpolation.
-            cat > .env <<EOF
-            JWT_SECRET=$JWT_SECRET
-            GEMINI_API_KEY=$GEMINI_API_KEY
-            USE_MOCKS=${USE_MOCKS:-false}
-            EOF
+            printf "JWT_SECRET=%s\nGEMINI_API_KEY=%s\nWEATHER_API_KEY=%s\nUSE_MOCKS=%s\n" \
+              "$JWT_SECRET" \
+              "$GEMINI_API_KEY" \
+              "${WEATHER_API_KEY:-your_weather_api_key_here}" \
+              "${USE_MOCKS:-false}" > .env
+            chmod 600 .env
 
             # Build and launch Docker Compose stack
             echo "Rebuilding and restarting docker containers..."
@@ -62,4 +64,9 @@ jobs:
 
             # Clean up old unused Docker images
             docker image prune -f
+
+            # Post-deployment check: verify backend environment & weather readiness
+            echo "Verifying backend and weather service..."
+            docker compose exec -T backend node -e "require('./services/weatherService').getForecast('London', new Date().toISOString().split('T')[0], new Date().toISOString().split('T')[0]).then(r => console.log('[POST-DEPLOY] Weather check finished. isMock=' + r.isMock + (r.error ? ' (error: ' + r.error + ')' : '')))"
+
             echo "Deployment Completed Successfully!"
