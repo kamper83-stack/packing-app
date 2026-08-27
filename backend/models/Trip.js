@@ -49,6 +49,15 @@ const Trip = sequelize.define("Trip", {
     type: DataTypes.STRING, // set only when a live call failed and we fell back
     allowNull: true,
   },
+  // Issue #30: distinguish live Gemini AI generation from mock/fallback template.
+  aiSource: {
+    type: DataTypes.STRING, // "live" | "mock" | null (pre-#30 rows)
+    allowNull: true,
+  },
+  aiError: {
+    type: DataTypes.STRING, // set only when a live AI call failed and we fell back
+    allowNull: true,
+  },
 });
 
 module.exports = Trip;

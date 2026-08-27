@@ -45,6 +45,22 @@ describe("ensureSchema (Issue #22 / #32 migration)", () => {
     expect(described.weatherError).toBeDefined();
   });
 
+  it("adds aiSource and aiError to a legacy Trips table (Issue #30)", async () => {
+    const queryInterface = sequelize.getQueryInterface();
+
+    await queryInterface.removeColumn("Trips", "aiSource");
+    await queryInterface.removeColumn("Trips", "aiError");
+    let described = await queryInterface.describeTable("Trips");
+    expect(described.aiSource).toBeUndefined();
+    expect(described.aiError).toBeUndefined();
+
+    await ensureSchema();
+
+    described = await queryInterface.describeTable("Trips");
+    expect(described.aiSource).toBeDefined();
+    expect(described.aiError).toBeDefined();
+  });
+
   it("is a safe no-op when the columns already exist", async () => {
     await expect(ensureSchema()).resolves.toBeUndefined();
 
@@ -52,5 +68,7 @@ describe("ensureSchema (Issue #22 / #32 migration)", () => {
     expect(described.passengerComposition).toBeDefined();
     expect(described.weatherSource).toBeDefined();
     expect(described.weatherError).toBeDefined();
+    expect(described.aiSource).toBeDefined();
+    expect(described.aiError).toBeDefined();
   });
 });

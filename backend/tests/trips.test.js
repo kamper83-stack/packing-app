@@ -6,6 +6,7 @@ const request = require("supertest");
 const app = require("../server");
 const { sequelize } = require("../models");
 const weatherService = require("../services/weatherService");
+const geminiService = require("../services/geminiService");
 
 // Helper: register a user and return a valid Bearer token.
 async function registerAndGetToken(email) {
@@ -221,6 +222,58 @@ describe("Trips API Endpoints (Issue #6)", () => {
       expect(res.body.weatherData).toEqual([
         { date: "2026-09-01", tempC: 18, condition: "Sunny" },
       ]);
+    });
+
+    it("still creates the trip when live AI fails, marked as mock fallback (Issue #30)", async () => {
+      jest.spyOn(geminiService, "generatePackingList").mockResolvedValueOnce({
+        items: [{ name: "Toothbrush", category: "Toiletries", quantity: 1, targetBag: "Backpack" }],
+        isMock: true,
+        error: "429 Resource Exhausted",
+      });
+
+      const res = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({
+          destination: "Tokyo",
+          startDate: "2026-11-20",
+          endDate: "2026-11-22",
+          airline: "EL AL",
+          numPeople: 1,
+          vacationType: "City",
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.aiSource).toBe("mock");
+      expect(res.body.aiError).toMatch(/429/);
+      expect(res.body.PackingItems).toHaveLength(1);
+    });
+
+    it("persists live AI provenance when Gemini succeeds (Issue #30)", async () => {
+      jest.spyOn(geminiService, "generatePackingList").mockResolvedValueOnce({
+        items: [
+          { name: "Camera", category: "Electronics", quantity: 1, targetBag: "Backpack" },
+          { name: "Kimono", category: "Clothing", quantity: 1, targetBag: "Suitcase" },
+        ],
+        isMock: false,
+      });
+
+      const res = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({
+          destination: "Kyoto",
+          startDate: "2026-11-25",
+          endDate: "2026-11-28",
+          airline: "EL AL",
+          numPeople: 1,
+          vacationType: "Cultural",
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.aiSource).toBe("live");
+      expect(res.body.aiError).toBeNull();
+      expect(res.body.PackingItems).toHaveLength(2);
     });
   });
 

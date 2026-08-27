@@ -70,6 +70,10 @@ The backend listens on `http://localhost:5001` by default. Set `USE_MOCKS=true` 
 > a mock forecast, `weatherSource: "mock"`, and `weatherError` describing the
 > failure so the UI can show fallback state. Legacy trips without these fields
 > remain readable (`weatherSource` / `weatherError` are null).
+>
+> Similarly, live Gemini AI generation failures save the trip with fallback items,
+> `aiSource: "mock"`, and `aiError` describing the failure. Live successes record
+> `aiSource: "live"`. Legacy trips remain readable (`aiSource` / `aiError` are null).
 
 After installing dependencies, you can confirm a real key works (prints `isMock: false` on success):
 
