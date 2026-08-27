@@ -93,7 +93,10 @@ async function generatePackingList({
 
   if (useMocks) {
     console.log(`[GEMINI SERVICE] Using mock packing list for ${destination} (${vacationType})`);
-    return getMockPackingList(vacationType, days, numPeople);
+    return {
+      items: getMockPackingList(vacationType, days, numPeople),
+      isMock: true,
+    };
   }
 
   try {
@@ -134,13 +137,21 @@ async function generatePackingList({
     // persistence. On failure we throw, which the catch below turns into the
     // agreed mock fallback (same contract as a failed API call).
     const parsed = JSON.parse(text);
-    return validatePackingItems(parsed);
+    const validatedItems = validatePackingItems(parsed);
+    return {
+      items: validatedItems,
+      isMock: false,
+    };
   } catch (error) {
     console.error(
       "[GEMINI SERVICE] Invalid or failed live generation, falling back to mock:",
       error.message
     );
-    return getMockPackingList(vacationType, days, numPeople);
+    return {
+      items: getMockPackingList(vacationType, days, numPeople),
+      isMock: true,
+      error: error.message,
+    };
   }
 }
 

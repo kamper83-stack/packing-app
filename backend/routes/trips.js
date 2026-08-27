@@ -133,7 +133,7 @@ router.post("/", async (req, res) => {
     const days = Math.ceil(Math.abs(end - start) / (1000 * 60 * 60 * 24)) + 1;
 
     // 3. Call Gemini to generate packing list
-    const generatedItems = await geminiService.generatePackingList({
+    const aiResult = await geminiService.generatePackingList({
       destination: cleanDestination,
       days,
       numPeople: effectiveNumPeople ?? numPeople ?? 1,
@@ -154,15 +154,17 @@ router.post("/", async (req, res) => {
       ...(composition ? { passengerComposition: composition } : {}),
       vacationType: cleanVacationType,
       weatherData: weatherInfo.forecast,
-      // Issue #32: persist provenance. Live WeatherAPI failure does not block
-      // trip creation — the service already returns a marked mock forecast.
+      // Issue #32: persist weather provenance
       weatherSource: weatherInfo.isMock ? "mock" : "live",
       weatherError: weatherInfo.error ? String(weatherInfo.error) : null,
+      // Issue #30: persist AI generation provenance
+      aiSource: aiResult.isMock ? "mock" : "live",
+      aiError: aiResult.error ? String(aiResult.error) : null,
       userId: req.user.id,
     });
 
     // 5. Create Packing Items in DB
-    const packingItemsData = generatedItems.map((item) => ({
+    const packingItemsData = aiResult.items.map((item) => ({
       name: item.name,
       category: item.category,
       quantity: item.quantity,

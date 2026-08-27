@@ -52,11 +52,12 @@ const baseArgs = {
 
 describe("geminiService.generatePackingList - mock mode", () => {
   it("returns a non-empty array where every item matches the item schema", async () => {
-    const items = await generatePackingList(baseArgs);
+    const result = await generatePackingList(baseArgs);
 
-    expect(Array.isArray(items)).toBe(true);
-    expect(items.length).toBeGreaterThan(0);
-    for (const item of items) {
+    expect(result.isMock).toBe(true);
+    expect(Array.isArray(result.items)).toBe(true);
+    expect(result.items.length).toBeGreaterThan(0);
+    for (const item of result.items) {
       expect(typeof item.name).toBe("string");
       expect(typeof item.category).toBe("string");
       expect(Number.isInteger(item.quantity)).toBe(true);
@@ -67,8 +68,8 @@ describe("geminiService.generatePackingList - mock mode", () => {
   });
 
   it("scales quantities by days and number of people", async () => {
-    const items = await generatePackingList({ ...baseArgs, days: 5, numPeople: 2 });
-    const byName = Object.fromEntries(items.map((i) => [i.name, i]));
+    const result = await generatePackingList({ ...baseArgs, days: 5, numPeople: 2 });
+    const byName = Object.fromEntries(result.items.map((i) => [i.name, i]));
 
     expect(byName.Underwear.quantity).toBe(10); // days * numPeople = 5 * 2
     expect(byName.Socks.quantity).toBe(10);
@@ -78,8 +79,8 @@ describe("geminiService.generatePackingList - mock mode", () => {
   });
 
   it("adds beach-specific gear for a beach vacation (case-insensitive)", async () => {
-    const items = await generatePackingList({ ...baseArgs, vacationType: "BEACH Getaway" });
-    const names = items.map((i) => i.name);
+    const result = await generatePackingList({ ...baseArgs, vacationType: "BEACH Getaway" });
+    const names = result.items.map((i) => i.name);
 
     expect(names).toEqual(
       expect.arrayContaining(["Swimsuit", "Sunscreen", "Sunglasses", "Beach Towel"])
@@ -88,8 +89,8 @@ describe("geminiService.generatePackingList - mock mode", () => {
   });
 
   it("adds winter gear for a winter/snow vacation", async () => {
-    const items = await generatePackingList({ ...baseArgs, vacationType: "Snow trip" });
-    const names = items.map((i) => i.name);
+    const result = await generatePackingList({ ...baseArgs, vacationType: "Snow trip" });
+    const names = result.items.map((i) => i.name);
 
     expect(names).toEqual(
       expect.arrayContaining(["Winter Coat", "Thermal Underwear", "Gloves & Beanie", "Lip Balm"])
@@ -97,8 +98,8 @@ describe("geminiService.generatePackingList - mock mode", () => {
   });
 
   it("adds hiking gear for a hike/active vacation", async () => {
-    const items = await generatePackingList({ ...baseArgs, vacationType: "Active hiking tour" });
-    const names = items.map((i) => i.name);
+    const result = await generatePackingList({ ...baseArgs, vacationType: "Active hiking tour" });
+    const names = result.items.map((i) => i.name);
 
     expect(names).toEqual(
       expect.arrayContaining(["Hiking Boots", "Water Bottle", "First Aid Kit", "Rain Jacket"])
@@ -106,22 +107,23 @@ describe("geminiService.generatePackingList - mock mode", () => {
   });
 
   it("returns only the base list for a generic vacation type", async () => {
-    const items = await generatePackingList({ ...baseArgs, vacationType: "City Trip" });
-    const names = items.map((i) => i.name);
+    const result = await generatePackingList({ ...baseArgs, vacationType: "City Trip" });
+    const names = result.items.map((i) => i.name);
 
     expect(names).not.toContain("Swimsuit");
     expect(names).not.toContain("Winter Coat");
     expect(names).not.toContain("Hiking Boots");
-    expect(items).toHaveLength(9); // the nine base items only
+    expect(result.items).toHaveLength(9); // the nine base items only
   });
 
   it("uses mock mode when no API key is set, even if USE_MOCKS is unset", async () => {
     delete process.env.USE_MOCKS;
     delete process.env.GEMINI_API_KEY;
 
-    const items = await generatePackingList(baseArgs);
+    const result = await generatePackingList(baseArgs);
 
-    expect(items.map((i) => i.name)).toContain("Underwear");
+    expect(result.isMock).toBe(true);
+    expect(result.items.map((i) => i.name)).toContain("Underwear");
     expect(mockGenerateContent).not.toHaveBeenCalled();
   });
 });
@@ -142,22 +144,25 @@ describe("geminiService.generatePackingList - real API path (mocked SDK)", () =>
       response: { text: () => JSON.stringify(aiItems) },
     });
 
-    const items = await generatePackingList(baseArgs);
+    const result = await generatePackingList(baseArgs);
 
     expect(mockGetGenerativeModel).toHaveBeenCalledWith({ model: "gemini-3.5-flash-lite" });
     expect(mockGenerateContent).toHaveBeenCalledTimes(1);
-    expect(items).toEqual(aiItems);
+    expect(result.isMock).toBe(false);
+    expect(result.items).toEqual(aiItems);
   });
 
   it("falls back to the mock list when the Gemini API call throws", async () => {
     enableRealPath();
     mockGenerateContent.mockRejectedValue(new Error("network down"));
 
-    const items = await generatePackingList(baseArgs);
+    const result = await generatePackingList(baseArgs);
 
     expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+    expect(result.isMock).toBe(true);
+    expect(result.error).toBe("network down");
     // Fallback returns the deterministic mock list, so the trip still gets items.
-    expect(items.map((i) => i.name)).toContain("Underwear");
+    expect(result.items.map((i) => i.name)).toContain("Underwear");
   });
 
   it("falls back to the mock list when the model returns invalid JSON", async () => {
@@ -166,10 +171,12 @@ describe("geminiService.generatePackingList - real API path (mocked SDK)", () =>
       response: { text: () => "not-json{" },
     });
 
-    const items = await generatePackingList(baseArgs);
+    const result = await generatePackingList(baseArgs);
 
     // JSON.parse throws -> caught -> mock fallback.
-    expect(items.map((i) => i.name)).toContain("Underwear");
+    expect(result.isMock).toBe(true);
+    expect(typeof result.error).toBe("string");
+    expect(result.items.map((i) => i.name)).toContain("Underwear");
   });
 
   // Issue #34: valid JSON that is not a valid packing list must not be
@@ -196,9 +203,11 @@ describe("geminiService.generatePackingList - real API path (mocked SDK)", () =>
       response: { text: () => JSON.stringify(output) },
     });
 
-    const items = await generatePackingList(baseArgs);
+    const result = await generatePackingList(baseArgs);
 
-    expect(items.map((i) => i.name)).toContain("Underwear"); // deterministic mock
+    expect(result.isMock).toBe(true);
+    expect(typeof result.error).toBe("string");
+    expect(result.items.map((i) => i.name)).toContain("Underwear"); // deterministic mock
   });
 });
 
