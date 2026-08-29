@@ -196,6 +196,43 @@ describe("TripView (Issue #10)", () => {
     expect(container.textContent).toContain("1 of 2 items");
   });
 
+  it("shows a live weather badge when the forecast came from WeatherAPI (Issue #36)", async () => {
+    api.getTrip.mockResolvedValue({ ...sampleTrip, weatherSource: "live" });
+
+    renderTripView();
+    await screen.findByRole("heading", { name: "Barcelona" });
+
+    expect(screen.getByLabelText(/live weather data/i)).toBeInTheDocument();
+    // No fallback notice when the live call succeeded.
+    expect(screen.queryByText(/sample data/i)).not.toBeInTheDocument();
+  });
+
+  it("shows a sample-data badge and fallback notice when weather fell back to mock (Issue #36)", async () => {
+    api.getTrip.mockResolvedValue({
+      ...sampleTrip,
+      weatherSource: "mock",
+      weatherError: "WeatherAPI request failed (503)",
+    });
+
+    renderTripView();
+    await screen.findByRole("heading", { name: "Barcelona" });
+
+    expect(screen.getByLabelText(/sample weather data/i)).toBeInTheDocument();
+    expect(screen.getByText(/live weather is temporarily unavailable/i)).toBeInTheDocument();
+  });
+
+  it("renders no weather source badge for legacy trips without provenance (Issue #36)", async () => {
+    // sampleTrip has no weatherSource -> pre-#32 row must stay readable.
+    api.getTrip.mockResolvedValue(sampleTrip);
+
+    renderTripView();
+    await screen.findByRole("heading", { name: "Barcelona" });
+
+    expect(screen.queryByLabelText(/live weather data/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/sample weather data/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/live weather is temporarily unavailable/i)).not.toBeInTheDocument();
+  });
+
   it("shows an error state when the trip cannot be loaded", async () => {
     api.getTrip.mockRejectedValue(new Error("boom"));
 
