@@ -86,7 +86,9 @@ describe("Admin panel (Issue #49)", () => {
 
     expect(await screen.findByText("WeatherAPI")).toBeInTheDocument();
     expect(screen.getByText("Gemini")).toBeInTheDocument();
-    expect(screen.getByText("admin@example.com")).toBeInTheDocument();
+    // Email appears in the users table and again in the trip log.
+    expect(screen.getAllByText("admin@example.com").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByRole("cell", { name: "admin@example.com" })).toBeInTheDocument();
     expect(screen.getByText("Barcelona")).toBeInTheDocument();
     expect(screen.getByText(/weatherapi request failed/i)).toBeInTheDocument();
     expect(screen.queryByText(/ghp_/i)).not.toBeInTheDocument();
