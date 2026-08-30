@@ -4,6 +4,29 @@ import { api } from "../services/api";
 import { Plus, Trash2, ChevronLeft } from "lucide-react";
 import { summarizePassengers } from "../utils/passengers";
 
+// Issue #36: compact indicator of where the weather forecast came from.
+// "live"  -> real WeatherAPI data; "mock" -> offline/sample fallback.
+// Any other value (including null on pre-#32 trips) renders nothing.
+function WeatherSourceBadge({ source }) {
+  if (source !== "live" && source !== "mock") return null;
+
+  const isLive = source === "live";
+  const classes = isLive
+    ? "bg-green-50 text-green-700 border-green-200"
+    : "bg-gray-100 text-gray-600 border-gray-200";
+  const label = isLive ? "🟢 Live data" : "📋 Sample data";
+
+  return (
+    <span
+      role="status"
+      aria-label={isLive ? "Live weather data" : "Sample weather data"}
+      className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full border ${classes}`}
+    >
+      {label}
+    </span>
+  );
+}
+
 export default function TripView() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -152,7 +175,28 @@ export default function TripView() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Weather Widget */}
           <div className="md:col-span-2 bg-white p-6 rounded-xl shadow-md border border-gray-100">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">Weather Forecast</h3>
+            <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
+              <h3 className="text-lg font-bold text-gray-900">Weather Forecast</h3>
+              {/* Issue #36: surface whether the forecast is live WeatherAPI data
+                  or a mock/fallback. Legacy trips have no weatherSource and show
+                  no badge, so they stay readable. */}
+              <WeatherSourceBadge source={trip.weatherSource} />
+            </div>
+            {/* Issue #36: when the backend fell back after a failed live call it
+                records the reason in weatherError. Show a clear, non-blocking
+                notice so the user understands why the data may be approximate. */}
+            {trip.weatherError && (
+              <div
+                role="status"
+                className="mb-4 flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800"
+              >
+                <span aria-hidden="true">⚠️</span>
+                <span>
+                  Live weather is temporarily unavailable, so we're showing sample
+                  data. Reload the trip later to try again.
+                </span>
+              </div>
+            )}
             {trip.weatherData && trip.weatherData.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 {trip.weatherData.slice(0, 4).map((day, idx) => (
