@@ -12,6 +12,15 @@ const isValidEmail = (email) => {
   return emailRegex.test(email);
 };
 
+function publicUser(user) {
+  return { id: user.id, email: user.email, isAdmin: Boolean(user.isAdmin) };
+}
+
+function isSeedAdminEmail(email) {
+  const adminEmail = (process.env.ADMIN_EMAIL || "").trim().toLowerCase();
+  return adminEmail !== "" && email === adminEmail;
+}
+
 // POST /api/auth/register
 router.post("/register", async (req, res) => {
   const { email, password } = req.body;
@@ -42,10 +51,11 @@ router.post("/register", async (req, res) => {
     const user = await User.create({
       email: cleanEmail,
       password: hashedPassword,
+      isAdmin: isSeedAdminEmail(cleanEmail),
     });
 
     const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: "7d" });
-    res.status(201).json({ token, user: { id: user.id, email: user.email } });
+    res.status(201).json({ token, user: publicUser(user) });
   } catch (error) {
     console.error("Registration error:", error);
     res.status(500).json({ error: "Internal server error." });
@@ -73,7 +83,7 @@ router.post("/login", async (req, res) => {
     }
 
     const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: "7d" });
-    res.json({ token, user: { id: user.id, email: user.email } });
+    res.json({ token, user: publicUser(user) });
   } catch (error) {
     console.error("Login error:", error);
     res.status(500).json({ error: "Internal server error." });
@@ -83,11 +93,11 @@ router.post("/login", async (req, res) => {
 // GET /api/auth/me
 router.get("/me", authMiddleware, async (req, res) => {
   try {
-    const user = await User.findByPk(req.user.id, { attributes: ["id", "email"] });
+    const user = await User.findByPk(req.user.id, { attributes: ["id", "email", "isAdmin"] });
     if (!user) {
       return res.status(404).json({ error: "User not found." });
     }
-    res.json(user);
+    res.json(publicUser(user));
   } catch (error) {
     res.status(500).json({ error: "Internal server error." });
   }
