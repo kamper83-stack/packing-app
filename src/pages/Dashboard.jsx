@@ -15,6 +15,7 @@ export default function Dashboard() {
   const [trips, setTrips] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
   
   // Trip Form States
   const [destination, setDestination] = useState("");
@@ -44,6 +45,12 @@ export default function Dashboard() {
   useEffect(() => {
     fetchTrips();
   }, [fetchTrips]);
+
+  useEffect(() => {
+    api.getMe()
+      .then((user) => setIsAdmin(Boolean(user && user.isAdmin)))
+      .catch(() => setIsAdmin(false));
+  }, []);
 
   const handlePassengerChange = (key, value) => {
     setPassengers((prev) => ({ ...prev, [key]: value }));
@@ -106,6 +113,11 @@ export default function Dashboard() {
               <span className="text-xl font-bold text-indigo-600">🎒 PackPlanner</span>
             </div>
             <div className="flex items-center space-x-4">
+              {isAdmin && (
+                <Link to="/admin" className="text-gray-600 hover:text-indigo-600 font-medium text-sm">
+                  Admin
+                </Link>
+              )}
               <button
                 onClick={handleLogout}
                 className="text-gray-600 hover:text-indigo-600 font-medium text-sm"

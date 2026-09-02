@@ -8,6 +8,7 @@ jest.mock("./services/api", () => ({
     createTrip: jest.fn(),
     getTrip: jest.fn(),
     getDestinations: jest.fn(),
+    getMe: jest.fn(),
   },
 }));
 
@@ -15,8 +16,8 @@ beforeEach(() => {
   jest.clearAllMocks();
   localStorage.clear();
   window.history.pushState({}, "", "/");
-  // Dashboard's destination field loads suggestions on mount.
   api.getDestinations.mockResolvedValue({ destinations: [] });
+  api.getMe.mockResolvedValue({ isAdmin: false });
 });
 
 test("renders the login screen when no token is stored", () => {

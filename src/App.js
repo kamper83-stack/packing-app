@@ -4,6 +4,7 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
 import TripView from "./pages/TripView";
+import Admin from "./pages/Admin";
 
 // Route protector check
 function ProtectedRoute({ children }) {
@@ -36,6 +37,14 @@ function App() {
           element={
             <ProtectedRoute>
               <TripView />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute>
+              <Admin />
             </ProtectedRoute>
           }
         />

@@ -16,6 +16,7 @@ jest.mock("../services/api", () => ({
     getTrips: jest.fn(),
     createTrip: jest.fn(),
     getDestinations: jest.fn(),
+    getMe: jest.fn(),
   },
 }));
 
@@ -44,9 +45,8 @@ const fillTripForm = (container, passengers = { women: 1 }) => {
 beforeEach(() => {
   jest.clearAllMocks();
   localStorage.clear();
-  // The destination field loads suggestions on mount; keep it empty so the
-  // dropdown never appears and these Dashboard tests stay focused on the form.
   api.getDestinations.mockResolvedValue({ destinations: [] });
+  api.getMe.mockResolvedValue({ isAdmin: false });
 });
 
 describe("Dashboard (Issue #9)", () => {
@@ -71,10 +71,6 @@ describe("Dashboard (Issue #9)", () => {
       "href",
       "/trip/t1"
     );
-    // Non-zero categories from the composition are shown on the card; zero
-    // categories are suppressed to keep the summary compact. Scope the
-    // assertion to the trip card so we don't collide with the form labels
-    // (which naturally mention every category, including "תינוקות").
     const card = screen.getByText("Barcelona").closest("div");
     expect(card).toHaveTextContent(/1 נשים/);
     expect(card).toHaveTextContent(/1 גברים/);
@@ -92,7 +88,6 @@ describe("Dashboard (Issue #9)", () => {
         airline: "EL AL",
         numPeople: 4,
         vacationType: "City Trip",
-        // passengerComposition intentionally missing (older trip)
       },
     ]);
 
@@ -132,8 +127,6 @@ describe("Dashboard (Issue #9)", () => {
         })
       )
     );
-    // The legacy generic numPeople field must no longer be sent — the
-    // backend derives it from the composition (Issue #22 contract).
     const payload = api.createTrip.mock.calls[0][0];
     expect(payload).not.toHaveProperty("numPeople");
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/trip/new99"));
@@ -145,7 +138,6 @@ describe("Dashboard (Issue #9)", () => {
     const { container } = renderDashboard();
     await screen.findByText(/no trips planned yet/i);
 
-    // Do not set any passenger counts — the form defaults to 0/0/0/0.
     fillTripForm(container, {});
     fireEvent.click(screen.getByRole("button", { name: /create trip/i }));
 
@@ -160,7 +152,6 @@ describe("Dashboard (Issue #9)", () => {
     const { container } = renderDashboard();
     await screen.findByText(/no trips planned yet/i);
 
-    // A fractional women count such as 1.5 must not be silently truncated to 1.
     fillTripForm(container, { women: 1.5 });
     fireEvent.click(screen.getByRole("button", { name: /create trip/i }));
 
@@ -194,5 +185,13 @@ describe("Dashboard (Issue #9)", () => {
 
     expect(localStorage.getItem("token")).toBeNull();
     expect(mockNavigate).toHaveBeenCalledWith("/login");
+  });
+
+  it("shows an Admin nav link only for admin users (Issue #49)", async () => {
+    api.getTrips.mockResolvedValue([]);
+    api.getMe.mockResolvedValue({ isAdmin: true });
+
+    renderDashboard();
+    expect(await screen.findByRole("link", { name: /^admin$/i })).toHaveAttribute("href", "/admin");
   });
 });

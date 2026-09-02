@@ -78,4 +78,10 @@ export const api = {
   getAirlines: () => request("/trips/config/airlines"),
 
   getDestinations: () => request("/trips/destinations"),
+
+  getAdminStatus: () => request("/admin/status"),
+
+  getAdminUsers: () => request("/admin/users"),
+
+  getAdminLogs: () => request("/admin/logs"),
 };

@@ -36,6 +36,11 @@ const COLUMNS_TO_ENSURE = [
     column: "aiError",
     definition: { type: DataTypes.STRING, allowNull: true }, // Issue #30
   },
+  {
+    table: "Users",
+    column: "isAdmin",
+    definition: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false }, // Issue #49
+  },
 ];
 
 async function ensureSchema() {
