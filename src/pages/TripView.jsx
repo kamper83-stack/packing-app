@@ -27,6 +27,30 @@ function WeatherSourceBadge({ source }) {
   );
 }
 
+// Issue #42: compact indicator of how the packing list was generated.
+// "live" -> personalized live by the Gemini AI; "mock" -> offline/standard
+// template fallback. Any other value (including null on pre-#48 trips)
+// renders nothing, so legacy trips stay readable.
+function AiSourceBadge({ source }) {
+  if (source !== "live" && source !== "mock") return null;
+
+  const isLive = source === "live";
+  const classes = isLive
+    ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+    : "bg-gray-100 text-gray-600 border-gray-200";
+  const label = isLive ? "✨ AI Personalized" : "📋 Standard Template";
+
+  return (
+    <span
+      role="status"
+      aria-label={isLive ? "AI personalized packing list" : "Standard template packing list"}
+      className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full border ${classes}`}
+    >
+      {label}
+    </span>
+  );
+}
+
 export default function TripView() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -162,6 +186,12 @@ export default function TripView() {
               {summarizePassengers(trip.passengerComposition) ||
                 `${trip.numPeople} ${trip.numPeople > 1 ? "people" : "person"}`}
             </p>
+            {/* Issue #42: surface whether the packing list was personalized live
+                by the AI or built from the standard offline template. Legacy
+                trips have no aiSource and show no badge. */}
+            <div className="mt-2">
+              <AiSourceBadge source={trip.aiSource} />
+            </div>
           </div>
           <button
             onClick={handleDeleteTrip}
@@ -247,6 +277,22 @@ export default function TripView() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Items checklist */}
           <div className="lg:col-span-2 space-y-6">
+            {/* Issue #42: when live AI generation failed the backend saved the
+                trip with the standard template and recorded the reason in
+                aiError. Show a clear, non-blocking notice so the user knows the
+                list is a fallback and can retry later. */}
+            {trip.aiError && (
+              <div
+                role="status"
+                className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800"
+              >
+                <span aria-hidden="true">⚠️</span>
+                <span>
+                  AI personalization was unavailable, so this list uses a standard
+                  template. Reload the trip later to try again.
+                </span>
+              </div>
+            )}
             {/* Filter toolbar (Issue #43) */}
             <div className="bg-white p-4 rounded-xl shadow-md border border-gray-100">
               <div className="flex flex-col sm:flex-row sm:items-end gap-4">
