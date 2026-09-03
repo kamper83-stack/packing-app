@@ -1,6 +1,8 @@
 name: CI Pipeline
 
 on:
+  push:
+    branches: [ main ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
@@ -58,6 +60,15 @@ jobs:
           done
           curl -fsS http://localhost:5001/health
           kill $SERVER_PID 2>/dev/null || true
+
+      - name: Validate deployment configuration
+        env:
+          JWT_SECRET: ci_deployment_preflight_secret_32_chars
+          GEMINI_API_KEY: ci-gemini-key
+          WEATHER_API_KEY: ci-weather-key
+          USE_MOCKS: "false"
+        run: |
+          bash scripts/deployment-preflight.test.sh
 
   docker-build-test:
     runs-on: ubuntu-latest

@@ -1,15 +1,28 @@
 name: CD Deployment (Docker Compose via SSH)
 
 on:
-  push:
-    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: Type deploy-production to confirm the production deployment.
+        required: true
+        type: string
 
 jobs:
   deploy:
+    if: ${{ inputs.confirm == 'deploy-production' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      - name: Validate deployment inputs
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          WEATHER_API_KEY: ${{ secrets.WEATHER_API_KEY }}
+          USE_MOCKS: ${{ secrets.USE_MOCKS }}
+        run: bash scripts/deployment-preflight.sh
 
       # Optional: Connect to your Tailscale network if your VPS is not publicly reachable
       # Requires adding TAILSCALE_AUTH_KEY to your GitHub Secrets.
@@ -56,6 +69,12 @@ jobs:
               "${WEATHER_API_KEY:-your_weather_api_key_here}" \
               "${USE_MOCKS:-false}" > .env
             chmod 600 .env
+
+            JWT_SECRET="$JWT_SECRET" \
+            GEMINI_API_KEY="$GEMINI_API_KEY" \
+            WEATHER_API_KEY="${WEATHER_API_KEY:-your_weather_api_key_here}" \
+            USE_MOCKS="${USE_MOCKS:-false}" \
+              bash scripts/deployment-preflight.sh
 
             # Build and launch Docker Compose stack
             echo "Rebuilding and restarting docker containers..."

@@ -179,8 +179,26 @@ local runs and by `.github/workflows/deploy.yml` for the VPS deployment:
 - Backend: `5001:5001`
 - SQLite: named `sqlite-data` volume
 
-The workflow connects to the VPS over SSH after a push to `main`, pulls the
-repository, writes the deployment environment, and runs the same Compose stack.
+Deployment is deliberately a manual GitHub Actions dispatch. It requires the
+exact confirmation input `deploy-production`; it never runs automatically on a
+push. The workflow performs a configuration preflight before it attempts SSH,
+then pulls the repository, writes the deployment environment, and runs the same
+Compose stack.
 Any host-level reverse proxy, firewall, or additional port mapping on the VPS
 is operational state outside this repository and must be documented only after
 checking the live VPS.
+
+### Three-stage deployment readiness check
+
+Use this sequence before starting the manual deployment workflow:
+
+1. **Discover:** confirm the intended `main` commit has a successful CI run and
+   review the workflow run history for deployment failures.
+2. **Validate locally:** run `bash scripts/deployment-preflight.test.sh`, then
+   run the frontend/backend tests, production build, and Docker image builds.
+   The preflight requires non-placeholder `JWT_SECRET`, `GEMINI_API_KEY`, and
+   `WEATHER_API_KEY`, with `USE_MOCKS=false`; it never prints their values.
+3. **Operator preflight:** confirm the GitHub secrets and VPS SSH/Tailscale
+   connectivity with the deployment owner. Then trigger the manual workflow and
+   enter `deploy-production`. This step changes production and needs explicit
+   authorization; it is not performed by the local checks.
