@@ -29,12 +29,13 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           WEATHER_API_KEY: ${{ secrets.WEATHER_API_KEY }}
           USE_MOCKS: ${{ secrets.USE_MOCKS }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
         with:
           host: ${{ secrets.VPS_SSH_HOST }}
           username: ${{ secrets.VPS_SSH_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
-          envs: JWT_SECRET,GEMINI_API_KEY,WEATHER_API_KEY,USE_MOCKS
+          envs: JWT_SECRET,GEMINI_API_KEY,WEATHER_API_KEY,USE_MOCKS,ADMIN_EMAIL
           script: |
             echo "Starting Deployment..."
             # Adjust the path to your project folder on the VPS
@@ -50,11 +51,12 @@ jobs:
             git pull origin main
 
             # Write production secrets consumed by docker-compose interpolation.
-            printf "JWT_SECRET=%s\nGEMINI_API_KEY=%s\nWEATHER_API_KEY=%s\nUSE_MOCKS=%s\n" \
+            printf "JWT_SECRET=%s\nGEMINI_API_KEY=%s\nWEATHER_API_KEY=%s\nUSE_MOCKS=%s\nADMIN_EMAIL=%s\n" \
               "$JWT_SECRET" \
               "$GEMINI_API_KEY" \
               "${WEATHER_API_KEY:-your_weather_api_key_here}" \
-              "${USE_MOCKS:-false}" > .env
+              "${USE_MOCKS:-false}" \
+              "$ADMIN_EMAIL" > .env
             chmod 600 .env
 
             # Build and launch Docker Compose stack
