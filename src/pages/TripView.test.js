@@ -233,6 +233,45 @@ describe("TripView (Issue #10)", () => {
     expect(screen.queryByText(/live weather is temporarily unavailable/i)).not.toBeInTheDocument();
   });
 
+  it("shows an AI-personalized badge when the list was generated live (Issue #42)", async () => {
+    api.getTrip.mockResolvedValue({ ...sampleTrip, aiSource: "live" });
+
+    renderTripView();
+    await screen.findByRole("heading", { name: "Barcelona" });
+
+    expect(screen.getByLabelText(/ai personalized packing list/i)).toBeInTheDocument();
+    // No fallback notice when the live generation succeeded.
+    expect(
+      screen.queryByText(/ai personalization was unavailable/i)
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a standard-template badge and fallback notice when AI fell back to mock (Issue #42)", async () => {
+    api.getTrip.mockResolvedValue({
+      ...sampleTrip,
+      aiSource: "mock",
+      aiError: "Gemini request failed (429 quota exceeded)",
+    });
+
+    renderTripView();
+    await screen.findByRole("heading", { name: "Barcelona" });
+
+    expect(screen.getByLabelText(/standard template packing list/i)).toBeInTheDocument();
+    expect(screen.getByText(/ai personalization was unavailable/i)).toBeInTheDocument();
+  });
+
+  it("renders no AI source badge for legacy trips without provenance (Issue #42)", async () => {
+    // sampleTrip has no aiSource -> pre-#48 row must stay readable.
+    api.getTrip.mockResolvedValue(sampleTrip);
+
+    renderTripView();
+    await screen.findByRole("heading", { name: "Barcelona" });
+
+    expect(screen.queryByLabelText(/ai personalized packing list/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/standard template packing list/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/ai personalization was unavailable/i)).not.toBeInTheDocument();
+  });
+
   it("shows an error state when the trip cannot be loaded", async () => {
     api.getTrip.mockRejectedValue(new Error("boom"));
 
