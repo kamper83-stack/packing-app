@@ -29,7 +29,11 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           WEATHER_API_KEY: ${{ secrets.WEATHER_API_KEY }}
           USE_MOCKS: ${{ secrets.USE_MOCKS }}
+<<<<<<< HEAD
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+=======
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }} 
+>>>>>>> e24edff (feat: add admin email configuration, update Gemini model to be configurable, and implement docker log rotation with restricted host binding)
         with:
           host: ${{ secrets.VPS_SSH_HOST }}
           username: ${{ secrets.VPS_SSH_USERNAME }}
@@ -56,13 +60,13 @@ jobs:
               "$GEMINI_API_KEY" \
               "${WEATHER_API_KEY:-your_weather_api_key_here}" \
               "${USE_MOCKS:-false}" \
-              "$ADMIN_EMAIL" > .env
+              "${ADMIN_EMAIL:-}" > .env
             chmod 600 .env
 
             # Build and launch Docker Compose stack
             echo "Rebuilding and restarting docker containers..."
-            docker compose down
-            docker compose up --build -d
+            docker compose build
+            docker compose up -d --remove-orphans
 
             # Clean up old unused Docker images
             docker image prune -f

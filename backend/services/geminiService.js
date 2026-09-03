@@ -101,7 +101,8 @@ async function generatePackingList({
 
   try {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash-lite" });
+    const modelName = process.env.GEMINI_MODEL || "gemini-3.5-flash";
+    const model = genAI.getGenerativeModel({ model: modelName });
 
     const prompt = `
       You are an expert packing assistant. Generate a highly personalized packing checklist for a trip with these details:

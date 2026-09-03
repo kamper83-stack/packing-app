@@ -146,7 +146,7 @@ describe("geminiService.generatePackingList - real API path (mocked SDK)", () =>
 
     const result = await generatePackingList(baseArgs);
 
-    expect(mockGetGenerativeModel).toHaveBeenCalledWith({ model: "gemini-3.5-flash-lite" });
+    expect(mockGetGenerativeModel).toHaveBeenCalledWith({ model: "gemini-3.5-flash" });
     expect(mockGenerateContent).toHaveBeenCalledTimes(1);
     expect(result.isMock).toBe(false);
     expect(result.items).toEqual(aiItems);

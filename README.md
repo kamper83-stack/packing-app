@@ -8,7 +8,7 @@ PackPlanner is a full-stack travel packing assistant. Users create a trip, provi
 - Trip creation and per-user trip listing.
 - Weather-aware packing inputs from WeatherAPI.com through the backend.
 - Gemini-powered packing-list generation with a JSON item contract.
-- Current live model: `gemini-3.5-flash-lite`.
+- Current live model: `gemini-3.5-flash` (configurable via `GEMINI_MODEL`).
 - Offline Mock mode for development and tests when live credentials are unavailable.
 - Checklist items grouped by category and bag (`Suitcase` or `Backpack`).
 - Packing progress, item completion, custom items, item deletion, and trip deletion.
