@@ -6,7 +6,7 @@ services:
     container_name: packing-backend
     restart: always
     ports:
-      -  "127.0.0.1:5001:5001"
+      -  "127.0.0.1:3026:5001"
     # Provide real secrets via a root .env file or the shell environment
     # (e.g. `WEATHER_API_KEY=... docker compose up`). The `:-placeholder`
     # defaults below only exist so the stack still boots without them — with
@@ -33,7 +33,7 @@ services:
     container_name: packing-frontend
     restart: always
     ports:
-      - "80:80"
+      - "127.0.0.1:3025:80"
     depends_on:
       - backend
     logging:

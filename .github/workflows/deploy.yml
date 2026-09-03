@@ -39,7 +39,7 @@ jobs:
           script: |
             echo "Starting Deployment..."
             # Adjust the path to your project folder on the VPS
-            cd ~/packing_app || cd /var/www/packing_app || (echo "Project folder not found!" && exit 1)
+            cd /home/ai_admin/apps/packing-app || cd ~/apps/packing-app || cd ~/packing_app || cd /var/www/packing_app || (echo "Project folder not found!" && exit 1)
 
             # Refuse to deploy with an unset or placeholder JWT secret.
             if [ -z "$JWT_SECRET" ] || [ "$JWT_SECRET" = "dev_insecure_jwt_secret_change_me" ]; then
@@ -47,7 +47,8 @@ jobs:
               exit 1
             fi
 
-            # Pull latest changes
+            # Ensure we are on main and pull latest changes
+            git checkout main
             git pull origin main
 
             # Write production secrets consumed by docker-compose interpolation.
