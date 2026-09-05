@@ -13,6 +13,11 @@ export default function DestinationAutocomplete({
   placeholder = "e.g. Paris, London, Tokyo",
   className = "",
   inputId,
+  // When true, the field is meant to hold a recognized catalog destination
+  // (Issue #64). The component reports validity through onValidChange and marks
+  // itself invalid for unrecognized text; the parent form decides how to block.
+  enforceKnown = false,
+  onValidChange,
 }) {
   const [destinations, setDestinations] = useState([]);
   const [open, setOpen] = useState(false);
@@ -45,6 +50,25 @@ export default function DestinationAutocomplete({
     if (!query) return [];
     return destinations.filter((city) => city.toLowerCase().includes(query));
   }, [value, destinations]);
+
+  // Whether the current value exactly matches a known catalog destination
+  // (case-insensitive). Used only when enforceKnown is set.
+  const isKnown = useMemo(() => {
+    const query = (value || "").trim().toLowerCase();
+    if (!query) return false;
+    return destinations.some((city) => city.toLowerCase() === query);
+  }, [value, destinations]);
+
+  // Can only enforce once the catalog has actually loaded; if the request
+  // failed (empty list) we let the field behave as free text and rely on the
+  // backend's own validation rather than blocking the user.
+  const canEnforce = enforceKnown && destinations.length > 0;
+  const valid = canEnforce ? isKnown : true;
+
+  // Report validity to the parent form whenever it changes.
+  useEffect(() => {
+    if (onValidChange) onValidChange(valid);
+  }, [valid, onValidChange]);
 
   // Close the dropdown when clicking outside the component.
   useEffect(() => {
@@ -108,10 +132,13 @@ export default function DestinationAutocomplete({
         aria-expanded={showList}
         aria-controls={listboxId}
         aria-autocomplete="list"
+        aria-invalid={canEnforce && !isKnown ? true : undefined}
         autoComplete="off"
         required={required}
         placeholder={placeholder}
-        className={className}
+        className={`${className} ${
+          canEnforce && !isKnown ? "border-red-400 focus:border-red-500 focus:ring-red-500" : ""
+        }`}
         value={value}
         onChange={(event) => {
           onChange(event.target.value);
@@ -149,6 +176,11 @@ export default function DestinationAutocomplete({
             </li>
           ))}
         </ul>
+      )}
+      {canEnforce && !isKnown && (
+        <p role="alert" className="mt-1 text-xs text-red-600">
+          Please choose a destination from the list.
+        </p>
       )}
     </div>
   );

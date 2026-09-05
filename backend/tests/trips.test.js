@@ -150,6 +150,40 @@ describe("Trips API Endpoints (Issue #6)", () => {
       expect(res.body.error).toMatch(/passenger composition/i);
     });
 
+    it("should reject a destination that is not in the supported catalog (Issue #64)", async () => {
+      const res = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({
+          destination: "Atlantis",
+          startDate: "2026-09-01",
+          endDate: "2026-09-05",
+          airline: "EL AL",
+          numPeople: 1,
+          vacationType: "Beach",
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/supported list/i);
+    });
+
+    it("accepts a catalog destination case-insensitively and stores canonical casing (Issue #64)", async () => {
+      const res = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({
+          destination: "  paris  ",
+          startDate: "2026-09-01",
+          endDate: "2026-09-03",
+          airline: "EL AL",
+          numPeople: 1,
+          vacationType: "City",
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.destination).toBe("Paris"); // canonical catalog spelling
+    });
+
     it("should create a trip, trim the destination, and generate a packing list", async () => {
       const res = await request(app)
         .post("/api/trips")

@@ -21,6 +21,21 @@ router.get("/destinations", (req, res) => {
 // Returns true when the value is a valid calendar date string (e.g. "2026-08-16").
 const isValidDate = (value) => !Number.isNaN(new Date(value).getTime());
 
+// Case-insensitive lookup of the supported-destination catalog (Issue #64).
+// Users must pick a recognized destination so downstream WeatherAPI lookups
+// don't fail on misspelled/unknown place names. The map's value is the
+// canonical catalog spelling, which we persist for consistency.
+const canonicalDestinationByKey = new Map(
+  destinations.map((name) => [name.trim().toLowerCase(), name])
+);
+
+// Resolve a submitted destination to its canonical catalog entry, or null when
+// it isn't in the supported list.
+function canonicalDestination(value) {
+  if (typeof value !== "string") return null;
+  return canonicalDestinationByKey.get(value.trim().toLowerCase()) || null;
+}
+
 // Validates the passenger composition contract (Issue #22): exactly the four
 // canonical keys, each a non-negative integer, with at least one passenger in
 // total. Returns the validated object or null when invalid.
@@ -96,6 +111,16 @@ router.post("/", async (req, res) => {
     return res.status(400).json({ error: "End date cannot be before start date." });
   }
 
+  // Destination must be one of the supported catalog entries (Issue #64), so a
+  // misspelled or arbitrary place name is rejected here rather than silently
+  // degrading the weather lookup.
+  const canonicalDest = canonicalDestination(destination);
+  if (!canonicalDest) {
+    return res
+      .status(400)
+      .json({ error: "Destination must be selected from the supported list." });
+  }
+
   // Passenger mix (Issue #22): either an explicit valid passengerComposition,
   // or the legacy single numPeople field. Exactly one source of truth.
   let composition;
@@ -112,7 +137,9 @@ router.post("/", async (req, res) => {
     return res.status(400).json({ error: "Number of people must be a positive integer." });
   }
 
-  const cleanDestination = destination.trim();
+  // Persist the canonical catalog spelling (Issue #64) so stored destinations
+  // stay consistent regardless of the submitted casing/whitespace.
+  const cleanDestination = canonicalDest;
   const cleanVacationType = vacationType.trim();
   const cleanAirline = airline.trim();
 

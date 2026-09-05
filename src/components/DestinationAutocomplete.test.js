@@ -96,6 +96,36 @@ test("Escape closes the dropdown without changing the value", async () => {
   expect(input).toHaveValue("bar");
 });
 
+test("enforceKnown reports validity and flags unrecognized destinations (Issue #64)", async () => {
+  const onValidChange = jest.fn();
+  render(<Harness enforceKnown onValidChange={onValidChange} />);
+  await waitFor(() => expect(api.getDestinations).toHaveBeenCalled());
+
+  // Partial / unknown text is invalid and surfaces an inline alert.
+  fireEvent.change(getInput(), { target: { value: "Barc" } });
+  await waitFor(() => expect(onValidChange).toHaveBeenLastCalledWith(false));
+  expect(screen.getByRole("alert")).toHaveTextContent(/choose a destination from the list/i);
+  expect(getInput()).toHaveAttribute("aria-invalid", "true");
+
+  // An exact (case-insensitive) catalog match is valid and clears the alert.
+  fireEvent.change(getInput(), { target: { value: "barcelona" } });
+  await waitFor(() => expect(onValidChange).toHaveBeenLastCalledWith(true));
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
+test("enforceKnown does not block when the catalog failed to load (Issue #64)", async () => {
+  api.getDestinations.mockRejectedValue(new Error("network"));
+  const onValidChange = jest.fn();
+  render(<Harness enforceKnown onValidChange={onValidChange} />);
+  await waitFor(() => expect(api.getDestinations).toHaveBeenCalled());
+
+  fireEvent.change(getInput(), { target: { value: "Reykjavik" } });
+  // With no catalog to validate against, the field stays valid and defers to
+  // the backend rather than trapping the user.
+  await waitFor(() => expect(onValidChange).toHaveBeenLastCalledWith(true));
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
 test("still works as a plain input when the suggestions request fails", async () => {
   api.getDestinations.mockRejectedValue(new Error("network"));
   render(<Harness />);
