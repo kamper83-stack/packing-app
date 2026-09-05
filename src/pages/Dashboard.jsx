@@ -10,8 +10,10 @@ import {
   totalPassengers,
 } from "../utils/passengers";
 import DestinationAutocomplete from "../components/DestinationAutocomplete";
+import useDocumentTitle from "../utils/useDocumentTitle";
 
 export default function Dashboard() {
+  useDocumentTitle("Dashboard");
   const [trips, setTrips] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
