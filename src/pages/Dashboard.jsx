@@ -114,8 +114,11 @@ export default function Dashboard() {
             </div>
             <div className="flex items-center space-x-4">
               {isAdmin && (
-                <Link to="/admin" className="text-gray-600 hover:text-indigo-600 font-medium text-sm">
-                  Admin
+                <Link
+                  to="/admin"
+                  className="inline-flex items-center gap-1 bg-indigo-600 text-white hover:bg-indigo-700 font-semibold text-sm px-3 py-1.5 rounded-md"
+                >
+                  🛡️ Admin Panel
                 </Link>
               )}
               <button

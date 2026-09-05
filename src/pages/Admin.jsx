@@ -11,6 +11,13 @@ function formatTime(value) {
   }
 }
 
+// Issue #62: colour a runtime log line by severity.
+const LOG_LEVEL_STYLES = {
+  error: "bg-red-50 text-red-700 border-red-200",
+  warn: "bg-amber-50 text-amber-800 border-amber-200",
+  info: "bg-gray-50 text-gray-600 border-gray-200",
+};
+
 function ProviderCard({ title, status }) {
   if (!status) return null;
   const configured = status.configured ? "Yes" : "No";
@@ -51,6 +58,7 @@ export default function Admin() {
   const [status, setStatus] = useState(null);
   const [users, setUsers] = useState([]);
   const [logs, setLogs] = useState([]);
+  const [systemLogs, setSystemLogs] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -62,15 +70,17 @@ export default function Admin() {
           navigate("/dashboard", { replace: true });
           return;
         }
-        const [nextStatus, nextUsers, nextLogs] = await Promise.all([
+        const [nextStatus, nextUsers, nextLogs, nextSystemLogs] = await Promise.all([
           api.getAdminStatus(),
           api.getAdminUsers(),
           api.getAdminLogs(),
+          api.getAdminSystemLogs(),
         ]);
         if (cancelled) return;
         setStatus(nextStatus);
         setUsers(nextUsers);
         setLogs(nextLogs);
+        setSystemLogs(Array.isArray(nextSystemLogs?.logs) ? nextSystemLogs.logs : []);
       } catch (err) {
         if (!cancelled) setError(err.message || "Failed to load admin data.");
       } finally {
@@ -173,6 +183,56 @@ export default function Admin() {
                     </li>
                   ))}
                 </ul>
+              )}
+            </div>
+
+            {/* Issue #62: operational system log viewer — runtime API activity,
+                status codes, and errors captured in-process. */}
+            <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100">
+              <h3 className="text-lg font-bold text-gray-900 mb-1">Operational system logs</h3>
+              <p className="text-xs text-gray-500 mb-4">
+                Recent runtime API requests and errors (most recent first, in-memory).
+              </p>
+              {systemLogs.length === 0 ? (
+                <p className="text-sm text-gray-500">No runtime events recorded yet.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs uppercase text-gray-500 border-b">
+                        <th className="py-2 pr-4">Time</th>
+                        <th className="py-2 pr-4">Level</th>
+                        <th className="py-2 pr-4">Event</th>
+                        <th className="py-2">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {systemLogs.map((entry) => (
+                        <tr key={entry.id} className="border-b last:border-0 align-top">
+                          <td className="py-2 pr-4 whitespace-nowrap text-xs text-gray-500">
+                            {formatTime(entry.at)}
+                          </td>
+                          <td className="py-2 pr-4">
+                            <span
+                              className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full border ${
+                                LOG_LEVEL_STYLES[entry.level] || LOG_LEVEL_STYLES.info
+                              }`}
+                            >
+                              {entry.level}
+                            </span>
+                          </td>
+                          <td className="py-2 pr-4 font-mono text-xs text-gray-700 break-all">
+                            {entry.message}
+                          </td>
+                          <td className="py-2 text-xs text-gray-700 whitespace-nowrap">
+                            {entry.status != null ? entry.status : "—"}
+                            {entry.durationMs != null ? ` · ${entry.durationMs}ms` : ""}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           </>

@@ -88,4 +88,40 @@ describe("Admin API (Issue #49)", () => {
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
   });
+
+  it("rejects the operational system-logs endpoint for a non-admin (Issue #62)", async () => {
+    const res = await request(app)
+      .get("/api/admin/system-logs")
+      .set("Authorization", `Bearer ${userToken}`);
+    expect(res.status).toBe(403);
+  });
+
+  it("returns operational runtime logs capturing API activity for an admin (Issue #62)", async () => {
+    const res = await request(app)
+      .get("/api/admin/system-logs")
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.logs)).toBe(true);
+    expect(res.body.logs.length).toBeGreaterThan(0);
+
+    // Entries are well-formed and newest-first; the prior admin requests in
+    // this suite must have been recorded by the request logger.
+    const entry = res.body.logs[0];
+    expect(entry).toHaveProperty("id");
+    expect(entry).toHaveProperty("at");
+    expect(["info", "warn", "error"]).toContain(entry.level);
+    expect(res.body.logs.some((e) => String(e.path).includes("/api/admin"))).toBe(true);
+  });
+
+  it("supports filtering operational logs by level (Issue #62)", async () => {
+    // The earlier non-admin 403s were recorded at warn level.
+    const res = await request(app)
+      .get("/api/admin/system-logs?level=warn")
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.logs.every((e) => e.level === "warn")).toBe(true);
+    expect(res.body.logs.some((e) => e.status === 403)).toBe(true);
+  });
 });

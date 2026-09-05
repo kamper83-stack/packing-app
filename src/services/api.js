@@ -84,4 +84,7 @@ export const api = {
   getAdminUsers: () => request("/admin/users"),
 
   getAdminLogs: () => request("/admin/logs"),
+
+  // Issue #62: operational runtime log (API activity, statuses, errors).
+  getAdminSystemLogs: () => request("/admin/system-logs"),
 };

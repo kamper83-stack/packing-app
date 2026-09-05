@@ -139,5 +139,32 @@ describe("Authentication API Endpoints (Issue #4)", () => {
       expect(res.status).toBe(403);
       expect(res.body.error).toMatch(/invalid token/i);
     });
+
+    it("promotes the designated ADMIN_EMAIL to admin across sessions (Issue #62)", async () => {
+      // A user created before the admin role was configured starts non-admin.
+      const email = "promote-me@example.com";
+      const registered = await request(app)
+        .post("/api/auth/register")
+        .send({ email, password: "Password123!" });
+      expect(registered.body.user.isAdmin).toBe(false);
+      const memberToken = registered.body.token;
+
+      const previousAdminEmail = process.env.ADMIN_EMAIL;
+      process.env.ADMIN_EMAIL = email;
+      try {
+        // Hitting /me reconciles the role without needing a re-register/restart.
+        const me = await request(app)
+          .get("/api/auth/me")
+          .set("Authorization", `Bearer ${memberToken}`);
+        expect(me.status).toBe(200);
+        expect(me.body.isAdmin).toBe(true);
+
+        // And the promotion is persisted, not just reflected in the response.
+        const row = await User.findOne({ where: { email } });
+        expect(row.isAdmin).toBe(true);
+      } finally {
+        process.env.ADMIN_EMAIL = previousAdminEmail;
+      }
+    });
   });
 });
