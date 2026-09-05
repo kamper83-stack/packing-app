@@ -1,4 +1,5 @@
 const axios = require("axios");
+const climateService = require("./climateService");
 
 // Values that look like a key but aren't one. The docker-compose / .env.example
 // default is a placeholder, so it must behave like "no key" — otherwise we call
@@ -24,6 +25,17 @@ function hasRealWeatherKey() {
 }
 
 async function getForecast(destination, startDate, endDate) {
+  // Trips beyond the live-forecast window can't get a daily forecast, so use a
+  // seasonal climate estimate instead (Issue #65). Done here so the single
+  // getForecast entry point still governs weather sourcing.
+  if (climateService.isBeyondLiveForecast(startDate)) {
+    console.log(
+      `[WEATHER SERVICE] ${destination} trip starts beyond the live window; ` +
+        "using seasonal climate estimate."
+    );
+    return climateService.getSeasonalEstimate(destination, startDate, endDate);
+  }
+
   const start = new Date(startDate);
   const end = new Date(endDate);
   const diffTime = Math.abs(end - start);

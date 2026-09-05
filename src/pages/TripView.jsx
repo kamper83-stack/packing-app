@@ -4,25 +4,39 @@ import { api } from "../services/api";
 import { Plus, Trash2, ChevronLeft } from "lucide-react";
 import { summarizePassengers } from "../utils/passengers";
 
-// Issue #36: compact indicator of where the weather forecast came from.
-// "live"  -> real WeatherAPI data; "mock" -> offline/sample fallback.
-// Any other value (including null on pre-#32 trips) renders nothing.
-function WeatherSourceBadge({ source }) {
-  if (source !== "live" && source !== "mock") return null;
+// Issue #36 / #65: compact indicator of where the weather forecast came from.
+// "live" -> real WeatherAPI data; "seasonal" -> historical climate estimate for
+// a distant-future trip; "mock" -> offline/sample fallback. Any other value
+// (including null on pre-#32 trips) renders nothing.
+const WEATHER_SOURCE_BADGES = {
+  live: {
+    classes: "bg-green-50 text-green-700 border-green-200",
+    label: "🟢 Live data",
+    aria: "Live weather data",
+  },
+  seasonal: {
+    classes: "bg-blue-50 text-blue-700 border-blue-200",
+    label: "📅 Seasonal Estimate",
+    aria: "Seasonal climate estimate",
+  },
+  mock: {
+    classes: "bg-gray-100 text-gray-600 border-gray-200",
+    label: "📋 Sample data",
+    aria: "Sample weather data",
+  },
+};
 
-  const isLive = source === "live";
-  const classes = isLive
-    ? "bg-green-50 text-green-700 border-green-200"
-    : "bg-gray-100 text-gray-600 border-gray-200";
-  const label = isLive ? "🟢 Live data" : "📋 Sample data";
+function WeatherSourceBadge({ source }) {
+  const badge = WEATHER_SOURCE_BADGES[source];
+  if (!badge) return null;
 
   return (
     <span
       role="status"
-      aria-label={isLive ? "Live weather data" : "Sample weather data"}
-      className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full border ${classes}`}
+      aria-label={badge.aria}
+      className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full border ${badge.classes}`}
     >
-      {label}
+      {badge.label}
     </span>
   );
 }
@@ -224,6 +238,21 @@ export default function TripView() {
                 <span>
                   Live weather is temporarily unavailable, so we're showing sample
                   data. Reload the trip later to try again.
+                </span>
+              </div>
+            )}
+            {/* Issue #65: the trip is too far out for a daily forecast, so the
+                figures below are historical monthly climate normals, not a live
+                forecast. Make that explicit so expectations are set. */}
+            {trip.weatherSource === "seasonal" && (
+              <div
+                role="status"
+                className="mb-4 flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-800"
+              >
+                <span aria-hidden="true">📅</span>
+                <span>
+                  This trip is beyond the live forecast window, so we're showing a
+                  seasonal climate estimate based on typical weather for these dates.
                 </span>
               </div>
             )}
