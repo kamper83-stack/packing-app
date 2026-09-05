@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { api } from "../services/api";
 import { Plus, Trash2, ChevronLeft } from "lucide-react";
 import { summarizePassengers } from "../utils/passengers";
+import useDocumentTitle from "../utils/useDocumentTitle";
 
 // Issue #36 / #65: compact indicator of where the weather forecast came from.
 // "live" -> real WeatherAPI data; "seasonal" -> historical climate estimate for
@@ -72,6 +73,10 @@ export default function TripView() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // Reflect the trip destination in the browser tab, e.g. "Trip to Paris |
+  // PackPlanner"; before the trip loads, show a neutral branded fallback.
+  useDocumentTitle(trip?.destination ? `Trip to ${trip.destination}` : "Trip");
 
   // Custom Item Form
   const [customName, setCustomName] = useState("");

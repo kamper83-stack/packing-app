@@ -51,9 +51,9 @@ describe("weatherService.getForecast - mock mode", () => {
     }
   });
 
-  it("clamps ranges longer than the 3-day window down to 3 entries", async () => {
+  it("clamps ranges longer than the forecast horizon down to 14 entries", async () => {
     const result = await getForecast("Barcelona", "2026-09-01", "2026-09-30");
-    expect(result.forecast).toHaveLength(3);
+    expect(result.forecast).toHaveLength(14); // LIVE_FORECAST_MAX_DAYS
   });
 
   it("returns a single entry for a same-day trip", async () => {
@@ -132,7 +132,14 @@ describe("weatherService.getForecast - real API path (mocked axios)", () => {
     process.env.USE_MOCKS = "false";
     process.env.WEATHER_API_KEY = "  test-key  ";
     axios.get.mockResolvedValue({
-      data: { forecast: { forecastday: [] } },
+      data: {
+        forecast: {
+          forecastday: [
+            { date: "2026-09-01", day: { avgtemp_c: 25, condition: { text: "Sunny" } } },
+            { date: "2026-09-02", day: { avgtemp_c: 24, condition: { text: "Sunny" } } },
+          ],
+        },
+      },
     });
 
     const result = await getForecast("Barcelona", "2026-09-01", "2026-09-02");
@@ -143,14 +150,14 @@ describe("weatherService.getForecast - real API path (mocked axios)", () => {
     expect(result.isMock).toBe(false);
   });
 
-  it("never requests more than the 3-day forecast window", async () => {
+  it("never requests more than the 14-day forecast horizon", async () => {
     enableRealPath();
     axios.get.mockResolvedValue({ data: { forecast: { forecastday: [] } } });
 
     await getForecast("Barcelona", "2026-09-01", "2026-09-30");
 
     const [, config] = axios.get.mock.calls[0];
-    expect(config.params.days).toBe(3);
+    expect(config.params.days).toBe(14);
   });
 
   it("delegates to a seasonal estimate for a trip beyond the live window (Issue #65)", async () => {
@@ -182,5 +189,64 @@ describe("weatherService.getForecast - real API path (mocked axios)", () => {
       expect(entry.tempC).toBe(20);
       expect(entry.condition).toBe("Mild");
     }
+  });
+});
+
+describe("weatherService.getForecast - future trip date alignment (Issue #63)", () => {
+  // Dates are built relative to the real "now" so the test is independent of
+  // the calendar. WeatherAPI numbers forecast days from today, so we simulate
+  // a provider that returns a run of days starting today and assert the
+  // service returns only the trip's days, correctly dated.
+  const DAY = 24 * 60 * 60 * 1000;
+  const iso = (d) => new Date(d).toISOString().split("T")[0];
+  const daysFromNow = (n) => iso(Date.now() + n * DAY);
+
+  // A provider response of `count` consecutive days starting today.
+  const forecastdayFromToday = (count) =>
+    Array.from({ length: count }).map((_, i) => ({
+      date: daysFromNow(i),
+      day: { avgtemp_c: 18 + i, condition: { text: "Sunny" } },
+    }));
+
+  beforeEach(() => {
+    process.env.USE_MOCKS = "false";
+    process.env.WEATHER_API_KEY = "test-key";
+  });
+
+  it("returns the trip's dates, not today's, for a trip inside the forecast window", async () => {
+    const start = daysFromNow(5);
+    const end = daysFromNow(7); // 3-day trip, 5 days out
+    // Provider serves today .. today+7 (8 days).
+    axios.get.mockResolvedValue({
+      data: { forecast: { forecastday: forecastdayFromToday(8) } },
+    });
+
+    const result = await getForecast("Rome", start, end);
+
+    // Requests enough days to reach the trip end: offset(5) + tripDays(3) = 8.
+    const [, config] = axios.get.mock.calls[0];
+    expect(config.params.days).toBe(8);
+
+    // Only the trip's own dates are returned, in order.
+    expect(result.isMock).toBe(false);
+    expect(result.forecast.map((d) => d.date)).toEqual([start, daysFromNow(6), end]);
+    // And they are genuinely the trip dates, never "today".
+    expect(result.forecast.map((d) => d.date)).not.toContain(daysFromNow(0));
+  });
+
+  it("uses a trip-dated mock when the provider can't reach the trip window", async () => {
+    const start = daysFromNow(10);
+    const end = daysFromNow(11); // trip beyond a free-plan 3-day coverage
+    // Provider only serves the next 3 days (today .. today+2).
+    axios.get.mockResolvedValue({
+      data: { forecast: { forecastday: forecastdayFromToday(3) } },
+    });
+
+    const result = await getForecast("Rome", start, end);
+
+    // No live day fell inside the trip window, so we present a trip-dated mock
+    // rather than misleading "today" data.
+    expect(result.isMock).toBe(true);
+    expect(result.forecast.map((d) => d.date)).toEqual([start, end]);
   });
 });
