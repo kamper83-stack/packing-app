@@ -39,11 +39,25 @@ export default function DestinationAutocomplete({
     };
   }, []);
 
-  // Case-insensitive substring match against the current input.
+  // Case-insensitive substring match against the current input, ranked so
+  // that prefix matches come before mid-word matches (Issue #66). Typing
+  // "Lon" should surface "London" ahead of "Barcelona"; both match via
+  // includes(), but the prefix hit is the more useful suggestion. Ordering is
+  // otherwise stable, preserving the catalog order within each group.
   const matches = useMemo(() => {
     const query = (value || "").trim().toLowerCase();
     if (!query) return [];
-    return destinations.filter((city) => city.toLowerCase().includes(query));
+    const prefix = [];
+    const substring = [];
+    for (const city of destinations) {
+      const lower = city.toLowerCase();
+      if (lower.startsWith(query)) {
+        prefix.push(city);
+      } else if (lower.includes(query)) {
+        substring.push(city);
+      }
+    }
+    return [...prefix, ...substring];
   }, [value, destinations]);
 
   // Close the dropdown when clicking outside the component.

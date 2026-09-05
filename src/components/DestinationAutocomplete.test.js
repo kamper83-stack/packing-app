@@ -96,6 +96,29 @@ test("Escape closes the dropdown without changing the value", async () => {
   expect(input).toHaveValue("bar");
 });
 
+test("prefix matches rank ahead of mid-word matches (Issue #66)", async () => {
+  // Both "Barcelona" (barceLONa) and "London" match "lon" via includes(),
+  // but London is the prefix hit and must be listed first.
+  api.getDestinations.mockResolvedValue({
+    destinations: ["Barcelona", "London", "Long Beach"],
+  });
+  render(<Harness />);
+  await waitFor(() => expect(api.getDestinations).toHaveBeenCalled());
+
+  fireEvent.change(getInput(), { target: { value: "lon" } });
+  await screen.findByRole("listbox");
+
+  const options = screen.getAllByRole("option").map((el) => el.textContent);
+  // Prefix matches first (catalog order preserved within each group), then
+  // the substring-only match.
+  expect(options).toEqual(["London", "Long Beach", "Barcelona"]);
+
+  // ArrowDown + Enter therefore selects the prefix match, not Barcelona.
+  fireEvent.keyDown(getInput(), { key: "ArrowDown" });
+  fireEvent.keyDown(getInput(), { key: "Enter" });
+  expect(getInput()).toHaveValue("London");
+});
+
 test("still works as a plain input when the suggestions request fails", async () => {
   api.getDestinations.mockRejectedValue(new Error("network"));
   render(<Harness />);
