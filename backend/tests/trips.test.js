@@ -275,6 +275,28 @@ describe("Trips API Endpoints (Issue #6)", () => {
       expect(res.body.aiError).toBeNull();
       expect(res.body.PackingItems).toHaveLength(2);
     });
+
+    it("marks a distant-future trip as a seasonal climate estimate (Issue #65)", async () => {
+      const DAY = 24 * 60 * 60 * 1000;
+      const iso = (d) => new Date(d).toISOString().split("T")[0];
+      const res = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({
+          destination: "Rome",
+          startDate: iso(Date.now() + 60 * DAY),
+          endDate: iso(Date.now() + 63 * DAY),
+          airline: "EL AL",
+          numPeople: 1,
+          vacationType: "City",
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.weatherSource).toBe("seasonal");
+      expect(res.body.weatherError).toBeNull();
+      expect(Array.isArray(res.body.weatherData)).toBe(true);
+      expect(res.body.weatherData.length).toBeGreaterThan(0);
+    });
   });
 
   describe("GET /api/trips", () => {

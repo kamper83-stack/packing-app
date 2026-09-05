@@ -154,8 +154,9 @@ router.post("/", async (req, res) => {
       ...(composition ? { passengerComposition: composition } : {}),
       vacationType: cleanVacationType,
       weatherData: weatherInfo.forecast,
-      // Issue #32: persist weather provenance
-      weatherSource: weatherInfo.isMock ? "mock" : "live",
+      // Issue #32 / #65: persist weather provenance. A distant-future trip is
+      // a seasonal climate estimate rather than a live forecast or mock.
+      weatherSource: weatherInfo.isSeasonal ? "seasonal" : weatherInfo.isMock ? "mock" : "live",
       weatherError: weatherInfo.error ? String(weatherInfo.error) : null,
       // Issue #30: persist AI generation provenance
       aiSource: aiResult.isMock ? "mock" : "live",

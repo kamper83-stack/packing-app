@@ -221,6 +221,18 @@ describe("TripView (Issue #10)", () => {
     expect(screen.getByText(/live weather is temporarily unavailable/i)).toBeInTheDocument();
   });
 
+  it("shows a seasonal-estimate badge and notice for a distant-future trip (Issue #65)", async () => {
+    api.getTrip.mockResolvedValue({ ...sampleTrip, weatherSource: "seasonal" });
+
+    renderTripView();
+    await screen.findByRole("heading", { name: "Barcelona" });
+
+    expect(screen.getByLabelText(/seasonal climate estimate/i)).toBeInTheDocument();
+    expect(screen.getByText(/seasonal climate estimate based on typical weather/i)).toBeInTheDocument();
+    // Not confused with the live badge.
+    expect(screen.queryByLabelText(/live weather data/i)).not.toBeInTheDocument();
+  });
+
   it("renders no weather source badge for legacy trips without provenance (Issue #36)", async () => {
     // sampleTrip has no weatherSource -> pre-#32 row must stay readable.
     api.getTrip.mockResolvedValue(sampleTrip);
