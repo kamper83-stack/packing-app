@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../services/api";
+import useDocumentTitle from "../utils/useDocumentTitle";
 
 function formatTime(value) {
   if (!value) return "—";
@@ -46,6 +47,7 @@ function ProviderCard({ title, status }) {
 }
 
 export default function Admin() {
+  useDocumentTitle("Admin");
   const navigate = useNavigate();
   const [error, setError] = useState("");
   const [status, setStatus] = useState(null);
