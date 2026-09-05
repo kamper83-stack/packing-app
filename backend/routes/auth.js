@@ -21,6 +21,17 @@ function isSeedAdminEmail(email) {
   return adminEmail !== "" && email === adminEmail;
 }
 
+// Ensure the designated ADMIN_EMAIL always reflects isAdmin: true, even for
+// accounts created before the role was configured or promoted (Issue #62).
+// Only ever promotes — never demotes — so manually-granted admins are kept.
+// Returns the (possibly updated) user instance.
+async function reconcileAdmin(user) {
+  if (user && !user.isAdmin && isSeedAdminEmail(user.email)) {
+    await user.update({ isAdmin: true });
+  }
+  return user;
+}
+
 // POST /api/auth/register
 router.post("/register", async (req, res) => {
   const { email, password } = req.body;
@@ -82,6 +93,10 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ error: "Invalid email or password." });
     }
 
+    // Reconcile admin status so the designated admin sees their role
+    // immediately on login, without needing a server restart (Issue #62).
+    await reconcileAdmin(user);
+
     const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: "7d" });
     res.json({ token, user: publicUser(user) });
   } catch (error) {
@@ -97,6 +112,8 @@ router.get("/me", authMiddleware, async (req, res) => {
     if (!user) {
       return res.status(404).json({ error: "User not found." });
     }
+    // Keep the designated admin's role accurate across sessions (Issue #62).
+    await reconcileAdmin(user);
     res.json(publicUser(user));
   } catch (error) {
     res.status(500).json({ error: "Internal server error." });

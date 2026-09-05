@@ -187,11 +187,21 @@ describe("Dashboard (Issue #9)", () => {
     expect(mockNavigate).toHaveBeenCalledWith("/login");
   });
 
-  it("shows an Admin nav link only for admin users (Issue #49)", async () => {
+  it("shows a prominent Admin nav link only for admin users (Issue #49, #62)", async () => {
     api.getTrips.mockResolvedValue([]);
     api.getMe.mockResolvedValue({ isAdmin: true });
 
     renderDashboard();
-    expect(await screen.findByRole("link", { name: /^admin$/i })).toHaveAttribute("href", "/admin");
+    expect(await screen.findByRole("link", { name: /admin panel/i })).toHaveAttribute("href", "/admin");
+  });
+
+  it("hides the Admin nav link for non-admin users (Issue #62)", async () => {
+    api.getTrips.mockResolvedValue([]);
+    api.getMe.mockResolvedValue({ isAdmin: false });
+
+    renderDashboard();
+    // Wait for the trip form to render, then assert no admin link is present.
+    await screen.findByText(/plan a new trip/i);
+    expect(screen.queryByRole("link", { name: /admin panel/i })).not.toBeInTheDocument();
   });
 });
