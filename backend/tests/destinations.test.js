@@ -50,3 +50,23 @@ describe("GET /api/trips/destinations (Issue #38)", () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe("GET /api/trips/locations (country -> airport cities)", () => {
+  it("returns countries mapped to their airport cities for an authenticated user", async () => {
+    const res = await request(app)
+      .get("/api/trips/locations")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.citiesByCountry && typeof res.body.citiesByCountry).toBe("object");
+    // A well-known country lists its airport cities.
+    expect(Array.isArray(res.body.citiesByCountry.France)).toBe(true);
+    expect(res.body.citiesByCountry.France).toContain("Paris");
+    expect(Object.keys(res.body.citiesByCountry).length).toBeGreaterThan(100);
+  });
+
+  it("requires authentication", async () => {
+    const res = await request(app).get("/api/trips/locations");
+    expect(res.status).toBe(401);
+  });
+});

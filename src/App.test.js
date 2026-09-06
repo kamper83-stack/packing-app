@@ -8,6 +8,7 @@ jest.mock("./services/api", () => ({
     createTrip: jest.fn(),
     getTrip: jest.fn(),
     getDestinations: jest.fn(),
+    getLocations: jest.fn(),
     getMe: jest.fn(),
   },
 }));
@@ -17,6 +18,7 @@ beforeEach(() => {
   localStorage.clear();
   window.history.pushState({}, "", "/");
   api.getDestinations.mockResolvedValue({ destinations: [] });
+  api.getLocations.mockResolvedValue({ citiesByCountry: {} });
   api.getMe.mockResolvedValue({ isAdmin: false });
 });
 
