@@ -204,4 +204,36 @@ describe("Dashboard (Issue #9)", () => {
     await screen.findByText(/plan a new trip/i);
     expect(screen.queryByRole("link", { name: /admin panel/i })).not.toBeInTheDocument();
   });
+
+  it("advances focus to the end (landing) date after a start date is picked", async () => {
+    api.getTrips.mockResolvedValue([]);
+
+    const { container } = renderDashboard();
+    await screen.findByText(/plan a new trip/i);
+
+    const dateInputs = container.querySelectorAll('input[type="date"]');
+    const [startInput, endInput] = dateInputs;
+
+    fireEvent.change(startInput, { target: { value: "2026-09-01" } });
+
+    // The user is sent straight to picking the return date.
+    expect(endInput).toHaveFocus();
+    // And the end date can't be set before the chosen departure date.
+    expect(endInput).toHaveAttribute("min", "2026-09-01");
+  });
+
+  it("pulls an earlier end date forward when a later start date is chosen", async () => {
+    api.getTrips.mockResolvedValue([]);
+
+    const { container } = renderDashboard();
+    await screen.findByText(/plan a new trip/i);
+
+    const dateInputs = container.querySelectorAll('input[type="date"]');
+    const [startInput, endInput] = dateInputs;
+
+    fireEvent.change(endInput, { target: { value: "2026-09-03" } });
+    // Choosing a start date after the current end date snaps the end date to it.
+    fireEvent.change(startInput, { target: { value: "2026-09-10" } });
+    expect(endInput).toHaveValue("2026-09-10");
+  });
 });

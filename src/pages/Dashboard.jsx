@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../services/api";
 import {
@@ -26,6 +26,9 @@ export default function Dashboard() {
   const [destinationValid, setDestinationValid] = useState(true);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  // Ref to the end (landing) date input so choosing a departure date can send
+  // the user straight to picking the return date, without hunting for it.
+  const endDateRef = useRef(null);
   const [airline, setAirline] = useState("EL AL");
   const [passengers, setPassengers] = useState(emptyComposition());
   const [vacationType, setVacationType] = useState("City Trip");
@@ -177,14 +180,40 @@ export default function Dashboard() {
                     required
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                     value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
+                    onChange={(e) => {
+                      const nextStart = e.target.value;
+                      setStartDate(nextStart);
+                      // Keep the return date on/after departure so the form
+                      // can't hold an end-before-start range.
+                      if (endDate && nextStart && endDate < nextStart) {
+                        setEndDate(nextStart);
+                      }
+                      // Once a departure date is chosen, advance the user
+                      // straight to picking the landing date.
+                      if (nextStart) {
+                        const el = endDateRef.current;
+                        if (el) {
+                          el.focus();
+                          // showPicker() opens the native calendar where the
+                          // browser supports it; guard it since it can be
+                          // unsupported (older browsers, jsdom) or blocked.
+                          try {
+                            el.showPicker?.();
+                          } catch {
+                            /* fall back to the plain focus above */
+                          }
+                        }
+                      }
+                    }}
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase">End Date</label>
                   <input
+                    ref={endDateRef}
                     type="date"
                     required
+                    min={startDate || undefined}
                     className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
