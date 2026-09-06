@@ -160,6 +160,21 @@ describe("weatherService.getForecast - real API path (mocked axios)", () => {
     expect(config.params.days).toBe(14);
   });
 
+  it("delegates to a seasonal estimate for a trip beyond the live window (Issue #65)", async () => {
+    enableRealPath();
+    const DAY = 24 * 60 * 60 * 1000;
+    const iso = (d) => new Date(d).toISOString().split("T")[0];
+    const start = iso(Date.now() + 60 * DAY);
+    const end = iso(Date.now() + 62 * DAY);
+
+    const result = await getForecast("Rome", start, end);
+
+    // No live call is made; the result is flagged seasonal and dated to the trip.
+    expect(axios.get).not.toHaveBeenCalled();
+    expect(result.isSeasonal).toBe(true);
+    expect(result.forecast[0].date).toBe(start);
+  });
+
   it("falls back to a mild mock forecast when the API call fails", async () => {
     enableRealPath();
     axios.get.mockRejectedValue(new Error("timeout"));
