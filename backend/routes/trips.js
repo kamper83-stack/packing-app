@@ -5,36 +5,55 @@ const authMiddleware = require("../middleware/auth");
 const weatherService = require("../services/weatherService");
 const geminiService = require("../services/geminiService");
 const airlines = require("../config/airlines.json");
-const destinations = require("../config/destinations.json");
+// Countries -> cities that have a commercial airport (derived from the
+// OpenFlights dataset). Powers the create-trip destination picker: choose a
+// country, then a city with an airport within it.
+const { citiesByCountry: airportCities } = require("../config/airportCities.json");
 
 // Protect all routes
 router.use(authMiddleware);
 
-// GET /api/trips/destinations - Popular destinations for the create-trip
-// autocomplete (Issue #38). Declared before the "/:id" route so the literal
-// path is not captured as a trip id. The POST contract is unchanged:
-// `destination` is still a free string, this only powers type-ahead hints.
+// Flat, case-insensitive lookup of every airport city (across all countries):
+// lowercased city -> canonical spelling. Used to validate a submitted
+// destination and to store a consistent spelling. First occurrence wins for the
+// rare case of the same city name appearing in more than one country.
+const canonicalCityByKey = new Map();
+for (const country of Object.keys(airportCities)) {
+  for (const cityName of airportCities[country]) {
+    const key = cityName.trim().toLowerCase();
+    if (!canonicalCityByKey.has(key)) canonicalCityByKey.set(key, cityName);
+  }
+}
+
+// Sorted, de-duplicated flat list of airport-city names (for the legacy
+// type-ahead endpoint / Issue #38).
+const allAirportCities = [...new Set(canonicalCityByKey.values())].sort((a, b) =>
+  a.localeCompare(b)
+);
+
+// Resolve a submitted destination to its canonical airport-city spelling, or
+// null when the city isn't a recognized airport city.
+function canonicalCity(value) {
+  if (typeof value !== "string") return null;
+  return canonicalCityByKey.get(value.trim().toLowerCase()) || null;
+}
+
+// GET /api/trips/locations - Countries and their airport cities for the
+// create-trip destination picker (choose a country, then a city with an
+// airport). Declared before "/:id" so the literal path isn't read as a trip id.
+router.get("/locations", (req, res) => {
+  res.json({ citiesByCountry: airportCities });
+});
+
+// GET /api/trips/destinations - Flat list of airport cities for type-ahead
+// hints (Issue #38). Declared before the "/:id" route so the literal path is
+// not captured as a trip id.
 router.get("/destinations", (req, res) => {
-  res.json({ destinations });
+  res.json({ destinations: allAirportCities });
 });
 
 // Returns true when the value is a valid calendar date string (e.g. "2026-08-16").
 const isValidDate = (value) => !Number.isNaN(new Date(value).getTime());
-
-// Case-insensitive lookup of the supported-destination catalog (Issue #64).
-// Users must pick a recognized destination so downstream WeatherAPI lookups
-// don't fail on misspelled/unknown place names. The map's value is the
-// canonical catalog spelling, which we persist for consistency.
-const canonicalDestinationByKey = new Map(
-  destinations.map((name) => [name.trim().toLowerCase(), name])
-);
-
-// Resolve a submitted destination to its canonical catalog entry, or null when
-// it isn't in the supported list.
-function canonicalDestination(value) {
-  if (typeof value !== "string") return null;
-  return canonicalDestinationByKey.get(value.trim().toLowerCase()) || null;
-}
 
 // Validates the passenger composition contract (Issue #22): exactly the four
 // canonical keys, each a non-negative integer, with at least one passenger in
@@ -111,14 +130,15 @@ router.post("/", async (req, res) => {
     return res.status(400).json({ error: "End date cannot be before start date." });
   }
 
-  // Destination must be one of the supported catalog entries (Issue #64), so a
-  // misspelled or arbitrary place name is rejected here rather than silently
-  // degrading the weather lookup.
-  const canonicalDest = canonicalDestination(destination);
-  if (!canonicalDest) {
+  // The destination must be a city that has a commercial airport (in any
+  // country). Users pick it from the country/city selector; we validate here
+  // too so an unknown place name is rejected rather than silently degrading the
+  // weather/flight lookup.
+  const cityMatch = canonicalCity(destination);
+  if (!cityMatch) {
     return res
       .status(400)
-      .json({ error: "Destination must be selected from the supported list." });
+      .json({ error: "Please choose a destination city that has an airport." });
   }
 
   // Passenger mix (Issue #22): either an explicit valid passengerComposition,
@@ -137,9 +157,9 @@ router.post("/", async (req, res) => {
     return res.status(400).json({ error: "Number of people must be a positive integer." });
   }
 
-  // Persist the canonical catalog spelling (Issue #64) so stored destinations
-  // stay consistent regardless of the submitted casing/whitespace.
-  const cleanDestination = canonicalDest;
+  // Persist the canonical airport-city spelling so stored destinations stay
+  // consistent regardless of the submitted casing/whitespace.
+  const cleanDestination = cityMatch;
   const cleanVacationType = vacationType.trim();
   const cleanAirline = airline.trim();
 

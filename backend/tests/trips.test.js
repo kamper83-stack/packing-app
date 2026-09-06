@@ -150,7 +150,7 @@ describe("Trips API Endpoints (Issue #6)", () => {
       expect(res.body.error).toMatch(/passenger composition/i);
     });
 
-    it("should reject a destination that is not in the supported catalog (Issue #64)", async () => {
+    it("should reject a destination city that has no airport", async () => {
       const res = await request(app)
         .post("/api/trips")
         .set("Authorization", `Bearer ${tokenA}`)
@@ -164,10 +164,10 @@ describe("Trips API Endpoints (Issue #6)", () => {
         });
 
       expect(res.status).toBe(400);
-      expect(res.body.error).toMatch(/supported list/i);
+      expect(res.body.error).toMatch(/airport/i);
     });
 
-    it("accepts a catalog destination case-insensitively and stores canonical casing (Issue #64)", async () => {
+    it("accepts an airport city case-insensitively and stores canonical casing", async () => {
       const res = await request(app)
         .post("/api/trips")
         .set("Authorization", `Bearer ${tokenA}`)
@@ -296,7 +296,7 @@ describe("Trips API Endpoints (Issue #6)", () => {
         .post("/api/trips")
         .set("Authorization", `Bearer ${tokenA}`)
         .send({
-          destination: "Kyoto",
+          destination: "Tokyo",
           startDate: "2026-11-25",
           endDate: "2026-11-28",
           airline: "EL AL",
