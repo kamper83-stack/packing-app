@@ -21,6 +21,9 @@ export default function Dashboard() {
   
   // Trip Form States
   const [destination, setDestination] = useState("");
+  // Whether the typed destination matches a supported catalog entry (Issue
+  // #64). Starts valid so an empty form relies on the input's required rule.
+  const [destinationValid, setDestinationValid] = useState(true);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [airline, setAirline] = useState("EL AL");
@@ -61,6 +64,13 @@ export default function Dashboard() {
   const handleCreateTrip = async (e) => {
     e.preventDefault();
     setError("");
+
+    // Require a recognized destination (Issue #64) before hitting the backend,
+    // so unknown place names are caught with a clear message up front.
+    if (!destinationValid) {
+      setError("Please choose a destination from the supported list.");
+      return;
+    }
 
     // Reject fractional or otherwise non-integer passenger counts before they
     // are silently truncated by parseInt (Issue #35). Report the offending
@@ -149,6 +159,8 @@ export default function Dashboard() {
                   value={destination}
                   onChange={setDestination}
                   required
+                  enforceKnown
+                  onValidChange={setDestinationValid}
                   placeholder="e.g. Paris, London, Tokyo"
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 />
