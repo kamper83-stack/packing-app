@@ -16,6 +16,7 @@ jest.mock("../services/api", () => ({
     getTrips: jest.fn(),
     createTrip: jest.fn(),
     getDestinations: jest.fn(),
+    getLocations: jest.fn(),
     getMe: jest.fn(),
   },
 }));
@@ -30,8 +31,16 @@ const renderDashboard = () =>
 // Fill the minimum required fields of the "Plan a New Trip" form.
 // `passengers` overrides individual passenger-composition counts (defaults
 // to a single adult woman so submission passes the "at least one" check).
-const fillTripForm = (container, passengers = { women: 1 }) => {
-  fireEvent.change(screen.getByPlaceholderText(/paris/i), { target: { value: "Rome" } });
+// Async because the destination picker loads its country/city data from the API.
+const fillTripForm = async (container, passengers = { women: 1 }) => {
+  // Pick a country, then a city with an airport within it.
+  const countrySelect = await screen.findByLabelText("Country");
+  await waitFor(() =>
+    expect(screen.getByLabelText("Country").querySelectorAll("option").length).toBeGreaterThan(1)
+  );
+  fireEvent.change(countrySelect, { target: { value: "Italy" } });
+  fireEvent.change(screen.getByLabelText("City"), { target: { value: "Rome" } });
+
   const dateInputs = container.querySelectorAll('input[type="date"]');
   fireEvent.change(dateInputs[0], { target: { value: "2026-09-01" } });
   fireEvent.change(dateInputs[1], { target: { value: "2026-09-05" } });
@@ -46,6 +55,9 @@ beforeEach(() => {
   jest.clearAllMocks();
   localStorage.clear();
   api.getDestinations.mockResolvedValue({ destinations: [] });
+  api.getLocations.mockResolvedValue({
+    citiesByCountry: { Italy: ["Milan", "Rome"], France: ["Nice", "Paris"] },
+  });
   api.getMe.mockResolvedValue({ isAdmin: false });
 });
 
@@ -112,7 +124,7 @@ describe("Dashboard (Issue #9)", () => {
     const { container } = renderDashboard();
     await screen.findByText(/no trips planned yet/i);
 
-    fillTripForm(container, { infants: 1, children: 2, women: 1, men: 1 });
+    await fillTripForm(container, { infants: 1, children: 2, women: 1, men: 1 });
     fireEvent.click(screen.getByRole("button", { name: /create trip/i }));
 
     await waitFor(() =>
@@ -138,7 +150,7 @@ describe("Dashboard (Issue #9)", () => {
     const { container } = renderDashboard();
     await screen.findByText(/no trips planned yet/i);
 
-    fillTripForm(container, {});
+    await fillTripForm(container, {});
     fireEvent.click(screen.getByRole("button", { name: /create trip/i }));
 
     expect(await screen.findByText(/at least one passenger/i)).toBeInTheDocument();
@@ -152,7 +164,7 @@ describe("Dashboard (Issue #9)", () => {
     const { container } = renderDashboard();
     await screen.findByText(/no trips planned yet/i);
 
-    fillTripForm(container, { women: 1.5 });
+    await fillTripForm(container, { women: 1.5 });
     fireEvent.click(screen.getByRole("button", { name: /create trip/i }));
 
     expect(await screen.findByText(/whole numbers/i)).toBeInTheDocument();
@@ -167,7 +179,7 @@ describe("Dashboard (Issue #9)", () => {
     const { container } = renderDashboard();
     await screen.findByText(/no trips planned yet/i);
 
-    fillTripForm(container);
+    await fillTripForm(container);
     fireEvent.click(screen.getByRole("button", { name: /create trip/i }));
 
     expect(await screen.findByText(/free trip quota exceeded/i)).toBeInTheDocument();
@@ -203,5 +215,37 @@ describe("Dashboard (Issue #9)", () => {
     // Wait for the trip form to render, then assert no admin link is present.
     await screen.findByText(/plan a new trip/i);
     expect(screen.queryByRole("link", { name: /admin panel/i })).not.toBeInTheDocument();
+  });
+
+  it("advances focus to the end (landing) date after a start date is picked", async () => {
+    api.getTrips.mockResolvedValue([]);
+
+    const { container } = renderDashboard();
+    await screen.findByText(/plan a new trip/i);
+
+    const dateInputs = container.querySelectorAll('input[type="date"]');
+    const [startInput, endInput] = dateInputs;
+
+    fireEvent.change(startInput, { target: { value: "2026-09-01" } });
+
+    // The user is sent straight to picking the return date.
+    expect(endInput).toHaveFocus();
+    // And the end date can't be set before the chosen departure date.
+    expect(endInput).toHaveAttribute("min", "2026-09-01");
+  });
+
+  it("pulls an earlier end date forward when a later start date is chosen", async () => {
+    api.getTrips.mockResolvedValue([]);
+
+    const { container } = renderDashboard();
+    await screen.findByText(/plan a new trip/i);
+
+    const dateInputs = container.querySelectorAll('input[type="date"]');
+    const [startInput, endInput] = dateInputs;
+
+    fireEvent.change(endInput, { target: { value: "2026-09-03" } });
+    // Choosing a start date after the current end date snaps the end date to it.
+    fireEvent.change(startInput, { target: { value: "2026-09-10" } });
+    expect(endInput).toHaveValue("2026-09-10");
   });
 });

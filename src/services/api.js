@@ -79,6 +79,9 @@ export const api = {
 
   getDestinations: () => request("/trips/destinations"),
 
+  // Countries mapped to their airport cities, for the destination picker.
+  getLocations: () => request("/trips/locations"),
+
   getAdminStatus: () => request("/admin/status"),
 
   getAdminUsers: () => request("/admin/users"),

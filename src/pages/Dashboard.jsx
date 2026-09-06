@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ShieldCheck, LogOut, Calendar, Plane, Users, MapPin, ArrowRight, Sparkles } from "lucide-react";
 import { api } from "../services/api";
@@ -10,7 +10,7 @@ import {
   summarizePassengers,
   totalPassengers,
 } from "../utils/passengers";
-import DestinationAutocomplete from "../components/DestinationAutocomplete";
+import DestinationPicker from "../components/DestinationPicker";
 import Logo from "../components/Logo";
 import useDocumentTitle from "../utils/useDocumentTitle";
 
@@ -22,12 +22,15 @@ export default function Dashboard() {
   const [isAdmin, setIsAdmin] = useState(false);
 
   // Trip Form States
-  const [destination, setDestination] = useState("");
-  // Whether the typed destination matches a supported catalog entry (Issue
-  // #64). Starts valid so an empty form relies on the input's required rule.
-  const [destinationValid, setDestinationValid] = useState(true);
+  // Destination is chosen as a (country, city) pair; the city — always a place
+  // with an airport — is what we send as the trip destination.
+  const [country, setCountry] = useState("");
+  const [destination, setDestination] = useState(""); // the selected city
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  // Ref to the end (landing) date input so choosing a departure date can send
+  // the user straight to picking the return date, without hunting for it.
+  const endDateRef = useRef(null);
   const [airline, setAirline] = useState("EL AL");
   const [passengers, setPassengers] = useState(emptyComposition());
   const [vacationType, setVacationType] = useState("City Trip");
@@ -67,10 +70,10 @@ export default function Dashboard() {
     e.preventDefault();
     setError("");
 
-    // Require a recognized destination (Issue #64) before hitting the backend,
-    // so unknown place names are caught with a clear message up front.
-    if (!destinationValid) {
-      setError("Please choose a destination from the supported list.");
+    // Require a country + city (a city with an airport) before hitting the
+    // backend, so the message is clear up front.
+    if (!country || !destination) {
+      setError("Please choose a destination country and city.");
       return;
     }
 
@@ -126,10 +129,7 @@ export default function Dashboard() {
             <Logo size="md" />
             <div className="flex items-center gap-2">
               {isAdmin && (
-                <Link
-                  to="/admin"
-                  className="btn-secondary !py-2 !px-3 text-brand-700"
-                >
+                <Link to="/admin" className="btn-secondary !py-2 !px-3 text-brand-700">
                   <ShieldCheck size={16} />
                   <span className="hidden sm:inline">Admin panel</span>
                 </Link>
@@ -167,14 +167,15 @@ export default function Dashboard() {
             <form onSubmit={handleCreateTrip} className="space-y-4">
               <div>
                 <label className="label">Destination</label>
-                <DestinationAutocomplete
-                  value={destination}
-                  onChange={setDestination}
+                <DestinationPicker
+                  country={country}
+                  city={destination}
+                  onChange={({ country: nextCountry, city }) => {
+                    setCountry(nextCountry);
+                    setDestination(city);
+                  }}
                   required
-                  enforceKnown
-                  onValidChange={setDestinationValid}
-                  placeholder="e.g. Paris, London, Tokyo"
-                  className="input"
+                  selectClassName="input"
                 />
               </div>
 
@@ -186,14 +187,40 @@ export default function Dashboard() {
                     required
                     className="input"
                     value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
+                    onChange={(e) => {
+                      const nextStart = e.target.value;
+                      setStartDate(nextStart);
+                      // Keep the return date on/after departure so the form
+                      // can't hold an end-before-start range.
+                      if (endDate && nextStart && endDate < nextStart) {
+                        setEndDate(nextStart);
+                      }
+                      // Once a departure date is chosen, advance the user
+                      // straight to picking the landing date.
+                      if (nextStart) {
+                        const el = endDateRef.current;
+                        if (el) {
+                          el.focus();
+                          // showPicker() opens the native calendar where the
+                          // browser supports it; guard it since it can be
+                          // unsupported (older browsers, jsdom) or blocked.
+                          try {
+                            el.showPicker?.();
+                          } catch {
+                            /* fall back to the plain focus above */
+                          }
+                        }
+                      }
+                    }}
                   />
                 </div>
                 <div>
                   <label className="label">End date</label>
                   <input
+                    ref={endDateRef}
                     type="date"
                     required
+                    min={startDate || undefined}
                     className="input"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
