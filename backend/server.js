@@ -6,6 +6,7 @@ const ensureSchema = require("./config/ensureSchema");
 const authRoutes = require("./routes/auth");
 const tripRoutes = require("./routes/trips");
 const adminRoutes = require("./routes/admin");
+const requestLogger = require("./middleware/requestLogger");
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -13,6 +14,8 @@ const PORT = process.env.PORT || 5001;
 // Middlewares
 app.use(cors());
 app.use(express.json());
+// Issue #62: capture runtime API activity for the Admin operational log viewer.
+app.use(requestLogger);
 
 // Routes
 app.use("/api/auth", authRoutes);

@@ -3,6 +3,7 @@ const { Op } = require("sequelize");
 const { User, Trip, sequelize } = require("../models");
 const authMiddleware = require("../middleware/auth");
 const adminMiddleware = require("../middleware/admin");
+const logStore = require("../services/logStore");
 
 const router = express.Router();
 router.use(authMiddleware);
@@ -131,6 +132,27 @@ router.get("/logs", async (req, res) => {
     );
   } catch (error) {
     console.error("Admin logs error:", error);
+    res.status(500).json({ error: "Internal server error." });
+  }
+});
+
+// GET /api/admin/system-logs — operational runtime log (Issue #62): recent API
+// request statuses and errors captured in-process. Supports an optional
+// ?limit=N and ?level=info|warn|error filter.
+router.get("/system-logs", (req, res) => {
+  try {
+    const parsedLimit = Number.parseInt(req.query.limit, 10);
+    const limit = Number.isInteger(parsedLimit) && parsedLimit > 0 ? parsedLimit : 100;
+    let logs = logStore.list(limit);
+
+    const level = typeof req.query.level === "string" ? req.query.level : "";
+    if (["info", "warn", "error"].includes(level)) {
+      logs = logs.filter((entry) => entry.level === level);
+    }
+
+    res.json({ logs, count: logs.length });
+  } catch (error) {
+    console.error("Admin system-logs error:", error);
     res.status(500).json({ error: "Internal server error." });
   }
 });
