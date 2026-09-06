@@ -77,7 +77,11 @@ export default function DestinationAutocomplete({
   // failed (empty list) we let the field behave as free text and rely on the
   // backend's own validation rather than blocking the user.
   const canEnforce = enforceKnown && destinations.length > 0;
-  const valid = canEnforce ? isKnown : true;
+  // An empty field is left to the input's own `required` rule, so we only flag
+  // a value as invalid once the user has actually typed something.
+  const hasText = (value || "").trim().length > 0;
+  const valid = canEnforce && hasText ? isKnown : true;
+  const showInvalid = canEnforce && hasText && !isKnown;
 
   // Report validity to the parent form whenever it changes.
   useEffect(() => {
@@ -146,12 +150,12 @@ export default function DestinationAutocomplete({
         aria-expanded={showList}
         aria-controls={listboxId}
         aria-autocomplete="list"
-        aria-invalid={canEnforce && !isKnown ? true : undefined}
+        aria-invalid={showInvalid ? true : undefined}
         autoComplete="off"
         required={required}
         placeholder={placeholder}
         className={`${className} ${
-          canEnforce && !isKnown ? "border-red-400 focus:border-red-500 focus:ring-red-500" : ""
+          showInvalid ? "border-accent-400 focus:border-accent-500 focus:ring-accent-400" : ""
         }`}
         value={value}
         onChange={(event) => {
@@ -166,7 +170,7 @@ export default function DestinationAutocomplete({
         <ul
           id={listboxId}
           role="listbox"
-          className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-auto"
+          className="absolute z-10 mt-1 w-full bg-white border border-line rounded-xl shadow-card max-h-60 overflow-auto"
         >
           {matches.map((city, index) => (
             <li
@@ -175,8 +179,8 @@ export default function DestinationAutocomplete({
               aria-selected={index === highlight}
               className={`px-3 py-2 cursor-pointer text-sm ${
                 index === highlight
-                  ? "bg-indigo-100 text-indigo-900"
-                  : "text-gray-700 hover:bg-gray-100"
+                  ? "bg-brand-50 text-brand-800"
+                  : "text-ink hover:bg-paper"
               }`}
               // onMouseDown (before the input's blur) so the pick registers
               // before the list would otherwise close.
@@ -191,8 +195,8 @@ export default function DestinationAutocomplete({
           ))}
         </ul>
       )}
-      {canEnforce && !isKnown && (
-        <p role="alert" className="mt-1 text-xs text-red-600">
+      {showInvalid && (
+        <p role="alert" className="mt-1 text-xs text-accent-600">
           Please choose a destination from the list.
         </p>
       )}

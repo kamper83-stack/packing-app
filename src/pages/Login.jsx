@@ -1,7 +1,9 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { ArrowRight } from "lucide-react";
 import { api } from "../services/api";
 import useDocumentTitle from "../utils/useDocumentTitle";
+import Logo from "../components/Logo";
 
 export default function Login() {
   useDocumentTitle("Login");
@@ -27,65 +29,67 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-lg border border-gray-100">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Welcome Back!
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Sign in to manage your suitcase packing lists
-          </p>
+    <div className="min-h-screen bg-paper bg-paper-glow flex items-center justify-center py-12 px-4">
+      <div className="w-full max-w-md">
+        <div className="flex justify-center mb-8">
+          <Logo size="lg" />
         </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {error && (
-            <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm border border-red-200">
-              {error}
-            </div>
-          )}
-          <div className="rounded-md shadow-sm space-y-4">
+
+        <div className="card p-8">
+          <div className="mb-7">
+            <p className="eyebrow">Sign in</p>
+            <h1 className="mt-1 text-2xl font-extrabold text-ink">Welcome back</h1>
+            <p className="mt-1.5 text-sm text-muted">
+              Pick up your packing lists right where you left off.
+            </p>
+          </div>
+
+          <form className="space-y-5" onSubmit={handleSubmit}>
+            {error && (
+              <div className="rounded-xl bg-accent-50 text-accent-700 px-4 py-3 text-sm border border-accent-200">
+                {error}
+              </div>
+            )}
             <div>
-              <label htmlFor="login-email" className="block text-sm font-medium text-gray-700">Email Address</label>
+              <label htmlFor="login-email" className="label">Email address</label>
               <input
                 id="login-email"
                 type="email"
                 required
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                autoComplete="email"
+                className="input"
+                placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
             <div>
-              <label htmlFor="login-password" className="block text-sm font-medium text-gray-700">Password</label>
+              <label htmlFor="login-password" className="label">Password</label>
               <input
                 id="login-password"
                 type="password"
                 required
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                autoComplete="current-password"
+                className="input"
+                placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
-          </div>
 
-          <div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-            >
-              {loading ? "Signing in..." : "Sign In"}
+            <button type="submit" disabled={loading} className="btn-primary w-full">
+              {loading ? "Signing in…" : "Sign in"}
+              {!loading && <ArrowRight size={16} />}
             </button>
-          </div>
-        </form>
-        <div className="text-center mt-4">
-          <p className="text-sm text-gray-600">
-            Don't have an account?{" "}
-            <Link to="/signup" className="font-medium text-indigo-600 hover:text-indigo-500">
-              Sign up here
-            </Link>
-          </p>
+          </form>
         </div>
+
+        <p className="mt-6 text-center text-sm text-muted">
+          New here?{" "}
+          <Link to="/signup" className="font-semibold text-brand-700 hover:text-brand-800">
+            Sign up here
+          </Link>
+        </p>
       </div>
     </div>
   );
