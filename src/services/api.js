@@ -79,6 +79,9 @@ export const api = {
 
   getDestinations: () => request("/trips/destinations"),
 
+  // Countries mapped to their airport cities, for the destination picker.
+  getLocations: () => request("/trips/locations"),
+
   // Real round-trip flight search (Sky-Scrapper via RapidAPI on the backend).
   // Returns { offers, isMock, error? }; selecting an offer auto-fills the dates.
   searchFlights: ({ origin, destination, departDate, returnDate }) => {
