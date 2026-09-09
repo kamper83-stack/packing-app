@@ -1,7 +1,21 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { api } from "../services/api";
-import { Plus, Trash2, ChevronLeft } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  ChevronLeft,
+  Calendar,
+  Plane,
+  Users,
+  Briefcase,
+  Backpack,
+  Luggage,
+  Sun,
+  Sparkles,
+  FileText,
+  AlertTriangle,
+} from "lucide-react";
 import { summarizePassengers } from "../utils/passengers";
 import useDocumentTitle from "../utils/useDocumentTitle";
 
@@ -11,32 +25,33 @@ import useDocumentTitle from "../utils/useDocumentTitle";
 // (including null on pre-#32 trips) renders nothing.
 const WEATHER_SOURCE_BADGES = {
   live: {
-    classes: "bg-green-50 text-green-700 border-green-200",
-    label: "🟢 Live data",
+    classes: "bg-brand-50 text-brand-700 border-brand-200",
+    label: "Live data",
     aria: "Live weather data",
+    Icon: Sun,
   },
   seasonal: {
-    classes: "bg-blue-50 text-blue-700 border-blue-200",
-    label: "📅 Seasonal Estimate",
+    classes: "bg-sky-50 text-sky-700 border-sky-200",
+    label: "Seasonal estimate",
     aria: "Seasonal climate estimate",
+    Icon: Calendar,
   },
   mock: {
-    classes: "bg-gray-100 text-gray-600 border-gray-200",
-    label: "📋 Sample data",
+    classes: "bg-stone-100 text-stone-600 border-stone-200",
+    label: "Sample data",
     aria: "Sample weather data",
+    Icon: FileText,
   },
 };
 
 function WeatherSourceBadge({ source }) {
   const badge = WEATHER_SOURCE_BADGES[source];
   if (!badge) return null;
+  const { Icon } = badge;
 
   return (
-    <span
-      role="status"
-      aria-label={badge.aria}
-      className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full border ${badge.classes}`}
-    >
+    <span role="status" aria-label={badge.aria} className={`badge ${badge.classes}`}>
+      <Icon size={13} />
       {badge.label}
     </span>
   );
@@ -51,16 +66,18 @@ function AiSourceBadge({ source }) {
 
   const isLive = source === "live";
   const classes = isLive
-    ? "bg-indigo-50 text-indigo-700 border-indigo-200"
-    : "bg-gray-100 text-gray-600 border-gray-200";
-  const label = isLive ? "✨ AI Personalized" : "📋 Standard Template";
+    ? "bg-accent-50 text-accent-700 border-accent-200"
+    : "bg-stone-100 text-stone-600 border-stone-200";
+  const label = isLive ? "AI personalized" : "Standard template";
+  const Icon = isLive ? Sparkles : FileText;
 
   return (
     <span
       role="status"
       aria-label={isLive ? "AI personalized packing list" : "Standard template packing list"}
-      className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full border ${classes}`}
+      className={`badge ${classes}`}
     >
+      <Icon size={13} />
       {label}
     </span>
   );
@@ -155,18 +172,18 @@ export default function TripView() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-gray-500 text-lg">Loading checklist...</div>
+      <div className="min-h-screen flex items-center justify-center bg-paper">
+        <div className="text-muted text-lg">Loading checklist…</div>
       </div>
     );
   }
 
   if (error || !trip) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
-        <div className="text-red-500 text-lg mb-4">{error || "Trip not found."}</div>
-        <Link to="/dashboard" className="text-indigo-600 font-semibold hover:underline">
-          Go back to Dashboard
+      <div className="min-h-screen flex flex-col items-center justify-center bg-paper p-4">
+        <div className="text-accent-600 text-lg mb-4">{error || "Trip not found."}</div>
+        <Link to="/dashboard" className="font-semibold text-brand-700 hover:underline">
+          Go back to dashboard
         </Link>
       </div>
     );
@@ -191,70 +208,66 @@ export default function TripView() {
   const categories = [...new Set(visibleItems.map((i) => i.category))];
 
   return (
-    <div className="min-h-screen bg-gray-100 py-8 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-paper bg-paper-glow py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-5xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-6 rounded-xl shadow-md border border-gray-100">
+        <div className="card p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <Link to="/dashboard" className="inline-flex items-center text-xs font-semibold text-indigo-600 hover:underline mb-2">
-              <ChevronLeft size={16} /> Back to Dashboard
+            <Link
+              to="/dashboard"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:underline mb-2"
+            >
+              <ChevronLeft size={16} /> Back to dashboard
             </Link>
-            <h2 className="text-2xl font-bold text-gray-900">{trip.destination}</h2>
-            <p className="text-sm text-gray-500 mt-1">
-              🗓️ {trip.startDate} to {trip.endDate} | 🛫 {trip.airline} | 👤{" "}
-              {summarizePassengers(trip.passengerComposition) ||
-                `${trip.numPeople} ${trip.numPeople > 1 ? "people" : "person"}`}
-            </p>
-            {/* Issue #42: surface whether the packing list was personalized live
-                by the AI or built from the standard offline template. Legacy
-                trips have no aiSource and show no badge. */}
-            <div className="mt-2">
+            <h1 className="text-2xl font-extrabold text-ink">{trip.destination}</h1>
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted">
+              <span className="inline-flex items-center gap-1.5">
+                <Calendar size={15} /> {trip.startDate} – {trip.endDate}
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Plane size={15} /> {trip.airline}
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Users size={15} />{" "}
+                {summarizePassengers(trip.passengerComposition) ||
+                  `${trip.numPeople} ${trip.numPeople > 1 ? "people" : "person"}`}
+              </span>
+            </div>
+            <div className="mt-3">
               <AiSourceBadge source={trip.aiSource} />
             </div>
           </div>
-          <button
-            onClick={handleDeleteTrip}
-            className="mt-4 md:mt-0 text-red-500 hover:text-red-700 text-sm font-semibold flex items-center"
-          >
-            <Trash2 size={16} className="mr-1" /> Delete Trip
+          <button onClick={handleDeleteTrip} className="btn-ghost text-accent-600 hover:text-accent-700 hover:bg-accent-50">
+            <Trash2 size={16} /> Delete trip
           </button>
         </div>
 
         {/* Weather Forecast and Baggage Constraints */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Weather Widget */}
-          <div className="md:col-span-2 bg-white p-6 rounded-xl shadow-md border border-gray-100">
+          <div className="md:col-span-2 card p-6">
             <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
-              <h3 className="text-lg font-bold text-gray-900">Weather Forecast</h3>
-              {/* Issue #36: surface whether the forecast is live WeatherAPI data
-                  or a mock/fallback. Legacy trips have no weatherSource and show
-                  no badge, so they stay readable. */}
+              <h2 className="text-lg font-bold text-ink">Weather forecast</h2>
               <WeatherSourceBadge source={trip.weatherSource} />
             </div>
-            {/* Issue #36: when the backend fell back after a failed live call it
-                records the reason in weatherError. Show a clear, non-blocking
-                notice so the user understands why the data may be approximate. */}
             {trip.weatherError && (
               <div
                 role="status"
-                className="mb-4 flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800"
+                className="mb-4 flex items-start gap-2 p-3 bg-accent-50 border border-accent-200 rounded-xl text-xs text-accent-800"
               >
-                <span aria-hidden="true">⚠️</span>
+                <AlertTriangle size={16} className="shrink-0 mt-px" aria-hidden="true" />
                 <span>
                   Live weather is temporarily unavailable, so we're showing sample
                   data. Reload the trip later to try again.
                 </span>
               </div>
             )}
-            {/* Issue #65: the trip is too far out for a daily forecast, so the
-                figures below are historical monthly climate normals, not a live
-                forecast. Make that explicit so expectations are set. */}
             {trip.weatherSource === "seasonal" && (
               <div
                 role="status"
-                className="mb-4 flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-800"
+                className="mb-4 flex items-start gap-2 p-3 bg-sky-50 border border-sky-200 rounded-xl text-xs text-sky-800"
               >
-                <span aria-hidden="true">📅</span>
+                <Calendar size={16} className="shrink-0 mt-px" aria-hidden="true" />
                 <span>
                   This trip is beyond the live forecast window, so we're showing a
                   seasonal climate estimate based on typical weather for these dates.
@@ -262,46 +275,52 @@ export default function TripView() {
               </div>
             )}
             {trip.weatherData && trip.weatherData.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {trip.weatherData.slice(0, 4).map((day, idx) => (
-                  <div key={idx} className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-center">
-                    <span className="block text-xs font-bold text-gray-400">{day.date}</span>
-                    <span className="block text-xl font-extrabold text-gray-900 mt-1">{day.tempC}°C</span>
-                    <span className="block text-xs text-gray-500 mt-1">{day.condition}</span>
+                  <div key={idx} className="p-3 bg-paper border border-line rounded-xl text-center">
+                    <span className="block text-xs font-semibold text-muted">{day.date}</span>
+                    <span className="block text-2xl font-extrabold text-ink mt-1">{day.tempC}°</span>
+                    <span className="block text-xs text-muted mt-1">{day.condition}</span>
                   </div>
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-gray-400">No weather forecast available.</p>
+              <p className="text-sm text-muted">No weather forecast available.</p>
             )}
           </div>
 
           {/* Baggage Limits Warning */}
-          <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100">
-            <h3 className="text-lg font-bold text-gray-900 mb-4">Luggage Constraints</h3>
-            <div className="space-y-2 text-sm text-gray-600">
-              <p className="font-semibold text-indigo-600">Airline: {trip.airline}</p>
-              <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
-                <span className="block font-bold text-gray-900">👜 Cabin Baggage:</span>
-                <span className="text-xs">Limit: 8-10 kg. Place documents & chargers here.</span>
+          <div className="card p-6">
+            <h2 className="text-lg font-bold text-ink mb-4">Luggage constraints</h2>
+            <p className="text-sm font-semibold text-brand-700 mb-3">{trip.airline}</p>
+            <div className="space-y-3 text-sm text-muted">
+              <div className="p-3 bg-brand-50 border border-brand-100 rounded-xl">
+                <span className="flex items-center gap-2 font-bold text-ink">
+                  <Briefcase size={16} /> Cabin baggage
+                </span>
+                <span className="block mt-1 text-xs">Limit 8–10 kg. Keep documents &amp; chargers here.</span>
               </div>
-              <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                <span className="block font-bold text-gray-900">🧳 Checked Baggage:</span>
-                <span className="text-xs">Limit: 23 kg. Place heavy clothing & liquids here.</span>
+              <div className="p-3 bg-paper border border-line rounded-xl">
+                <span className="flex items-center gap-2 font-bold text-ink">
+                  <Luggage size={16} /> Checked baggage
+                </span>
+                <span className="block mt-1 text-xs">Limit 23 kg. Heavy clothing &amp; liquids here.</span>
               </div>
             </div>
           </div>
         </div>
 
         {/* Progress Bar */}
-        <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100">
-          <div className="flex justify-between items-center text-sm font-semibold mb-2">
-            <span>Overall Packing Progress</span>
-            <span>{progressPercent}% ({packedCount} of {items.length} items)</span>
+        <div className="card p-6">
+          <div className="flex justify-between items-center text-sm font-semibold mb-2 text-ink">
+            <span>Overall packing progress</span>
+            <span className="text-muted">
+              {progressPercent}% · {packedCount} of {items.length} items
+            </span>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-3">
+          <div className="w-full bg-stone-200 rounded-full h-2.5 overflow-hidden">
             <div
-              className="bg-indigo-600 h-3 rounded-full transition-all duration-300"
+              className="bg-brand-gradient h-2.5 rounded-full transition-all duration-500"
               style={{ width: `${progressPercent}%` }}
             ></div>
           </div>
@@ -311,16 +330,12 @@ export default function TripView() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Items checklist */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Issue #42: when live AI generation failed the backend saved the
-                trip with the standard template and recorded the reason in
-                aiError. Show a clear, non-blocking notice so the user knows the
-                list is a fallback and can retry later. */}
             {trip.aiError && (
               <div
                 role="status"
-                className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800"
+                className="flex items-start gap-2 p-3 bg-accent-50 border border-accent-200 rounded-xl text-xs text-accent-800"
               >
-                <span aria-hidden="true">⚠️</span>
+                <AlertTriangle size={16} className="shrink-0 mt-px" aria-hidden="true" />
                 <span>
                   AI personalization was unavailable, so this list uses a standard
                   template. Reload the trip later to try again.
@@ -328,43 +343,33 @@ export default function TripView() {
               </div>
             )}
             {/* Filter toolbar (Issue #43) */}
-            <div className="bg-white p-4 rounded-xl shadow-md border border-gray-100">
+            <div className="card p-4">
               <div className="flex flex-col sm:flex-row sm:items-end gap-4">
                 <div className="flex-1">
-                  <label
-                    htmlFor="bag-filter"
-                    className="block text-xs font-semibold text-gray-500 uppercase mb-1"
-                  >
-                    Bag
-                  </label>
+                  <label htmlFor="bag-filter" className="label">Bag</label>
                   <select
                     id="bag-filter"
                     aria-label="Filter by bag"
                     value={bagFilter}
                     onChange={(e) => setBagFilter(e.target.value)}
-                    className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    className="input"
                   >
                     <option value="All">All bags</option>
-                    <option value="Backpack">🎒 Cabin / Backpack</option>
-                    <option value="Suitcase">🧳 Checked Suitcase</option>
+                    <option value="Backpack">Cabin / backpack</option>
+                    <option value="Suitcase">Checked suitcase</option>
                   </select>
                 </div>
                 <div className="flex-1">
-                  <label
-                    htmlFor="status-filter"
-                    className="block text-xs font-semibold text-gray-500 uppercase mb-1"
-                  >
-                    Status
-                  </label>
+                  <label htmlFor="status-filter" className="label">Status</label>
                   <select
                     id="status-filter"
                     aria-label="Filter by packing status"
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    className="input"
                   >
                     <option value="All">All items</option>
-                    <option value="ToPack">To Pack</option>
+                    <option value="ToPack">To pack</option>
                     <option value="Packed">Packed</option>
                   </select>
                 </div>
@@ -372,48 +377,53 @@ export default function TripView() {
             </div>
 
             {items.length === 0 ? (
-              <div className="bg-white p-8 rounded-xl shadow-md border border-gray-100 text-center text-gray-400">
+              <div className="card p-8 text-center text-muted">
                 Your packing list is empty. Add a custom item below.
               </div>
             ) : categories.length === 0 ? (
-              <div className="bg-white p-8 rounded-xl shadow-md border border-gray-100 text-center text-gray-400">
+              <div className="card p-8 text-center text-muted">
                 No items match the selected filters.
               </div>
             ) : (
               categories.map((category) => (
-                <div key={category} className="bg-white p-6 rounded-xl shadow-md border border-gray-100">
-                  <h4 className="text-base font-extrabold text-gray-900 border-b pb-2 mb-4">
+                <div key={category} className="card p-6">
+                  <h3 className="text-base font-bold text-ink border-b border-line pb-2 mb-4">
                     {category}
-                  </h4>
-                  <div className="space-y-3">
+                  </h3>
+                  <div className="space-y-1">
                     {visibleItems
                       .filter((i) => i.category === category)
                       .map((item) => (
                         <div
                           key={item.id}
-                          className="flex justify-between items-center p-2 rounded-lg hover:bg-gray-50 transition-colors"
+                          className="flex justify-between items-center p-2 rounded-lg hover:bg-paper transition-colors"
                         >
-                          <div className="flex items-center space-x-3">
+                          <div className="flex items-center gap-3 min-w-0">
                             <input
                               type="checkbox"
                               checked={item.isPacked}
                               onChange={() => handleTogglePack(item)}
-                              className="h-5 w-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                              className="h-5 w-5 accent-brand-600 rounded"
                             />
                             <span
                               className={`text-sm ${
-                                item.isPacked ? "line-through text-gray-400" : "text-gray-900"
+                                item.isPacked ? "line-through text-stone-400" : "text-ink"
                               }`}
                             >
-                              {item.name} <span className="text-xs text-gray-500">(x{item.quantity})</span>
+                              {item.name} <span className="text-xs text-muted">(x{item.quantity})</span>
                             </span>
-                            <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded">
-                              {item.targetBag === "Suitcase" ? "🧳 Suitcase" : "🎒 Backpack"}
+                            <span className="badge border-line bg-paper text-muted">
+                              {item.targetBag === "Suitcase" ? (
+                                <><Luggage size={12} /> Suitcase</>
+                              ) : (
+                                <><Backpack size={12} /> Backpack</>
+                              )}
                             </span>
                           </div>
                           <button
                             onClick={() => handleDeleteItem(item.id)}
-                            className="text-gray-400 hover:text-red-500"
+                            aria-label={`Remove ${item.name}`}
+                            className="text-stone-400 hover:text-accent-600 p-1"
                           >
                             <Trash2 size={16} />
                           </button>
@@ -426,25 +436,25 @@ export default function TripView() {
           </div>
 
           {/* Add custom item form */}
-          <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100 h-fit">
-            <h4 className="text-base font-bold text-gray-900 mb-4">Add Custom Item</h4>
+          <div className="card p-6 h-fit">
+            <h3 className="text-base font-bold text-ink mb-4">Add custom item</h3>
             <form onSubmit={handleAddCustom} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase">Item Name</label>
+                <label className="label">Item name</label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Toothbrush, Rain Jacket"
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  placeholder="e.g. Toothbrush, rain jacket"
+                  className="input"
                   value={customName}
                   onChange={(e) => setCustomName(e.target.value)}
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase">Category</label>
+                <label className="label">Category</label>
                 <select
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  className="input"
                   value={customCategory}
                   onChange={(e) => setCustomCategory(e.target.value)}
                 >
@@ -459,34 +469,31 @@ export default function TripView() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase">Quantity</label>
+                  <label className="label">Quantity</label>
                   <input
                     type="number"
                     min="1"
                     required
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    className="input"
                     value={customQty}
                     onChange={(e) => setCustomQty(e.target.value)}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase">Pack In</label>
+                  <label className="label">Pack in</label>
                   <select
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    className="input"
                     value={customBag}
                     onChange={(e) => setCustomBag(e.target.value)}
                   >
-                    <option value="Suitcase">🧳 Suitcase</option>
-                    <option value="Backpack">🎒 Backpack</option>
+                    <option value="Suitcase">Suitcase</option>
+                    <option value="Backpack">Backpack</option>
                   </select>
                 </div>
               </div>
 
-              <button
-                type="submit"
-                className="w-full mt-4 flex items-center justify-center py-2 px-4 border border-transparent text-sm font-semibold rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-              >
-                <Plus size={16} className="mr-1" /> Add to List
+              <button type="submit" className="btn-primary w-full">
+                <Plus size={16} /> Add to list
               </button>
             </form>
           </div>

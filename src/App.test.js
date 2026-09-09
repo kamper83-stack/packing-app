@@ -24,7 +24,7 @@ beforeEach(() => {
 
 test("renders the login screen when no token is stored", () => {
   render(<App />);
-  expect(screen.getByRole("heading", { name: /welcome back!/i })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: /welcome back/i })).toBeInTheDocument();
 });
 
 test("does not render the protected dashboard when unauthenticated", () => {
@@ -35,7 +35,7 @@ test("does not render the protected dashboard when unauthenticated", () => {
 test("sends an unauthenticated visitor away from a protected route", () => {
   window.history.pushState({}, "", "/dashboard");
   render(<App />);
-  expect(screen.getByRole("heading", { name: /welcome back!/i })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: /welcome back/i })).toBeInTheDocument();
   expect(screen.queryByText(/plan a new trip/i)).not.toBeInTheDocument();
 });
 

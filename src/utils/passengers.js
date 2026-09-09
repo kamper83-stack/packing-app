@@ -51,12 +51,12 @@ export const buildComposition = (form) => ({
   men: toCount(form.men),
 });
 
-// Human-readable summary of the non-zero categories, e.g. "👶 1 · 👩 2".
+// Human-readable summary of the non-zero categories, e.g. "1 נשים · 2 גברים".
 // Returns null when there is no usable composition so callers can fall back
 // to the legacy numPeople total for older trips.
 export const summarizePassengers = (composition) => {
   if (!composition || totalPassengers(composition) === 0) return null;
   return PASSENGER_CATEGORIES.filter((c) => toCount(composition[c.key]) > 0)
-    .map((c) => `${c.emoji} ${toCount(composition[c.key])} ${c.label}`)
+    .map((c) => `${toCount(composition[c.key])} ${c.label}`)
     .join(" · ");
 };

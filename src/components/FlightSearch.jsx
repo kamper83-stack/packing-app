@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Plane, PlaneTakeoff, PlaneLanding } from "lucide-react";
 import { api } from "../services/api";
 
 // Real round-trip flight search. The user gives an origin (defaults to Tel
@@ -38,47 +39,41 @@ export default function FlightSearch({ destination, departDate, returnDate, onSe
   };
 
   return (
-    <div className="rounded-lg border border-gray-200 p-3">
+    <div className="rounded-xl border border-line bg-paper/60 p-3">
       <div className="flex items-end gap-2">
         <div className="flex-1">
-          <label htmlFor="flight-origin" className="block text-xs font-semibold text-gray-500 uppercase">
-            From (origin)
-          </label>
+          <label htmlFor="flight-origin" className="label">From (origin)</label>
           <input
             id="flight-origin"
             type="text"
             value={origin}
             onChange={(event) => setOrigin(event.target.value)}
             placeholder="e.g. Tel Aviv"
-            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            className="input"
           />
         </div>
-        <button
-          type="button"
-          onClick={search}
-          disabled={!canSearch}
-          className="px-3 py-2 rounded-md text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {loading ? "Searching…" : "✈️ Search flights"}
+        <button type="button" onClick={search} disabled={!canSearch} className="btn-primary shrink-0">
+          <Plane size={16} />
+          {loading ? "Searching…" : "Search flights"}
         </button>
       </div>
 
       {!destination || !departDate ? (
-        <p className="mt-2 text-xs text-gray-500">
+        <p className="mt-2 text-xs text-muted">
           Choose a destination and a departure date to search flights.
         </p>
       ) : null}
 
-      {error && <p className="mt-2 text-xs text-red-600" role="alert">{error}</p>}
+      {error && <p className="mt-2 text-xs text-accent-600" role="alert">{error}</p>}
 
       {offers && offers.length === 0 && !error && (
-        <p className="mt-2 text-xs text-gray-500">No flights found for these dates.</p>
+        <p className="mt-2 text-xs text-muted">No flights found for these dates.</p>
       )}
 
       {offers && offers.length > 0 && (
         <div className="mt-3 space-y-2">
           {isMock && (
-            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+            <p className="badge border-amber-200 bg-amber-50 text-amber-800 w-full justify-start">
               Showing sample flights (no live flight key configured).
             </p>
           )}
@@ -86,27 +81,29 @@ export default function FlightSearch({ destination, departDate, returnDate, onSe
             {offers.map((offer) => (
               <li
                 key={offer.id}
-                className="flex items-center justify-between gap-3 rounded-md border border-gray-200 px-3 py-2"
+                className="flex items-center justify-between gap-3 rounded-xl border border-line bg-surface px-3 py-2"
               >
-                <div className="text-sm">
-                  <div className="font-semibold text-gray-800">
+                <div className="text-sm min-w-0">
+                  <div className="font-semibold text-ink">
                     {offer.outbound?.airline || "—"}
                     {offer.price != null && (
-                      <span className="ml-2 text-indigo-700">
+                      <span className="ml-2 text-brand-700">
                         {offer.currency === "USD" ? "$" : ""}
                         {offer.price}
                         {offer.currency && offer.currency !== "USD" ? ` ${offer.currency}` : ""}
                       </span>
                     )}
                   </div>
-                  <div className="text-xs text-gray-500">
-                    🛫 {offer.departDate}
-                    {formatTime(offer.outbound?.departTime) && ` ${formatTime(offer.outbound.departTime)}`}
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted">
+                    <span className="inline-flex items-center gap-1">
+                      <PlaneTakeoff size={13} /> {offer.departDate}
+                      {formatTime(offer.outbound?.departTime) && ` · ${formatTime(offer.outbound.departTime)}`}
+                    </span>
                     {offer.returnDate && (
-                      <>
-                        {"  ·  "}🛬 {offer.returnDate}
-                        {formatTime(offer.inbound?.departTime) && ` ${formatTime(offer.inbound.departTime)}`}
-                      </>
+                      <span className="inline-flex items-center gap-1">
+                        <PlaneLanding size={13} /> {offer.returnDate}
+                        {formatTime(offer.inbound?.departTime) && ` · ${formatTime(offer.inbound.departTime)}`}
+                      </span>
                     )}
                   </div>
                 </div>
@@ -115,7 +112,7 @@ export default function FlightSearch({ destination, departDate, returnDate, onSe
                   onClick={() =>
                     onSelectDates({ departDate: offer.departDate, returnDate: offer.returnDate })
                   }
-                  className="px-2.5 py-1.5 rounded-md text-xs font-semibold text-indigo-700 border border-indigo-200 hover:bg-indigo-50 whitespace-nowrap"
+                  className="btn-secondary !py-1.5 !px-2.5 text-xs text-brand-700 shrink-0"
                 >
                   Use dates
                 </button>

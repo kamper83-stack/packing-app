@@ -2,16 +2,78 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body {
+    margin: 0;
+    font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system,
+      "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    color: #1c1917;
+    background-color: #f7f5f1;
+  }
+  h1, h2, h3, h4 {
+    font-family: "Sora", "Plus Jakarta Sans", ui-sans-serif, sans-serif;
+    letter-spacing: -0.01em;
+  }
+  code {
+    font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
+  }
 }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+@layer components {
+  /* Card surface */
+  .card {
+    @apply bg-surface rounded-xl2 border border-line shadow-card;
+  }
+
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5
+      text-sm font-semibold transition-all duration-150
+      focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40
+      focus-visible:ring-offset-2 focus-visible:ring-offset-paper
+      disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn text-white bg-brand-600 hover:bg-brand-700 shadow-soft
+      hover:shadow-lift active:translate-y-px;
+  }
+  .btn-secondary {
+    @apply btn text-ink bg-surface border border-line hover:bg-paper hover:border-stone-300;
+  }
+  .btn-ghost {
+    @apply btn text-muted hover:text-ink hover:bg-paper;
+  }
+  .btn-danger {
+    @apply btn text-white bg-accent-600 hover:bg-accent-700 shadow-soft;
+  }
+
+  /* Form controls */
+  .label {
+    @apply block text-[11px] font-semibold uppercase tracking-wider text-muted mb-1.5;
+  }
+  .input {
+    @apply block w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm
+      text-ink placeholder:text-stone-400 shadow-soft transition
+      focus:outline-none focus:border-brand-400 focus:ring-4 focus:ring-brand-500/10;
+  }
+  select.input {
+    @apply pr-9 appearance-none bg-no-repeat;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b6660' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-position: right 0.7rem center;
+  }
+
+  /* Pills / badges */
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5
+      text-xs font-semibold;
+  }
+
+  /* Small caps section label */
+  .eyebrow {
+    @apply text-[11px] font-bold uppercase tracking-[0.14em] text-brand-600;
+  }
 }

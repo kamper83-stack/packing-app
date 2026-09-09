@@ -107,7 +107,7 @@ describe("Dashboard (Issue #9)", () => {
     renderDashboard();
 
     expect(await screen.findByText("Legacy Town")).toBeInTheDocument();
-    expect(screen.getByText(/👥 4/)).toBeInTheDocument();
+    expect(screen.getByText(/4 travelers/)).toBeInTheDocument();
   });
 
   it("shows an empty state when there are no trips", async () => {
