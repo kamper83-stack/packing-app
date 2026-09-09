@@ -11,6 +11,7 @@ import {
   totalPassengers,
 } from "../utils/passengers";
 import DestinationPicker from "../components/DestinationPicker";
+import FlightSearch from "../components/FlightSearch";
 import Logo from "../components/Logo";
 import useDocumentTitle from "../utils/useDocumentTitle";
 
@@ -227,6 +228,18 @@ export default function Dashboard() {
                   />
                 </div>
               </div>
+
+              {/* Real round-trip flight search: pick an offer to auto-fill the
+                  trip's start (departure) and end (return) dates. */}
+              <FlightSearch
+                destination={destination}
+                departDate={startDate}
+                returnDate={endDate}
+                onSelectDates={({ departDate, returnDate }) => {
+                  if (departDate) setStartDate(departDate);
+                  if (returnDate) setEndDate(returnDate);
+                }}
+              />
 
               <div>
                 <label className="label">Airline</label>

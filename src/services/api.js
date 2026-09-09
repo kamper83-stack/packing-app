@@ -82,6 +82,17 @@ export const api = {
   // Countries mapped to their airport cities, for the destination picker.
   getLocations: () => request("/trips/locations"),
 
+  // Real round-trip flight search (Sky-Scrapper via RapidAPI on the backend).
+  // Returns { offers, isMock, error? }; selecting an offer auto-fills the dates.
+  searchFlights: ({ origin, destination, departDate, returnDate }) => {
+    const params = new URLSearchParams();
+    if (origin) params.set("origin", origin);
+    params.set("destination", destination);
+    params.set("departDate", departDate);
+    if (returnDate) params.set("returnDate", returnDate);
+    return request(`/trips/flights?${params.toString()}`);
+  },
+
   getAdminStatus: () => request("/admin/status"),
 
   getAdminUsers: () => request("/admin/users"),
