@@ -4,6 +4,7 @@ const { Trip, PackingItem } = require("../models");
 const authMiddleware = require("../middleware/auth");
 const weatherService = require("../services/weatherService");
 const geminiService = require("../services/geminiService");
+const flightsService = require("../services/flightsService");
 const airlines = require("../config/airlines.json");
 // Countries -> cities that have a commercial airport (derived from the
 // OpenFlights dataset). Powers the create-trip destination picker: choose a
@@ -54,6 +55,33 @@ router.get("/destinations", (req, res) => {
 
 // Returns true when the value is a valid calendar date string (e.g. "2026-08-16").
 const isValidDate = (value) => !Number.isNaN(new Date(value).getTime());
+
+// GET /api/trips/flights - Search real round-trip flight offers for a route and
+// dates. Declared before "/:id" so the literal path isn't read as a trip id.
+// Query: destination (required), departDate (required), origin (optional,
+// defaults to Tel Aviv), returnDate (optional). Selecting an offer in the UI
+// auto-fills the trip's start/end dates from the outbound/return legs.
+router.get("/flights", async (req, res) => {
+  const { origin, destination, departDate, returnDate } = req.query;
+
+  if (!destination || !departDate) {
+    return res.status(400).json({ error: "destination and departDate are required." });
+  }
+  if (!isValidDate(departDate) || (returnDate && !isValidDate(returnDate))) {
+    return res.status(400).json({ error: "Invalid departDate or returnDate." });
+  }
+  if (returnDate && new Date(returnDate) < new Date(departDate)) {
+    return res.status(400).json({ error: "returnDate cannot be before departDate." });
+  }
+
+  try {
+    const result = await flightsService.searchFlights({ origin, destination, departDate, returnDate });
+    res.json(result);
+  } catch (error) {
+    console.error("Flight search error:", error);
+    res.status(500).json({ error: "Internal server error." });
+  }
+});
 
 // Validates the passenger composition contract (Issue #22): exactly the four
 // canonical keys, each a non-negative integer, with at least one passenger in

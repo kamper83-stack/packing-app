@@ -17,6 +17,7 @@ jest.mock("../services/api", () => ({
     createTrip: jest.fn(),
     getDestinations: jest.fn(),
     getLocations: jest.fn(),
+    searchFlights: jest.fn(),
     getMe: jest.fn(),
   },
 }));
@@ -247,5 +248,44 @@ describe("Dashboard (Issue #9)", () => {
     // Choosing a start date after the current end date snaps the end date to it.
     fireEvent.change(startInput, { target: { value: "2026-09-10" } });
     expect(endInput).toHaveValue("2026-09-10");
+  });
+
+  it("fills the trip's start and end dates from a selected flight offer", async () => {
+    api.getTrips.mockResolvedValue([]);
+    api.searchFlights.mockResolvedValue({
+      isMock: true,
+      offers: [
+        {
+          id: "sample-0",
+          price: 289,
+          currency: "USD",
+          departDate: "2026-12-10",
+          returnDate: "2026-12-17",
+          outbound: { from: "Tel Aviv", to: "Rome", airline: "EL AL", departTime: "2026-12-10T08:15:00" },
+          inbound: { from: "Rome", to: "Tel Aviv", airline: "EL AL", departTime: "2026-12-17T19:40:00" },
+        },
+      ],
+    });
+
+    const { container } = renderDashboard();
+    await screen.findByText(/no trips planned yet/i);
+
+    // Choose a destination (country + city) and a departure date to enable search.
+    const countrySelect = await screen.findByLabelText("Country");
+    await waitFor(() =>
+      expect(screen.getByLabelText("Country").querySelectorAll("option").length).toBeGreaterThan(1)
+    );
+    fireEvent.change(countrySelect, { target: { value: "Italy" } });
+    fireEvent.change(screen.getByLabelText("City"), { target: { value: "Rome" } });
+    const dateInputs = container.querySelectorAll('input[type="date"]');
+    fireEvent.change(dateInputs[0], { target: { value: "2026-12-10" } });
+
+    fireEvent.click(screen.getByRole("button", { name: /search flights/i }));
+    await screen.findByRole("button", { name: /use dates/i });
+    fireEvent.click(screen.getByRole("button", { name: /use dates/i }));
+
+    // Both trip dates are populated from the chosen round-trip offer.
+    expect(dateInputs[0]).toHaveValue("2026-12-10");
+    expect(dateInputs[1]).toHaveValue("2026-12-17");
   });
 });
