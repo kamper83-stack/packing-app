@@ -16,9 +16,9 @@ function formatTime(value) {
 
 // Issue #62: colour a runtime log line by severity.
 const LOG_LEVEL_STYLES = {
-  error: "bg-red-50 text-red-700 border-red-200",
+  error: "bg-danger-50 text-danger-700 border-danger-200",
   warn: "bg-amber-50 text-amber-800 border-amber-200",
-  info: "bg-stone-100 text-muted border-stone-200",
+  info: "bg-paper text-muted border-line",
 };
 
 function ProviderCard({ title, status }) {
@@ -115,7 +115,7 @@ export default function Admin() {
 
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8 space-y-6">
         {error && (
-          <div className="rounded-xl bg-accent-50 text-accent-700 px-4 py-3 text-sm border border-accent-200">{error}</div>
+          <div className="rounded-xl bg-danger-50 text-danger-700 px-4 py-3 text-sm border border-danger-200">{error}</div>
         )}
         {loading ? (
           <div className="text-center py-10 text-muted">Loading admin panel...</div>

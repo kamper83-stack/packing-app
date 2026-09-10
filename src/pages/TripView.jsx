@@ -31,13 +31,13 @@ const WEATHER_SOURCE_BADGES = {
     Icon: Sun,
   },
   seasonal: {
-    classes: "bg-sky-50 text-sky-700 border-sky-200",
+    classes: "bg-sage-50 text-sage-700 border-sage-200",
     label: "Seasonal estimate",
     aria: "Seasonal climate estimate",
     Icon: Calendar,
   },
   mock: {
-    classes: "bg-stone-100 text-stone-600 border-stone-200",
+    classes: "bg-paper text-muted border-line",
     label: "Sample data",
     aria: "Sample weather data",
     Icon: FileText,
@@ -66,8 +66,8 @@ function AiSourceBadge({ source }) {
 
   const isLive = source === "live";
   const classes = isLive
-    ? "bg-accent-50 text-accent-700 border-accent-200"
-    : "bg-stone-100 text-stone-600 border-stone-200";
+    ? "bg-brand-50 text-brand-700 border-brand-200"
+    : "bg-paper text-muted border-line";
   const label = isLive ? "AI personalized" : "Standard template";
   const Icon = isLive ? Sparkles : FileText;
 
@@ -181,7 +181,7 @@ export default function TripView() {
   if (error || !trip) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-paper p-4">
-        <div className="text-accent-600 text-lg mb-4">{error || "Trip not found."}</div>
+        <div className="text-danger-600 text-lg mb-4">{error || "Trip not found."}</div>
         <Link to="/dashboard" className="font-semibold text-brand-700 hover:underline">
           Go back to dashboard
         </Link>
@@ -237,7 +237,7 @@ export default function TripView() {
               <AiSourceBadge source={trip.aiSource} />
             </div>
           </div>
-          <button onClick={handleDeleteTrip} className="btn-ghost text-accent-600 hover:text-accent-700 hover:bg-accent-50">
+          <button onClick={handleDeleteTrip} className="btn-ghost text-danger-600 hover:text-danger-700 hover:bg-danger-50">
             <Trash2 size={16} /> Delete trip
           </button>
         </div>
@@ -253,7 +253,7 @@ export default function TripView() {
             {trip.weatherError && (
               <div
                 role="status"
-                className="mb-4 flex items-start gap-2 p-3 bg-accent-50 border border-accent-200 rounded-xl text-xs text-accent-800"
+                className="mb-4 flex items-start gap-2 p-3 bg-danger-50 border border-danger-200 rounded-xl text-xs text-danger-800"
               >
                 <AlertTriangle size={16} className="shrink-0 mt-px" aria-hidden="true" />
                 <span>
@@ -265,7 +265,7 @@ export default function TripView() {
             {trip.weatherSource === "seasonal" && (
               <div
                 role="status"
-                className="mb-4 flex items-start gap-2 p-3 bg-sky-50 border border-sky-200 rounded-xl text-xs text-sky-800"
+                className="mb-4 flex items-start gap-2 p-3 bg-sage-50 border border-sage-200 rounded-xl text-xs text-sage-800"
               >
                 <Calendar size={16} className="shrink-0 mt-px" aria-hidden="true" />
                 <span>
@@ -318,9 +318,9 @@ export default function TripView() {
               {progressPercent}% · {packedCount} of {items.length} items
             </span>
           </div>
-          <div className="w-full bg-stone-200 rounded-full h-2.5 overflow-hidden">
+          <div className="w-full bg-line rounded-full h-2.5 overflow-hidden">
             <div
-              className="bg-brand-gradient h-2.5 rounded-full transition-all duration-500"
+              className="bg-brand-500 h-2.5 rounded-full transition-all duration-500"
               style={{ width: `${progressPercent}%` }}
             ></div>
           </div>
@@ -333,7 +333,7 @@ export default function TripView() {
             {trip.aiError && (
               <div
                 role="status"
-                className="flex items-start gap-2 p-3 bg-accent-50 border border-accent-200 rounded-xl text-xs text-accent-800"
+                className="flex items-start gap-2 p-3 bg-danger-50 border border-danger-200 rounded-xl text-xs text-danger-800"
               >
                 <AlertTriangle size={16} className="shrink-0 mt-px" aria-hidden="true" />
                 <span>
@@ -407,7 +407,7 @@ export default function TripView() {
                             />
                             <span
                               className={`text-sm ${
-                                item.isPacked ? "line-through text-stone-400" : "text-ink"
+                                item.isPacked ? "line-through text-ink/40" : "text-ink"
                               }`}
                             >
                               {item.name} <span className="text-xs text-muted">(x{item.quantity})</span>
@@ -423,7 +423,7 @@ export default function TripView() {
                           <button
                             onClick={() => handleDeleteItem(item.id)}
                             aria-label={`Remove ${item.name}`}
-                            className="text-stone-400 hover:text-accent-600 p-1"
+                            className="text-ink/40 hover:text-danger-600 p-1"
                           >
                             <Trash2 size={16} />
                           </button>

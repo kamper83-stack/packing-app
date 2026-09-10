@@ -64,7 +64,7 @@ export default function FlightSearch({ destination, departDate, returnDate, onSe
         </p>
       ) : null}
 
-      {error && <p className="mt-2 text-xs text-accent-600" role="alert">{error}</p>}
+      {error && <p className="mt-2 text-xs text-danger-600" role="alert">{error}</p>}
 
       {offers && offers.length === 0 && !error && (
         <p className="mt-2 text-xs text-muted">No flights found for these dates.</p>

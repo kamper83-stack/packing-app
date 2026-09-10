@@ -52,7 +52,7 @@ export default function Signup() {
 
           <form className="space-y-5" onSubmit={handleSubmit}>
             {error && (
-              <div className="rounded-xl bg-accent-50 text-accent-700 px-4 py-3 text-sm border border-accent-200">
+              <div className="rounded-xl bg-danger-50 text-danger-700 px-4 py-3 text-sm border border-danger-200">
                 {error}
               </div>
             )}
