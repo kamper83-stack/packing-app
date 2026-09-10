@@ -151,7 +151,7 @@ export default function Dashboard() {
         </header>
 
         {error && (
-          <div className="mb-5 rounded-xl bg-accent-50 text-accent-700 px-4 py-3 text-sm border border-accent-200">
+          <div className="mb-5 rounded-xl bg-danger-50 text-danger-700 px-4 py-3 text-sm border border-danger-200">
             {error}
           </div>
         )}

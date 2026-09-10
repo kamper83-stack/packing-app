@@ -78,7 +78,7 @@ export default function DestinationPicker({
         </select>
       </div>
       {loadError && (
-        <p role="alert" className="mt-2 text-xs text-accent-600">
+        <p role="alert" className="mt-2 text-xs text-danger-600">
           Couldn't load destinations. Please refresh and try again.
         </p>
       )}
