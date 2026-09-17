@@ -1,20 +1,21 @@
 const axios = require("axios");
 
-// Real flight search via the Sky-Scrapper API on RapidAPI. Kept behind the same
-// mock/live pattern as weatherService: with no usable key (or USE_MOCKS=true) we
-// return deterministic sample offers so the app and tests work offline; with a
-// real RAPIDAPI_KEY we call the live API and fall back to a sample on any error
-// so a flaky/quota-limited call never breaks trip planning.
+// Real flight search via the Skyscanner Flights API on RapidAPI. Kept behind the
+// same mock/live pattern as weatherService: with no usable key (or USE_MOCKS=true)
+// we return deterministic sample offers so the app and tests work offline; with a
+// real RAPIDAPI_KEY we call the live API and fall back to a sample on any error so
+// a flaky/quota-limited call never breaks trip planning.
 //
-// Flow (live): resolve the origin & destination cities to Sky-Scrapper
-// airport identifiers (searchAirport -> skyId/entityId), then searchFlights for
-// a round trip. Each itinerary's outbound leg gives the departure date and the
-// return leg gives the return date, which is what lets the UI auto-fill both.
+// Flow (live): the API accepts city names or IATA codes directly for origin and
+// destination, so no separate airport-resolution step is needed. We call
+// /api/v1/roundtrip for a round trip (or /api/v1/search for a one-way when no
+// return date is given). Each result's first leg gives the departure date and the
+// second leg gives the return date, which is what lets the UI auto-fill both.
 
-const RAPIDAPI_HOST = "sky-scrapper.p.rapidapi.com";
+const RAPIDAPI_HOST = "skyscanner-api.p.rapidapi.com";
 
 // The .env.example / docker default is a placeholder, so it must behave like
-// "no key" — otherwise we call RapidAPI with a bad key and get a 401.
+// "no key" — otherwise we call RapidAPI with a bad key and get a 403.
 const PLACEHOLDER_KEYS = new Set(["your_rapidapi_key_here"]);
 
 const DEFAULT_ORIGIN = "Tel Aviv";
@@ -68,49 +69,36 @@ function mockOffers({ origin, destination, departDate, returnDate }) {
   }));
 }
 
-// Resolve a city/airport query to its Sky-Scrapper identifiers.
-async function resolveEntity(query, headers) {
-  const res = await axios.get(`https://${RAPIDAPI_HOST}/api/v1/flights/searchAirport`, {
-    params: { query, locale: "en-US" },
-    headers,
-    timeout: 15000,
-  });
-  const first = Array.isArray(res.data?.data) ? res.data.data[0] : null;
-  if (!first || !first.skyId || !first.entityId) {
-    throw new Error(`No airport match for "${query}"`);
-  }
-  return { skyId: first.skyId, entityId: first.entityId };
-}
-
-// Map one Sky-Scrapper itinerary to our compact offer shape. Defensive about
-// the exact field names since this is a third-party wrapper.
-function normalizeItinerary(itinerary, origin, destination) {
-  const legs = Array.isArray(itinerary?.legs) ? itinerary.legs : [];
+// Map one Skyscanner result to our compact offer shape. Defensive about the exact
+// field names since this is a third-party wrapper. legs[0] is the outbound leg and
+// legs[1] (when present) is the inbound/return leg.
+function normalizeResult(result, currency) {
+  const legs = Array.isArray(result?.legs) ? result.legs : [];
   const outboundLeg = legs[0];
   const inboundLeg = legs[1];
-  if (!outboundLeg?.departure) return null;
+  if (!outboundLeg?.dep) return null;
 
-  const carrier = (leg) =>
-    leg?.carriers?.marketing?.[0]?.name || leg?.carriers?.[0]?.name || "—";
+  const airline =
+    Array.isArray(result?.carriers) && result.carriers.length ? result.carriers[0] : "—";
 
   return {
-    id: String(itinerary.id || `${outboundLeg.departure}-${itinerary.price?.raw ?? ""}`),
-    price: itinerary.price?.raw ?? null,
-    currency: "USD",
-    departDate: isoDate(outboundLeg.departure),
-    returnDate: inboundLeg?.departure ? isoDate(inboundLeg.departure) : null,
+    id: String(result.id || `${outboundLeg.dep}-${result.price_raw ?? ""}`),
+    price: result.price_raw ?? null,
+    currency: currency || "USD",
+    departDate: isoDate(outboundLeg.dep),
+    returnDate: inboundLeg?.dep ? isoDate(inboundLeg.dep) : null,
     outbound: {
-      from: origin,
-      to: destination,
-      airline: carrier(outboundLeg),
-      departTime: outboundLeg.departure,
+      from: outboundLeg.from,
+      to: outboundLeg.to,
+      airline,
+      departTime: outboundLeg.dep,
     },
-    inbound: inboundLeg?.departure
+    inbound: inboundLeg?.dep
       ? {
-          from: destination,
-          to: origin,
-          airline: carrier(inboundLeg),
-          departTime: inboundLeg.departure,
+          from: inboundLeg.from,
+          to: inboundLeg.to,
+          airline,
+          departTime: inboundLeg.dep,
         }
       : null,
   };
@@ -122,35 +110,33 @@ async function liveOffers({ origin, destination, departDate, returnDate, adults 
     "X-RapidAPI-Host": RAPIDAPI_HOST,
   };
 
-  const [from, to] = await Promise.all([
-    resolveEntity(origin, headers),
-    resolveEntity(destination, headers),
-  ]);
+  const isRoundTrip = Boolean(returnDate);
+  const path = isRoundTrip ? "/api/v1/roundtrip" : "/api/v1/search";
 
   const params = {
-    originSkyId: from.skyId,
-    destinationSkyId: to.skyId,
-    originEntityId: from.entityId,
-    destinationEntityId: to.entityId,
+    origin,
+    destination,
     date: isoDate(departDate),
     adults: adults || 1,
     currency: "USD",
-    market: "en-US",
-    countryCode: "US",
+    market: "US",
+    locale: "en-US",
+    limit: 15,
   };
-  if (returnDate) params.returnDate = isoDate(returnDate);
+  if (isRoundTrip) params.return_date = isoDate(returnDate);
 
-  const res = await axios.get(`https://${RAPIDAPI_HOST}/api/v2/flights/searchFlights`, {
+  const res = await axios.get(`https://${RAPIDAPI_HOST}${path}`, {
     params,
     headers,
     timeout: 20000,
   });
 
-  const itineraries = res.data?.data?.itineraries;
-  const list = Array.isArray(itineraries) ? itineraries : [];
-  return list
+  const data = res.data || {};
+  const currency = data.currency || "USD";
+  const results = Array.isArray(data.results) ? data.results : [];
+  return results
     .slice(0, 6)
-    .map((it) => normalizeItinerary(it, origin, destination))
+    .map((result) => normalizeResult(result, currency))
     .filter(Boolean);
 }
 

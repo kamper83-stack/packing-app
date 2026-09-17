@@ -4,7 +4,7 @@ import { api } from "../services/api";
 
 // Real round-trip flight search. The user gives an origin (defaults to Tel
 // Aviv) and the current destination + departure date; on "Search flights" we
-// call the backend (Sky-Scrapper / RapidAPI) and list round-trip options.
+// call the backend (Skyscanner Flights / RapidAPI) and list round-trip options.
 // Picking one calls onSelectDates with the outbound and return dates so the
 // trip form's Start/End dates fill in automatically. In the demo/offline
 // environment the backend returns clearly-labelled sample flights.

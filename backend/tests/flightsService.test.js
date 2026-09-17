@@ -1,5 +1,5 @@
-// Unit tests for the flight search service (Sky-Scrapper / RapidAPI) with the
-// mock/live fallback pattern.
+// Unit tests for the flight search service (Skyscanner Flights / RapidAPI) with
+// the mock/live fallback pattern.
 const axios = require("axios");
 const flightsService = require("../services/flightsService");
 
@@ -60,27 +60,27 @@ describe("flightsService.searchFlights - live mode (mocked axios)", () => {
     process.env = OLD_ENV;
   });
 
-  it("resolves airports, searches, and normalizes live itineraries to trip-dated offers", async () => {
-    // searchAirport (origin, then destination), then searchFlights.
-    axios.get
-      .mockResolvedValueOnce({ data: { data: [{ skyId: "TLV", entityId: "e-tlv" }] } })
-      .mockResolvedValueOnce({ data: { data: [{ skyId: "ROM", entityId: "e-rom" }] } })
-      .mockResolvedValueOnce({
-        data: {
-          data: {
-            itineraries: [
-              {
-                id: "it1",
-                price: { raw: 312.5, formatted: "$312" },
-                legs: [
-                  { departure: "2026-09-01T08:15:00", carriers: { marketing: [{ name: "EL AL" }] } },
-                  { departure: "2026-09-05T19:40:00", carriers: { marketing: [{ name: "EL AL" }] } },
-                ],
-              },
+  it("searches and normalizes live round-trip results to trip-dated offers", async () => {
+    // Single /api/v1/roundtrip call; origin/destination accept city names directly.
+    axios.get.mockResolvedValueOnce({
+      data: {
+        success: true,
+        trip_type: "round-trip",
+        currency: "USD",
+        results: [
+          {
+            id: "it1",
+            price_raw: 312.5,
+            price: "$312",
+            carriers: ["EL AL"],
+            legs: [
+              { from: "TLV", to: "FCO", dep: "2026-09-01T08:15:00", arr: "2026-09-01T11:40:00", stops: 0 },
+              { from: "FCO", to: "TLV", dep: "2026-09-05T19:40:00", arr: "2026-09-05T23:10:00", stops: 0 },
             ],
           },
-        },
-      });
+        ],
+      },
+    });
 
     const result = await flightsService.searchFlights({
       origin: "Tel Aviv",
@@ -93,20 +93,24 @@ describe("flightsService.searchFlights - live mode (mocked axios)", () => {
     expect(result.offers).toHaveLength(1);
     const [offer] = result.offers;
     expect(offer.price).toBe(312.5);
+    expect(offer.currency).toBe("USD");
     expect(offer.departDate).toBe("2026-09-01");
     expect(offer.returnDate).toBe("2026-09-05");
     expect(offer.outbound.airline).toBe("EL AL");
+    expect(offer.inbound.departTime).toBe("2026-09-05T19:40:00");
 
-    // The live searchFlights call carries the resolved sky/entity ids and dates.
-    const searchCall = axios.get.mock.calls[2];
-    expect(searchCall[0]).toMatch(/searchFlights/);
+    // A single roundtrip call carrying the raw origin/destination, dates, and key.
+    expect(axios.get).toHaveBeenCalledTimes(1);
+    const searchCall = axios.get.mock.calls[0];
+    expect(searchCall[0]).toMatch(/\/api\/v1\/roundtrip$/);
     expect(searchCall[1].params).toMatchObject({
-      originSkyId: "TLV",
-      destinationSkyId: "ROM",
+      origin: "Tel Aviv",
+      destination: "Rome",
       date: "2026-09-01",
-      returnDate: "2026-09-05",
+      return_date: "2026-09-05",
     });
     expect(searchCall[1].headers["X-RapidAPI-Key"]).toBe("real-key");
+    expect(searchCall[1].headers["X-RapidAPI-Host"]).toBe("skyscanner-api.p.rapidapi.com");
   });
 
   it("falls back to sample offers when the live call fails", async () => {
@@ -124,11 +128,8 @@ describe("flightsService.searchFlights - live mode (mocked axios)", () => {
     expect(result.offers[0].departDate).toBe("2026-09-01");
   });
 
-  it("falls back to samples when the provider returns no itineraries", async () => {
-    axios.get
-      .mockResolvedValueOnce({ data: { data: [{ skyId: "TLV", entityId: "e-tlv" }] } })
-      .mockResolvedValueOnce({ data: { data: [{ skyId: "ROM", entityId: "e-rom" }] } })
-      .mockResolvedValueOnce({ data: { data: { itineraries: [] } } });
+  it("falls back to samples when the provider returns no results", async () => {
+    axios.get.mockResolvedValueOnce({ data: { success: true, currency: "USD", results: [] } });
 
     const result = await flightsService.searchFlights({
       destination: "Rome",
