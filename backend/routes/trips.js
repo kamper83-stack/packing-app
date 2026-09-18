@@ -4,6 +4,7 @@ const { Trip, PackingItem } = require("../models");
 const authMiddleware = require("../middleware/auth");
 const weatherService = require("../services/weatherService");
 const geminiService = require("../services/geminiService");
+const { SUPPORTED_TARGET_BAGS } = geminiService;
 const flightsService = require("../services/flightsService");
 const airlines = require("../config/airlines.json");
 // Countries -> cities that have a commercial airport (derived from the
@@ -55,6 +56,40 @@ router.get("/destinations", (req, res) => {
 
 // Returns true when the value is a valid calendar date string (e.g. "2026-08-16").
 const isValidDate = (value) => !Number.isNaN(new Date(value).getTime());
+
+// Shared validation for packing-item fields (audit findings H1 and M4).
+// `name`/`category` must be non-empty strings within a sane length; `quantity`
+// a positive integer; `targetBag` from the same allowlist Gemini output is
+// validated against, so a client can never write a bag value the rest of the
+// app doesn't understand. Returns an error message string, or null when the
+// provided fields (only the ones present in `fields` are checked) are valid.
+const MAX_TEXT_FIELD_LENGTH = 200;
+function validateItemFields({ name, category, quantity, targetBag, isPacked }) {
+  if (name !== undefined) {
+    if (typeof name !== "string" || name.trim() === "" || name.length > MAX_TEXT_FIELD_LENGTH) {
+      return "name must be a non-empty string.";
+    }
+  }
+  if (category !== undefined) {
+    if (
+      typeof category !== "string" ||
+      category.trim() === "" ||
+      category.length > MAX_TEXT_FIELD_LENGTH
+    ) {
+      return "category must be a non-empty string.";
+    }
+  }
+  if (quantity !== undefined && (!Number.isInteger(quantity) || quantity < 1)) {
+    return "quantity must be a positive integer.";
+  }
+  if (targetBag !== undefined && !SUPPORTED_TARGET_BAGS.includes(targetBag)) {
+    return `targetBag must be one of: ${SUPPORTED_TARGET_BAGS.join(", ")}.`;
+  }
+  if (isPacked !== undefined && typeof isPacked !== "boolean") {
+    return "isPacked must be a boolean.";
+  }
+  return null;
+}
 
 // GET /api/trips/flights - Search real round-trip flight offers for a route and
 // dates. Declared before "/:id" so the literal path isn't read as a trip id.
@@ -148,6 +183,22 @@ router.post("/", async (req, res) => {
 
   if (!destination || !startDate || !endDate || !airline || !vacationType) {
     return res.status(400).json({ error: "All required fields must be filled." });
+  }
+
+  // Audit finding C3: a non-string destination/airline/vacationType passed
+  // the truthy check above (e.g. numbers, objects) and then reached
+  // `.trim()` further down, unguarded by any try/catch. That threw
+  // synchronously inside this async handler, which Express 4 does not turn
+  // into an error response — the request just hangs until the client times
+  // out, leaking the connection. Reject non-strings up front instead.
+  if (
+    typeof destination !== "string" ||
+    typeof airline !== "string" ||
+    typeof vacationType !== "string"
+  ) {
+    return res
+      .status(400)
+      .json({ error: "destination, airline, and vacationType must be text." });
   }
 
   // Validate dates: both must be real dates and the trip cannot end before it starts.
@@ -284,8 +335,12 @@ router.post("/:id/custom-item", async (req, res) => {
     return res.status(400).json({ error: "Name and category are required." });
   }
 
-  if (quantity !== undefined && (!Number.isInteger(quantity) || quantity < 1)) {
-    return res.status(400).json({ error: "Quantity must be a positive integer." });
+  // Audit finding M4: previously only truthiness was checked, so an
+  // object/number for name or category slipped past validation and threw
+  // inside Sequelize, surfacing as a misleading 500 instead of a 400.
+  const validationError = validateItemFields({ name, category, quantity, targetBag });
+  if (validationError) {
+    return res.status(400).json({ error: validationError });
   }
 
   try {
@@ -314,6 +369,15 @@ router.post("/:id/custom-item", async (req, res) => {
 // PUT /api/items/:itemId - Update packed status or details of packing item
 router.put("/item/:itemId", async (req, res) => {
   const { isPacked, quantity, targetBag } = req.body;
+
+  // Audit finding H1: this endpoint previously persisted whatever was sent
+  // with no validation at all — negative quantities, arbitrary strings in
+  // targetBag (including script tags), and non-boolean isPacked values were
+  // all accepted and saved. Validate every provided field up front.
+  const validationError = validateItemFields({ isPacked, quantity, targetBag });
+  if (validationError) {
+    return res.status(400).json({ error: validationError });
+  }
 
   try {
     const item = await PackingItem.findByPk(req.params.itemId, {
