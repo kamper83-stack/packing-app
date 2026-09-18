@@ -1,0 +1,17 @@
+node_modules
+npm-debug.log*
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+coverage
+build
+backend
+.hermes
+findings.md
+progress.md
+task_plan.md
+tasks
+.claude
+.vscode
