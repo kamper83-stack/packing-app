@@ -156,4 +156,4 @@ async function generatePackingList({
   }
 }
 
-module.exports = { generatePackingList, validatePackingItems };
+module.exports = { generatePackingList, validatePackingItems, SUPPORTED_TARGET_BAGS };

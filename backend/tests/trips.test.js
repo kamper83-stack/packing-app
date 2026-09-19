@@ -62,6 +62,23 @@ describe("Trips API Endpoints (Issue #6)", () => {
       expect(res.body.error).toMatch(/required/i);
     });
 
+    // Audit finding C3: a non-string value for destination/airline/
+    // vacationType previously passed the truthy check above and then hit an
+    // unguarded `.trim()`, hanging the request instead of returning an error.
+    it.each([
+      { field: "destination", value: 5 },
+      { field: "airline", value: { a: 1 } },
+      { field: "vacationType", value: ["Beach"] },
+    ])("should reject a non-string $field with a 400 instead of hanging", async ({ field, value }) => {
+      const res = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({ ...validTrip, [field]: value });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/must be text/i);
+    });
+
     it("should reject creation when end date is before start date", async () => {
       const res = await request(app)
         .post("/api/trips")
@@ -395,6 +412,28 @@ describe("Trips API Endpoints (Issue #6)", () => {
       expect(res.body.error).toMatch(/positive integer/i);
     });
 
+    // Audit finding M4: a non-string name/category previously threw inside
+    // Sequelize and surfaced as a misleading 500 instead of a 400.
+    it("should reject a non-string name with a 400 instead of a 500", async () => {
+      const res = await request(app)
+        .post(`/api/trips/${createdTripId}/custom-item`)
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({ name: { evil: 1 }, category: "Electronics" });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/name must be/i);
+    });
+
+    it("should reject an unsupported targetBag", async () => {
+      const res = await request(app)
+        .post(`/api/trips/${createdTripId}/custom-item`)
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({ name: "Camera", category: "Electronics", targetBag: "Trunk" });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/targetBag must be one of/i);
+    });
+
     it("should add a valid custom item marked as custom", async () => {
       const res = await request(app)
         .post(`/api/trips/${createdTripId}/custom-item`)
@@ -425,6 +464,38 @@ describe("Trips API Endpoints (Issue #6)", () => {
         .send({ isPacked: false });
 
       expect(res.status).toBe(404);
+    });
+
+    // Audit finding H1: previously any value was persisted with no
+    // validation at all.
+    it("should reject a negative quantity", async () => {
+      const res = await request(app)
+        .put(`/api/trips/item/${firstItemId}`)
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({ quantity: -999 });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/positive integer/i);
+    });
+
+    it("should reject a targetBag outside the supported allowlist", async () => {
+      const res = await request(app)
+        .put(`/api/trips/item/${firstItemId}`)
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({ targetBag: "<script>alert(1)</script>" });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/targetBag must be one of/i);
+    });
+
+    it("should reject a non-boolean isPacked value", async () => {
+      const res = await request(app)
+        .put(`/api/trips/item/${firstItemId}`)
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({ isPacked: "not-a-bool" });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/isPacked must be a boolean/i);
     });
   });
 
