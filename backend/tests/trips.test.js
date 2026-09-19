@@ -109,6 +109,46 @@ describe("Trips API Endpoints (Issue #6)", () => {
       expect(res.body.error).toMatch(/positive integer/i);
     });
 
+    // Audit finding M3: previously no upper bound existed on numPeople or
+    // trip duration, so unrealistic values produced packing-item quantities
+    // in the tens of thousands to millions.
+    it("should reject a numPeople above the cap", async () => {
+      const res = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({ ...validTrip, numPeople: 1000000 });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/up to 20|cannot exceed/i);
+    });
+
+    it("should reject a passengerComposition total above the cap", async () => {
+      const res = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({
+          destination: "Rome",
+          startDate: "2026-10-01",
+          endDate: "2026-10-05",
+          airline: "EL AL",
+          vacationType: "City",
+          passengerComposition: { infants: 0, children: 0, women: 15, men: 10 },
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/cannot exceed/i);
+    });
+
+    it("should reject a trip duration above the cap", async () => {
+      const res = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({ ...validTrip, startDate: "2026-01-01", endDate: "2126-01-01" });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/duration cannot exceed/i);
+    });
+
     it("should reject creation with both numPeople and passengerComposition (Issue #22)", async () => {
       const res = await request(app)
         .post("/api/trips")
