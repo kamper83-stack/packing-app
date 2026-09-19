@@ -61,4 +61,18 @@ describe("GET /api/trips/flights", () => {
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/before/i);
   });
+
+  // Audit finding L3: previously this endpoint accepted any destination
+  // string and returned mock flight offers for it, even though trip
+  // creation (POST /api/trips) requires a recognized airport city — so a
+  // user could get flight offers for a destination they could never
+  // actually create a trip for.
+  it("rejects a destination that is not a recognized airport city", async () => {
+    const res = await request(app)
+      .get("/api/trips/flights")
+      .query({ destination: "NotARealCity123", departDate: "2026-09-01" })
+      .set("Authorization", `Bearer ${token}`);
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/airport/i);
+  });
 });

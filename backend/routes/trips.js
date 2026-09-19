@@ -4,6 +4,7 @@ const { Trip, PackingItem } = require("../models");
 const authMiddleware = require("../middleware/auth");
 const weatherService = require("../services/weatherService");
 const geminiService = require("../services/geminiService");
+const { SUPPORTED_TARGET_BAGS } = geminiService;
 const flightsService = require("../services/flightsService");
 const airlines = require("../config/airlines.json");
 // Countries -> cities that have a commercial airport (derived from the
@@ -56,6 +57,49 @@ router.get("/destinations", (req, res) => {
 // Returns true when the value is a valid calendar date string (e.g. "2026-08-16").
 const isValidDate = (value) => !Number.isNaN(new Date(value).getTime());
 
+// Audit finding M3: trip creation had no upper bound on trip length or
+// number of travelers. A 100-year trip or numPeople: 1000000 was previously
+// accepted and produced packing-item quantities in the tens of thousands to
+// millions (these values feed directly into Gemini's prompt and the mock
+// item generator, e.g. quantity = days * numPeople). These caps keep the
+// data volume and any live Gemini calls proportional to an actual trip.
+const MAX_TRIP_DAYS = 60;
+const MAX_NUM_PEOPLE = 20;
+
+// Shared validation for packing-item fields (audit findings H1 and M4).
+// `name`/`category` must be non-empty strings within a sane length; `quantity`
+// a positive integer; `targetBag` from the same allowlist Gemini output is
+// validated against, so a client can never write a bag value the rest of the
+// app doesn't understand. Returns an error message string, or null when the
+// provided fields (only the ones present in `fields` are checked) are valid.
+const MAX_TEXT_FIELD_LENGTH = 200;
+function validateItemFields({ name, category, quantity, targetBag, isPacked }) {
+  if (name !== undefined) {
+    if (typeof name !== "string" || name.trim() === "" || name.length > MAX_TEXT_FIELD_LENGTH) {
+      return "name must be a non-empty string.";
+    }
+  }
+  if (category !== undefined) {
+    if (
+      typeof category !== "string" ||
+      category.trim() === "" ||
+      category.length > MAX_TEXT_FIELD_LENGTH
+    ) {
+      return "category must be a non-empty string.";
+    }
+  }
+  if (quantity !== undefined && (!Number.isInteger(quantity) || quantity < 1)) {
+    return "quantity must be a positive integer.";
+  }
+  if (targetBag !== undefined && !SUPPORTED_TARGET_BAGS.includes(targetBag)) {
+    return `targetBag must be one of: ${SUPPORTED_TARGET_BAGS.join(", ")}.`;
+  }
+  if (isPacked !== undefined && typeof isPacked !== "boolean") {
+    return "isPacked must be a boolean.";
+  }
+  return null;
+}
+
 // GET /api/trips/flights - Search real round-trip flight offers for a route and
 // dates. Declared before "/:id" so the literal path isn't read as a trip id.
 // Query: destination (required), departDate (required), origin (optional,
@@ -66,6 +110,16 @@ router.get("/flights", async (req, res) => {
 
   if (!destination || !departDate) {
     return res.status(400).json({ error: "destination and departDate are required." });
+  }
+  // Audit finding L3: trip creation requires the destination to be a
+  // recognized airport city (see canonicalCity below), but this endpoint
+  // previously accepted any string, returning mock flight offers for a
+  // destination the user could never actually create a trip for. Apply the
+  // same validation here for consistency.
+  if (!canonicalCity(destination)) {
+    return res
+      .status(400)
+      .json({ error: "Please choose a destination city that has an airport." });
   }
   if (!isValidDate(departDate) || (returnDate && !isValidDate(returnDate))) {
     return res.status(400).json({ error: "Invalid departDate or returnDate." });
@@ -150,12 +204,38 @@ router.post("/", async (req, res) => {
     return res.status(400).json({ error: "All required fields must be filled." });
   }
 
+  // Audit finding C3: a non-string destination/airline/vacationType passed
+  // the truthy check above (e.g. numbers, objects) and then reached
+  // `.trim()` further down, unguarded by any try/catch. That threw
+  // synchronously inside this async handler, which Express 4 does not turn
+  // into an error response — the request just hangs until the client times
+  // out, leaking the connection. Reject non-strings up front instead.
+  if (
+    typeof destination !== "string" ||
+    typeof airline !== "string" ||
+    typeof vacationType !== "string"
+  ) {
+    return res
+      .status(400)
+      .json({ error: "destination, airline, and vacationType must be text." });
+  }
+
   // Validate dates: both must be real dates and the trip cannot end before it starts.
   if (!isValidDate(startDate) || !isValidDate(endDate)) {
     return res.status(400).json({ error: "Invalid start or end date." });
   }
   if (new Date(endDate) < new Date(startDate)) {
     return res.status(400).json({ error: "End date cannot be before start date." });
+  }
+  // Audit finding M3: cap trip duration. Without this an unrealistic span
+  // (e.g. 100 years) silently produced packing items with quantities in the
+  // tens of thousands.
+  const tripDurationDays =
+    Math.ceil(Math.abs(new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)) + 1;
+  if (tripDurationDays > MAX_TRIP_DAYS) {
+    return res
+      .status(400)
+      .json({ error: `Trip duration cannot exceed ${MAX_TRIP_DAYS} days.` });
   }
 
   // The destination must be a city that has a commercial airport (in any
@@ -181,8 +261,21 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "Invalid passenger composition." });
     }
     effectiveNumPeople = Object.values(composition).reduce((sum, count) => sum + count, 0);
-  } else if (numPeople !== undefined && (!Number.isInteger(numPeople) || numPeople < 1)) {
-    return res.status(400).json({ error: "Number of people must be a positive integer." });
+    // Audit finding M3: cap total travelers, same limit as the numPeople
+    // branch below, so both paths into "how many people" enforce the same
+    // bound.
+    if (effectiveNumPeople > MAX_NUM_PEOPLE) {
+      return res
+        .status(400)
+        .json({ error: `Number of people cannot exceed ${MAX_NUM_PEOPLE}.` });
+    }
+  } else if (
+    numPeople !== undefined &&
+    (!Number.isInteger(numPeople) || numPeople < 1 || numPeople > MAX_NUM_PEOPLE)
+  ) {
+    return res
+      .status(400)
+      .json({ error: `Number of people must be a positive integer up to ${MAX_NUM_PEOPLE}.` });
   }
 
   // Persist the canonical airport-city spelling so stored destinations stay
@@ -284,8 +377,12 @@ router.post("/:id/custom-item", async (req, res) => {
     return res.status(400).json({ error: "Name and category are required." });
   }
 
-  if (quantity !== undefined && (!Number.isInteger(quantity) || quantity < 1)) {
-    return res.status(400).json({ error: "Quantity must be a positive integer." });
+  // Audit finding M4: previously only truthiness was checked, so an
+  // object/number for name or category slipped past validation and threw
+  // inside Sequelize, surfacing as a misleading 500 instead of a 400.
+  const validationError = validateItemFields({ name, category, quantity, targetBag });
+  if (validationError) {
+    return res.status(400).json({ error: validationError });
   }
 
   try {
@@ -314,6 +411,15 @@ router.post("/:id/custom-item", async (req, res) => {
 // PUT /api/items/:itemId - Update packed status or details of packing item
 router.put("/item/:itemId", async (req, res) => {
   const { isPacked, quantity, targetBag } = req.body;
+
+  // Audit finding H1: this endpoint previously persisted whatever was sent
+  // with no validation at all — negative quantities, arbitrary strings in
+  // targetBag (including script tags), and non-boolean isPacked values were
+  // all accepted and saved. Validate every provided field up front.
+  const validationError = validateItemFields({ isPacked, quantity, targetBag });
+  if (validationError) {
+    return res.status(400).json({ error: validationError });
+  }
 
   try {
     const item = await PackingItem.findByPk(req.params.itemId, {
