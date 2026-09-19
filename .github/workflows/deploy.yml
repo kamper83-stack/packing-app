@@ -1,13 +1,22 @@
 name: CD Deployment (Docker Compose via SSH)
 
+# Issue #87: previously triggered on every push to main independent of
+# whether CI passed, so a merge or direct push could deploy to production
+# before tests had ever run against the merged result. Now gated on the "CI
+# Pipeline" workflow (ci.yml) completing successfully on main.
 on:
-  push:
+  workflow_run:
+    workflows: [ "CI Pipeline" ]
     branches: [ main ]
+    types: [ completed ]
   workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Only deploy when triggered manually, or when the CI run that triggered
+    # this actually succeeded (workflow_run fires on failure/cancellation too).
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4

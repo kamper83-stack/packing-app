@@ -3,6 +3,8 @@ name: CI Pipeline
 on:
   pull_request:
     branches: [ main ]
+  push:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -74,6 +76,8 @@ jobs:
           context: ./backend
           file: ./backend/Dockerfile
           push: false
+          load: true
+          tags: packing-backend:ci
 
       - name: Build Frontend Docker Image (Test)
         uses: docker/build-push-action@v5
@@ -81,3 +85,15 @@ jobs:
           context: .
           file: ./Dockerfile
           push: false
+
+      # Issue #88: this script existed since #31 but was never wired into
+      # CI, so a container that fails to boot (or a broken register/create-trip
+      # flow) would only ever be caught in production. Boots the just-built
+      # image, verifies /health, then does a real register + create-trip
+      # round trip against it in mock mode.
+      - name: Boot backend image and run container smoke test
+        env:
+          IMAGE: packing-backend:ci
+        run: |
+          chmod +x backend/scripts/ci-container-smoke.sh
+          backend/scripts/ci-container-smoke.sh
