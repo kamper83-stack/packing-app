@@ -57,6 +57,15 @@ router.get("/destinations", (req, res) => {
 // Returns true when the value is a valid calendar date string (e.g. "2026-08-16").
 const isValidDate = (value) => !Number.isNaN(new Date(value).getTime());
 
+// Audit finding M3: trip creation had no upper bound on trip length or
+// number of travelers. A 100-year trip or numPeople: 1000000 was previously
+// accepted and produced packing-item quantities in the tens of thousands to
+// millions (these values feed directly into Gemini's prompt and the mock
+// item generator, e.g. quantity = days * numPeople). These caps keep the
+// data volume and any live Gemini calls proportional to an actual trip.
+const MAX_TRIP_DAYS = 60;
+const MAX_NUM_PEOPLE = 20;
+
 // Shared validation for packing-item fields (audit findings H1 and M4).
 // `name`/`category` must be non-empty strings within a sane length; `quantity`
 // a positive integer; `targetBag` from the same allowlist Gemini output is
@@ -101,6 +110,16 @@ router.get("/flights", async (req, res) => {
 
   if (!destination || !departDate) {
     return res.status(400).json({ error: "destination and departDate are required." });
+  }
+  // Audit finding L3: trip creation requires the destination to be a
+  // recognized airport city (see canonicalCity below), but this endpoint
+  // previously accepted any string, returning mock flight offers for a
+  // destination the user could never actually create a trip for. Apply the
+  // same validation here for consistency.
+  if (!canonicalCity(destination)) {
+    return res
+      .status(400)
+      .json({ error: "Please choose a destination city that has an airport." });
   }
   if (!isValidDate(departDate) || (returnDate && !isValidDate(returnDate))) {
     return res.status(400).json({ error: "Invalid departDate or returnDate." });
@@ -208,6 +227,16 @@ router.post("/", async (req, res) => {
   if (new Date(endDate) < new Date(startDate)) {
     return res.status(400).json({ error: "End date cannot be before start date." });
   }
+  // Audit finding M3: cap trip duration. Without this an unrealistic span
+  // (e.g. 100 years) silently produced packing items with quantities in the
+  // tens of thousands.
+  const tripDurationDays =
+    Math.ceil(Math.abs(new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)) + 1;
+  if (tripDurationDays > MAX_TRIP_DAYS) {
+    return res
+      .status(400)
+      .json({ error: `Trip duration cannot exceed ${MAX_TRIP_DAYS} days.` });
+  }
 
   // The destination must be a city that has a commercial airport (in any
   // country). Users pick it from the country/city selector; we validate here
@@ -232,8 +261,21 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "Invalid passenger composition." });
     }
     effectiveNumPeople = Object.values(composition).reduce((sum, count) => sum + count, 0);
-  } else if (numPeople !== undefined && (!Number.isInteger(numPeople) || numPeople < 1)) {
-    return res.status(400).json({ error: "Number of people must be a positive integer." });
+    // Audit finding M3: cap total travelers, same limit as the numPeople
+    // branch below, so both paths into "how many people" enforce the same
+    // bound.
+    if (effectiveNumPeople > MAX_NUM_PEOPLE) {
+      return res
+        .status(400)
+        .json({ error: `Number of people cannot exceed ${MAX_NUM_PEOPLE}.` });
+    }
+  } else if (
+    numPeople !== undefined &&
+    (!Number.isInteger(numPeople) || numPeople < 1 || numPeople > MAX_NUM_PEOPLE)
+  ) {
+    return res
+      .status(400)
+      .json({ error: `Number of people must be a positive integer up to ${MAX_NUM_PEOPLE}.` });
   }
 
   // Persist the canonical airport-city spelling so stored destinations stay
