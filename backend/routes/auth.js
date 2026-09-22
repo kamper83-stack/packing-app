@@ -93,6 +93,10 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ error: "Invalid email or password." });
     }
 
+    if (!user.isActive) {
+      return res.status(403).json({ error: "This account has been deactivated." });
+    }
+
     // Reconcile admin status so the designated admin sees their role
     // immediately on login, without needing a server restart (Issue #62).
     await reconcileAdmin(user);

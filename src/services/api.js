@@ -97,6 +97,12 @@ export const api = {
 
   getAdminUsers: () => request("/admin/users"),
 
+  setUserActive: (id, isActive) =>
+    request(`/admin/users/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ isActive }),
+    }),
+
   getAdminLogs: () => request("/admin/logs"),
 
   // Issue #62: operational runtime log (API activity, statuses, errors).

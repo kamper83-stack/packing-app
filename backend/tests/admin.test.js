@@ -5,7 +5,7 @@ process.env.GEMINI_API_KEY = "";
 
 const request = require("supertest");
 const app = require("../server");
-const { sequelize } = require("../models");
+const { sequelize, User } = require("../models");
 
 beforeAll(async () => {
   await sequelize.sync({ force: true });
@@ -123,5 +123,104 @@ describe("Admin API (Issue #49)", () => {
     expect(res.status).toBe(200);
     expect(res.body.logs.every((e) => e.level === "warn")).toBe(true);
     expect(res.body.logs.some((e) => e.status === 403)).toBe(true);
+  });
+
+  describe("PATCH /api/admin/users/:id/status (soft-delete)", () => {
+    let targetId = "";
+    let targetToken = "";
+
+    beforeAll(async () => {
+      const target = await register("softdelete-target@example.com");
+      targetId = target.body.user.id;
+      targetToken = target.body.token;
+    });
+
+    it("rejects a non-admin caller", async () => {
+      const res = await request(app)
+        .patch(`/api/admin/users/${targetId}/status`)
+        .set("Authorization", `Bearer ${userToken}`)
+        .send({ isActive: false });
+      expect(res.status).toBe(403);
+    });
+
+    it("rejects a non-boolean isActive", async () => {
+      const res = await request(app)
+        .patch(`/api/admin/users/${targetId}/status`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ isActive: "nope" });
+      expect(res.status).toBe(400);
+    });
+
+    it("refuses to let an admin deactivate their own account", async () => {
+      const me = await request(app).get("/api/auth/me").set("Authorization", `Bearer ${adminToken}`);
+      const res = await request(app)
+        .patch(`/api/admin/users/${me.body.id}/status`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ isActive: false });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/cannot deactivate your own account/i);
+    });
+
+    it("lets an admin deactivate another user, keeping the account (soft delete, not destroy)", async () => {
+      const res = await request(app)
+        .patch(`/api/admin/users/${targetId}/status`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ isActive: false });
+      expect(res.status).toBe(200);
+      expect(res.body.isActive).toBe(false);
+
+      // Row still exists — this is soft-delete, not User.destroy().
+      const row = await User.findByPk(targetId);
+      expect(row).not.toBeNull();
+      expect(row.email).toBe("softdelete-target@example.com");
+    });
+
+    it("blocks login for a deactivated account", async () => {
+      const res = await request(app)
+        .post("/api/auth/login")
+        .send({ email: "softdelete-target@example.com", password: "Password123!" });
+      expect(res.status).toBe(403);
+      expect(res.body.error).toMatch(/deactivated/i);
+    });
+
+    it("immediately revokes access for an already-issued token, not just new logins", async () => {
+      const res = await request(app)
+        .get("/api/auth/me")
+        .set("Authorization", `Bearer ${targetToken}`);
+      expect(res.status).toBe(403);
+      expect(res.body.error).toMatch(/deactivated/i);
+    });
+
+    it("lets an admin reactivate the account, restoring access", async () => {
+      const reactivate = await request(app)
+        .patch(`/api/admin/users/${targetId}/status`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ isActive: true });
+      expect(reactivate.status).toBe(200);
+      expect(reactivate.body.isActive).toBe(true);
+
+      const login = await request(app)
+        .post("/api/auth/login")
+        .send({ email: "softdelete-target@example.com", password: "Password123!" });
+      expect(login.status).toBe(200);
+    });
+
+    it("404s for a status update on a non-existent user id", async () => {
+      const res = await request(app)
+        .patch(`/api/admin/users/00000000-0000-0000-0000-000000000000/status`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ isActive: false });
+      expect(res.status).toBe(404);
+    });
+
+    it("includes isActive in the users list", async () => {
+      const res = await request(app)
+        .get("/api/admin/users")
+        .set("Authorization", `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      res.body.forEach((row) => {
+        expect(row).toHaveProperty("isActive");
+      });
+    });
   });
 });

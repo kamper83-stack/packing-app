@@ -64,6 +64,8 @@ export default function Admin() {
   const [logs, setLogs] = useState([]);
   const [systemLogs, setSystemLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [meId, setMeId] = useState(null);
+  const [statusUpdatingId, setStatusUpdatingId] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,6 +76,7 @@ export default function Admin() {
           navigate("/dashboard", { replace: true });
           return;
         }
+        setMeId(me.id);
         const [nextStatus, nextUsers, nextLogs, nextSystemLogs] = await Promise.all([
           api.getAdminStatus(),
           api.getAdminUsers(),
@@ -96,6 +99,30 @@ export default function Admin() {
       cancelled = true;
     };
   }, [navigate]);
+
+  // Soft-delete: deactivate/reactivate a user account. The account and its
+  // trips are kept — this only blocks login and API access, it never
+  // deletes data.
+  async function toggleUserActive(user) {
+    const nextActive = !user.isActive;
+    const confirmed = window.confirm(
+      nextActive
+        ? `Reactivate ${user.email}?`
+        : `Deactivate ${user.email}? They will be signed out and unable to log in until reactivated.`
+    );
+    if (!confirmed) return;
+
+    setStatusUpdatingId(user.id);
+    setError("");
+    try {
+      const updated = await api.setUserActive(user.id, nextActive);
+      setUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, ...updated } : u)));
+    } catch (err) {
+      setError(err.message || "Failed to update user status.");
+    } finally {
+      setStatusUpdatingId(null);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-paper bg-paper-glow">
@@ -143,7 +170,9 @@ export default function Admin() {
                         <th className="py-2 pr-4">Email</th>
                         <th className="py-2 pr-4">Created</th>
                         <th className="py-2 pr-4">Trips</th>
-                        <th className="py-2">Role</th>
+                        <th className="py-2 pr-4">Role</th>
+                        <th className="py-2 pr-4">Status</th>
+                        <th className="py-2"></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -152,7 +181,36 @@ export default function Admin() {
                           <td className="py-2 pr-4">{user.email}</td>
                           <td className="py-2 pr-4">{formatTime(user.createdAt)}</td>
                           <td className="py-2 pr-4">{user.tripCount}</td>
-                          <td className="py-2">{user.isAdmin ? "Admin" : "User"}</td>
+                          <td className="py-2 pr-4">{user.isAdmin ? "Admin" : "User"}</td>
+                          <td className="py-2 pr-4">
+                            <span
+                              className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-full border ${
+                                user.isActive
+                                  ? "bg-green-50 text-green-700 border-green-200"
+                                  : "bg-danger-50 text-danger-700 border-danger-200"
+                              }`}
+                            >
+                              {user.isActive ? "Active" : "Deactivated"}
+                            </span>
+                          </td>
+                          <td className="py-2">
+                            {user.id === meId ? (
+                              <span className="text-xs text-muted">You</span>
+                            ) : (
+                              <button
+                                type="button"
+                                className="btn-ghost !py-1 !px-2 text-xs"
+                                disabled={statusUpdatingId === user.id}
+                                onClick={() => toggleUserActive(user)}
+                              >
+                                {statusUpdatingId === user.id
+                                  ? "..."
+                                  : user.isActive
+                                    ? "Deactivate"
+                                    : "Reactivate"}
+                              </button>
+                            )}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
