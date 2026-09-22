@@ -218,6 +218,17 @@ describe("Dashboard (Issue #9)", () => {
     expect(screen.queryByRole("link", { name: /admin panel/i })).not.toBeInTheDocument();
   });
 
+  it("starts both date pickers from today rather than January", async () => {
+    api.getTrips.mockResolvedValue([]);
+
+    const { container } = renderDashboard();
+    await screen.findByText(/plan a new trip/i);
+
+    const today = new Date().toISOString().split("T")[0];
+    const dateInputs = container.querySelectorAll('input[type="date"]');
+    expect(dateInputs[0]).toHaveAttribute("min", today);
+    expect(dateInputs[1]).toHaveAttribute("min", today);
+  });
   it("advances focus to the end (landing) date after a start date is picked", async () => {
     api.getTrips.mockResolvedValue([]);
 

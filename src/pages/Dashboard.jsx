@@ -20,7 +20,8 @@ import useDocumentTitle from "../utils/useDocumentTitle";
 // match backend/routes/trips.js's YEAR_WINDOW_YEARS_AHEAD.
 const DATE_INPUT_YEAR_WINDOW_AHEAD = 2;
 const currentYearNow = new Date().getFullYear();
-const DATE_INPUT_MIN = `${currentYearNow}-01-01`;
+const currentDateNow = new Date().toISOString().split("T")[0];
+const DATE_INPUT_MIN = currentDateNow;
 const DATE_INPUT_MAX = `${currentYearNow + DATE_INPUT_YEAR_WINDOW_AHEAD}-12-31`;
 
 export default function Dashboard() {
