@@ -140,13 +140,63 @@ describe("Trips API Endpoints (Issue #6)", () => {
     });
 
     it("should reject a trip duration above the cap", async () => {
+      // Both years plausible (same year) so this isolates the 60-day span
+      // cap from the year-plausibility check (Issue #121) below.
       const res = await request(app)
         .post("/api/trips")
         .set("Authorization", `Bearer ${tokenA}`)
-        .send({ ...validTrip, startDate: "2026-01-01", endDate: "2126-01-01" });
+        .send({ ...validTrip, startDate: "2026-01-01", endDate: "2026-06-01" });
 
       expect(res.status).toBe(400);
       expect(res.body.error).toMatch(/duration cannot exceed/i);
+    });
+
+    // Issue #121: implausible years should be rejected with a dedicated,
+    // field-specific message instead of slipping through and only being
+    // (mis)reported as a duration-cap violation.
+    describe("year plausibility (Issue #121)", () => {
+      const currentYear = new Date().getUTCFullYear();
+
+      it("rejects a startDate year that is too far in the past", async () => {
+        const res = await request(app)
+          .post("/api/trips")
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send({
+            ...validTrip,
+            startDate: `${currentYear - 1}-06-01`,
+            endDate: `${currentYear - 1}-06-05`,
+          });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error).toMatch(/startDate year/i);
+      });
+
+      it("rejects an endDate year that is too far in the future", async () => {
+        const res = await request(app)
+          .post("/api/trips")
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send({
+            ...validTrip,
+            startDate: `${currentYear}-06-01`,
+            endDate: `${currentYear + 3}-06-05`,
+          });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error).toMatch(/endDate year/i);
+      });
+
+      it("accepts a valid trip that crosses a New Year boundary within the 60-day span cap", async () => {
+        const res = await request(app)
+          .post("/api/trips")
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send({
+            ...validTrip,
+            startDate: `${currentYear}-12-28`,
+            endDate: `${currentYear + 1}-01-03`,
+          });
+
+        expect(res.status).toBe(201);
+      });
     });
 
     it("should reject creation with both numPeople and passengerComposition (Issue #22)", async () => {

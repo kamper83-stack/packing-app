@@ -15,6 +15,15 @@ import FlightSearch from "../components/FlightSearch";
 import Logo from "../components/Logo";
 import useDocumentTitle from "../utils/useDocumentTitle";
 
+// Issue #121: UX mirror of the backend's year-plausibility check (source of
+// truth stays server-side) — constrains the native date pickers so a stray
+// old/far-future year is harder to pick in the first place. Window must
+// match backend/routes/trips.js's YEAR_WINDOW_YEARS_AHEAD.
+const DATE_INPUT_YEAR_WINDOW_AHEAD = 2;
+const currentYearNow = new Date().getFullYear();
+const DATE_INPUT_MIN = `${currentYearNow}-01-01`;
+const DATE_INPUT_MAX = `${currentYearNow + DATE_INPUT_YEAR_WINDOW_AHEAD}-12-31`;
+
 export default function Dashboard() {
   useDocumentTitle("Dashboard");
   const [trips, setTrips] = useState([]);
@@ -186,6 +195,8 @@ export default function Dashboard() {
                   <input
                     type="date"
                     required
+                    min={DATE_INPUT_MIN}
+                    max={DATE_INPUT_MAX}
                     className="input"
                     value={startDate}
                     onChange={(e) => {
@@ -221,7 +232,8 @@ export default function Dashboard() {
                     ref={endDateRef}
                     type="date"
                     required
-                    min={startDate || undefined}
+                    min={startDate || DATE_INPUT_MIN}
+                    max={DATE_INPUT_MAX}
                     className="input"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
