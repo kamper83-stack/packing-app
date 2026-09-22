@@ -62,7 +62,37 @@ describe("GET /api/trips/locations (country -> airport cities)", () => {
     // A well-known country lists its airport cities.
     expect(Array.isArray(res.body.citiesByCountry.France)).toBe(true);
     expect(res.body.citiesByCountry.France).toContain("Paris");
-    expect(Object.keys(res.body.citiesByCountry).length).toBeGreaterThan(100);
+    // Scope decision: only destinations reachable by a real route from Ben
+    // Gurion (TLV) are offered, not every airport city in the world (see
+    // backend/scripts/build-tlv-destinations.js). This keeps the catalog
+    // small and every listed destination realistic for flight search.
+    const countryCount = Object.keys(res.body.citiesByCountry).length;
+    expect(countryCount).toBeGreaterThan(20);
+    expect(countryCount).toBeLessThan(80);
+  });
+
+  it("golden list: known real TLV destinations are present, known-bad entries are excluded (Regression guard for future regenerations)", async () => {
+    const res = await request(app)
+      .get("/api/trips/locations")
+      .set("Authorization", `Bearer ${token}`);
+
+    const allCities = Object.values(res.body.citiesByCountry).flat();
+
+    // Must exist: well-known real TLV routes.
+    for (const city of ["Paris", "Rome", "Barcelona", "Larnaca", "Tbilisi", "Athens"]) {
+      expect(allCities).toContain(city);
+    }
+
+    // Must NOT exist: general-aviation/private airstrips and air force bases
+    // that slipped into the old "any airport in the world" dataset (Masada,
+    // Nevatim, Ramon), plus routes suspended since Feb 2022 (Russia,
+    // Belarus, Ukraine).
+    for (const city of ["Metzada", "Masada", "Nevatim", "Moscow", "Kiev", "Donetsk", "Minsk"]) {
+      expect(allCities).not.toContain(city);
+    }
+    expect(Object.keys(res.body.citiesByCountry)).not.toEqual(
+      expect.arrayContaining(["Russia", "Belarus", "Ukraine"])
+    );
   });
 
   it("requires authentication", async () => {
