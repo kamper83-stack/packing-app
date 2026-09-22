@@ -126,11 +126,10 @@ function validateItemFields({ name, category, quantity, targetBag, isPacked }) {
 
 // GET /api/trips/flights - Search real round-trip flight offers for a route and
 // dates. Declared before "/:id" so the literal path isn't read as a trip id.
-// Query: destination (required), departDate (required), origin (optional,
-// defaults to Tel Aviv), returnDate (optional). Selecting an offer in the UI
-// auto-fills the trip's start/end dates from the outbound/return legs.
+// Query: destination (required), departDate (required), returnDate (optional).
+// The final project always departs from Tel Aviv.
 router.get("/flights", async (req, res) => {
-  const { origin, destination, departDate, returnDate } = req.query;
+  const { destination, departDate, returnDate } = req.query;
 
   if (!destination || !departDate) {
     return res.status(400).json({ error: "destination and departDate are required." });
@@ -163,7 +162,7 @@ router.get("/flights", async (req, res) => {
   }
 
   try {
-    const result = await flightsService.searchFlights({ origin, destination, departDate, returnDate });
+    const result = await flightsService.searchFlights({ destination, departDate, returnDate });
     res.json(result);
   } catch (error) {
     console.error("Flight search error:", error);

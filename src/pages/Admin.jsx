@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../services/api";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Trash2 } from "lucide-react";
 import Logo from "../components/Logo";
 import useDocumentTitle from "../utils/useDocumentTitle";
 
@@ -100,25 +100,19 @@ export default function Admin() {
     };
   }, [navigate]);
 
-  // Soft-delete: deactivate/reactivate a user account. The account and its
-  // trips are kept — this only blocks login and API access, it never
-  // deletes data.
-  async function toggleUserActive(user) {
-    const nextActive = !user.isActive;
+  async function deleteUser(user) {
     const confirmed = window.confirm(
-      nextActive
-        ? `Reactivate ${user.email}?`
-        : `Deactivate ${user.email}? They will be signed out and unable to log in until reactivated.`
+      `Delete ${user.email} permanently? This also removes all of their trips and cannot be undone.`
     );
     if (!confirmed) return;
 
     setStatusUpdatingId(user.id);
     setError("");
     try {
-      const updated = await api.setUserActive(user.id, nextActive);
-      setUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, ...updated } : u)));
+      await api.deleteUser(user.id);
+      setUsers((prev) => prev.filter((u) => u.id !== user.id));
     } catch (err) {
-      setError(err.message || "Failed to update user status.");
+      setError(err.message || "Failed to delete user.");
     } finally {
       setStatusUpdatingId(null);
     }
@@ -199,15 +193,13 @@ export default function Admin() {
                             ) : (
                               <button
                                 type="button"
-                                className="btn-ghost !py-1 !px-2 text-xs"
+                                className="btn-ghost !py-1 !px-2 text-xs text-danger-600"
                                 disabled={statusUpdatingId === user.id}
-                                onClick={() => toggleUserActive(user)}
+                                onClick={() => deleteUser(user)}
+                                aria-label={`Delete ${user.email}`}
                               >
-                                {statusUpdatingId === user.id
-                                  ? "..."
-                                  : user.isActive
-                                    ? "Deactivate"
-                                    : "Reactivate"}
+                                <Trash2 size={14} />
+                                {statusUpdatingId === user.id ? "..." : "Delete"}
                               </button>
                             )}
                           </td>

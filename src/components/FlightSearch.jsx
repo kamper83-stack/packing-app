@@ -2,9 +2,8 @@ import React, { useState } from "react";
 import { Plane, PlaneTakeoff, PlaneLanding } from "lucide-react";
 import { api } from "../services/api";
 
-// Real round-trip flight search. The user gives an origin (defaults to Tel
-// Aviv) and the current destination + departure date; on "Search flights" we
-// call the backend (Skyscanner Flights / RapidAPI) and list round-trip options.
+// Real round-trip flight search using the destination and dates from the trip form.
+// Those inputs remain editable in the parent form before searching again.
 // Picking one calls onSelectDates with the outbound and return dates so the
 // trip form's Start/End dates fill in automatically. In the demo/offline
 // environment the backend returns clearly-labelled sample flights.
@@ -15,7 +14,6 @@ function formatTime(value) {
 }
 
 export default function FlightSearch({ destination, departDate, returnDate, onSelectDates }) {
-  const [origin, setOrigin] = useState("Tel Aviv");
   const [offers, setOffers] = useState(null);
   const [isMock, setIsMock] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -27,7 +25,7 @@ export default function FlightSearch({ destination, departDate, returnDate, onSe
     setError("");
     setLoading(true);
     try {
-      const result = await api.searchFlights({ origin, destination, departDate, returnDate });
+      const result = await api.searchFlights({ destination, departDate, returnDate });
       setOffers(Array.isArray(result?.offers) ? result.offers : []);
       setIsMock(Boolean(result?.isMock));
     } catch (err) {
@@ -40,19 +38,12 @@ export default function FlightSearch({ destination, departDate, returnDate, onSe
 
   return (
     <div className="rounded-xl border border-line bg-paper/60 p-3">
-      <div className="flex flex-col sm:flex-row sm:items-end gap-2">
-        <div className="flex-1">
-          <label htmlFor="flight-origin" className="label">From (origin)</label>
-          <input
-            id="flight-origin"
-            type="text"
-            value={origin}
-            onChange={(event) => setOrigin(event.target.value)}
-            placeholder="e.g. Tel Aviv"
-            className="input"
-          />
-        </div>
-        <button type="button" onClick={search} disabled={!canSearch} className="btn-primary shrink-0 w-full sm:w-auto">
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <p className="text-xs font-semibold text-muted">Search available flights</p>
+        <p className="text-xs text-muted">Edit the destination and dates above before searching again.</p>
+      </div>
+      <div className="flex justify-end">
+        <button type="button" onClick={search} disabled={!canSearch} className="btn-primary shrink-0">
           <Plane size={16} />
           {loading ? "Searching…" : "Search flights"}
         </button>

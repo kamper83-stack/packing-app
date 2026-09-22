@@ -46,7 +46,6 @@ test("searches and lets the user apply an offer's dates to the form", async () =
 
   await waitFor(() =>
     expect(api.searchFlights).toHaveBeenCalledWith({
-      origin: "Tel Aviv",
       destination: "Rome",
       departDate: "2026-09-01",
       returnDate: "2026-09-05",

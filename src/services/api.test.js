@@ -138,7 +138,7 @@ describe("api service (frontend HTTP layer)", () => {
       expect(url).not.toContain("returnDate=");
     });
 
-    it("searchFlights includes origin and returnDate when provided", async () => {
+    it("includes returnDate and ignores the removed origin field", async () => {
       fetchMock.mockResolvedValueOnce(
         mockResponse({ json: () => Promise.resolve({ offers: [], isMock: false }) })
       );
@@ -151,7 +151,7 @@ describe("api service (frontend HTTP layer)", () => {
       });
 
       const [url] = fetchMock.mock.calls[0];
-      expect(url).toContain("origin=Tel+Aviv");
+      expect(url).not.toContain("origin=");
       expect(url).toContain("returnDate=2026-11-08");
     });
   });
