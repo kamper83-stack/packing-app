@@ -8,6 +8,8 @@ const { sequelize } = require("../models");
 const weatherService = require("../services/weatherService");
 const geminiService = require("../services/geminiService");
 
+jest.useFakeTimers().setSystemTime(new Date("2026-08-31T12:00:00Z"));
+
 // Helper: register a user and return a valid Bearer token.
 async function registerAndGetToken(email) {
   const res = await request(app)
@@ -145,10 +147,20 @@ describe("Trips API Endpoints (Issue #6)", () => {
       const res = await request(app)
         .post("/api/trips")
         .set("Authorization", `Bearer ${tokenA}`)
-        .send({ ...validTrip, startDate: "2026-01-01", endDate: "2026-06-01" });
+        .send({ ...validTrip, startDate: "2026-09-01", endDate: "2026-12-01" });
 
       expect(res.status).toBe(400);
       expect(res.body.error).toMatch(/duration cannot exceed/i);
+    });
+
+    it("rejects a trip whose start date has already passed", async () => {
+      const res = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({ ...validTrip, startDate: "2026-07-31", endDate: "2026-08-02" });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/startDate cannot be in the past/i);
     });
 
     // Issue #121: implausible years should be rejected with a dedicated,

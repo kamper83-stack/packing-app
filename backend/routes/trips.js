@@ -81,6 +81,17 @@ function plausibleYearError(fieldLabel, dateStr) {
   return null;
 }
 
+function todayIsoDate() {
+  return new Date().toISOString().split("T")[0];
+}
+
+function pastDateError(fieldLabel, dateStr) {
+  if (dateStr < todayIsoDate()) {
+    return `${fieldLabel} cannot be in the past.`;
+  }
+  return null;
+}
+
 // Audit finding M3: trip creation had no upper bound on trip length or
 // number of travelers. A 100-year trip or numPeople: 1000000 was previously
 // accepted and produced packing-item quantities in the tens of thousands to
@@ -155,6 +166,16 @@ router.get("/flights", async (req, res) => {
     const returnYearError = plausibleYearError("returnDate", returnDate);
     if (returnYearError) {
       return res.status(400).json({ error: returnYearError });
+    }
+  }
+  const departPastError = pastDateError("departDate", departDate);
+  if (departPastError) {
+    return res.status(400).json({ error: departPastError });
+  }
+  if (returnDate) {
+    const returnPastError = pastDateError("returnDate", returnDate);
+    if (returnPastError) {
+      return res.status(400).json({ error: returnPastError });
     }
   }
   if (returnDate && new Date(returnDate) < new Date(departDate)) {
@@ -264,6 +285,14 @@ router.post("/", async (req, res) => {
   const endYearError = plausibleYearError("endDate", endDate);
   if (endYearError) {
     return res.status(400).json({ error: endYearError });
+  }
+  const startPastError = pastDateError("startDate", startDate);
+  if (startPastError) {
+    return res.status(400).json({ error: startPastError });
+  }
+  const endPastError = pastDateError("endDate", endDate);
+  if (endPastError) {
+    return res.status(400).json({ error: endPastError });
   }
   if (new Date(endDate) < new Date(startDate)) {
     return res.status(400).json({ error: "End date cannot be before start date." });
