@@ -57,6 +57,30 @@ router.get("/destinations", (req, res) => {
 // Returns true when the value is a valid calendar date string (e.g. "2026-08-16").
 const isValidDate = (value) => !Number.isNaN(new Date(value).getTime());
 
+// Issue #121: a native <input type="date"> (or a direct API call) can carry
+// a wildly implausible year — e.g. a stray old value, or a mistyped 5-digit
+// year. Before this, such input was only *indirectly* rejected by the
+// 60-day span cap below, with a message ("Trip duration cannot exceed 60
+// days") that doesn't explain the real problem. This checks each date's
+// year independently against a sane rolling window and reports which field
+// failed.
+//
+// Deliberately NOT "both dates must be in the same calendar year" — that
+// would wrongly reject a legitimate trip crossing a New Year boundary (e.g.
+// depart 2026-12-28, return 2027-01-03). The 60-day span cap already
+// rejects a genuinely year-apart range, so a same-year rule would be both
+// redundant and harmful.
+const YEAR_WINDOW_YEARS_AHEAD = 2; // currentYear .. currentYear + 2 (final window TBD by team)
+function plausibleYearError(fieldLabel, dateStr) {
+  const year = new Date(dateStr).getUTCFullYear();
+  const currentYear = new Date().getUTCFullYear();
+  const maxYear = currentYear + YEAR_WINDOW_YEARS_AHEAD;
+  if (year < currentYear || year > maxYear) {
+    return `${fieldLabel} year (${year}) must be between ${currentYear} and ${maxYear}.`;
+  }
+  return null;
+}
+
 // Audit finding M3: trip creation had no upper bound on trip length or
 // number of travelers. A 100-year trip or numPeople: 1000000 was previously
 // accepted and produced packing-item quantities in the tens of thousands to
@@ -123,6 +147,16 @@ router.get("/flights", async (req, res) => {
   }
   if (!isValidDate(departDate) || (returnDate && !isValidDate(returnDate))) {
     return res.status(400).json({ error: "Invalid departDate or returnDate." });
+  }
+  const departYearError = plausibleYearError("departDate", departDate);
+  if (departYearError) {
+    return res.status(400).json({ error: departYearError });
+  }
+  if (returnDate) {
+    const returnYearError = plausibleYearError("returnDate", returnDate);
+    if (returnYearError) {
+      return res.status(400).json({ error: returnYearError });
+    }
   }
   if (returnDate && new Date(returnDate) < new Date(departDate)) {
     return res.status(400).json({ error: "returnDate cannot be before departDate." });
@@ -223,6 +257,14 @@ router.post("/", async (req, res) => {
   // Validate dates: both must be real dates and the trip cannot end before it starts.
   if (!isValidDate(startDate) || !isValidDate(endDate)) {
     return res.status(400).json({ error: "Invalid start or end date." });
+  }
+  const startYearError = plausibleYearError("startDate", startDate);
+  if (startYearError) {
+    return res.status(400).json({ error: startYearError });
+  }
+  const endYearError = plausibleYearError("endDate", endDate);
+  if (endYearError) {
+    return res.status(400).json({ error: endYearError });
   }
   if (new Date(endDate) < new Date(startDate)) {
     return res.status(400).json({ error: "End date cannot be before start date." });

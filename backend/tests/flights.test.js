@@ -75,4 +75,44 @@ describe("GET /api/trips/flights", () => {
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/airport/i);
   });
+
+  // Issue #121: implausible years should be rejected with a dedicated,
+  // field-specific message, mirroring POST /api/trips.
+  describe("year plausibility (Issue #121)", () => {
+    const currentYear = new Date().getUTCFullYear();
+
+    it("rejects a departDate year that is too far in the past", async () => {
+      const res = await request(app)
+        .get("/api/trips/flights")
+        .query({ destination: "Rome", departDate: `${currentYear - 1}-06-01` })
+        .set("Authorization", `Bearer ${token}`);
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/departDate year/i);
+    });
+
+    it("rejects a returnDate year that is too far in the future", async () => {
+      const res = await request(app)
+        .get("/api/trips/flights")
+        .query({
+          destination: "Rome",
+          departDate: `${currentYear}-06-01`,
+          returnDate: `${currentYear + 3}-06-05`,
+        })
+        .set("Authorization", `Bearer ${token}`);
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/returnDate year/i);
+    });
+
+    it("accepts a valid search that crosses a New Year boundary", async () => {
+      const res = await request(app)
+        .get("/api/trips/flights")
+        .query({
+          destination: "Rome",
+          departDate: `${currentYear}-12-28`,
+          returnDate: `${currentYear + 1}-01-03`,
+        })
+        .set("Authorization", `Bearer ${token}`);
+      expect(res.status).toBe(200);
+    });
+  });
 });
