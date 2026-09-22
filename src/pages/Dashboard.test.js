@@ -229,7 +229,7 @@ describe("Dashboard (Issue #9)", () => {
     expect(dateInputs[0]).toHaveAttribute("min", today);
     expect(dateInputs[1]).toHaveAttribute("min", today);
   });
-  it("sets the end date to the selected start date without moving focus", async () => {
+  it("moves to the end date picker and opens it after choosing a start date", async () => {
     api.getTrips.mockResolvedValue([]);
 
     const { container } = renderDashboard();
@@ -239,11 +239,11 @@ describe("Dashboard (Issue #9)", () => {
     const [startInput, endInput] = dateInputs;
 
     startInput.focus();
-    fireEvent.change(startInput, { target: { value: "2026-09-01" } });
+    fireEvent.change(startInput, { target: { value: "2026-09-22" } });
 
-    expect(endInput).toHaveValue("2026-09-01");
-    expect(endInput).toHaveAttribute("min", "2026-09-01");
-    expect(startInput).toHaveFocus();
+    expect(endInput).toHaveValue("2026-09-22");
+    expect(endInput).toHaveAttribute("min", "2026-09-22");
+    expect(endInput).toHaveFocus();
   });
 
   it("pulls an earlier end date forward when a later start date is chosen", async () => {

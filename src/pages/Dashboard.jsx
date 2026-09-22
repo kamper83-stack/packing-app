@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ShieldCheck, LogOut, Calendar, Plane, Users, MapPin, ArrowRight, Sparkles } from "lucide-react";
 import { api } from "../services/api";
@@ -38,6 +38,7 @@ export default function Dashboard() {
   const [destination, setDestination] = useState(""); // the selected city
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const endDateRef = useRef(null);
   const [airline, setAirline] = useState("EL AL");
   const [passengers, setPassengers] = useState(emptyComposition());
   const [vacationType, setVacationType] = useState("City Trip");
@@ -204,12 +205,24 @@ export default function Dashboard() {
                       if (!endDate || (nextStart && endDate < nextStart)) {
                         setEndDate(nextStart);
                       }
+                      if (nextStart) {
+                        const endInput = endDateRef.current;
+                        if (endInput) {
+                          endInput.focus();
+                          try {
+                            endInput.showPicker?.();
+                          } catch {
+                            // Browsers may block showPicker outside a direct user gesture.
+                          }
+                        }
+                      }
                     }}
                   />
                 </div>
                 <div>
                   <label className="label">End date</label>
                   <input
+                    ref={endDateRef}
                     type="date"
                     required
                     min={startDate || DATE_INPUT_MIN}
