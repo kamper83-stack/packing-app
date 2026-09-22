@@ -113,7 +113,7 @@ export default function Admin() {
         </div>
       </nav>
 
-      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8 space-y-6">
+      <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 space-y-6">
         {error && (
           <div className="rounded-xl bg-danger-50 text-danger-700 px-4 py-3 text-sm border border-danger-200">{error}</div>
         )}

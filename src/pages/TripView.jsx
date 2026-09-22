@@ -403,16 +403,16 @@ export default function TripView() {
                               type="checkbox"
                               checked={item.isPacked}
                               onChange={() => handleTogglePack(item)}
-                              className="h-5 w-5 accent-brand-600 rounded"
+                              className="h-5 w-5 shrink-0 accent-brand-600 rounded"
                             />
                             <span
-                              className={`text-sm ${
+                              className={`text-sm truncate ${
                                 item.isPacked ? "line-through text-ink/40" : "text-ink"
                               }`}
                             >
                               {item.name} <span className="text-xs text-muted">(x{item.quantity})</span>
                             </span>
-                            <span className="badge border-line bg-paper text-muted">
+                            <span className="badge shrink-0 border-line bg-paper text-muted">
                               {item.targetBag === "Suitcase" ? (
                                 <><Luggage size={12} /> Suitcase</>
                               ) : (
@@ -423,7 +423,7 @@ export default function TripView() {
                           <button
                             onClick={() => handleDeleteItem(item.id)}
                             aria-label={`Remove ${item.name}`}
-                            className="text-ink/40 hover:text-danger-600 p-1"
+                            className="shrink-0 text-ink/40 hover:text-danger-600 p-1"
                           >
                             <Trash2 size={16} />
                           </button>
