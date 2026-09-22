@@ -40,7 +40,7 @@ export default function FlightSearch({ destination, departDate, returnDate, onSe
 
   return (
     <div className="rounded-xl border border-line bg-paper/60 p-3">
-      <div className="flex items-end gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-end gap-2">
         <div className="flex-1">
           <label htmlFor="flight-origin" className="label">From (origin)</label>
           <input
@@ -52,7 +52,7 @@ export default function FlightSearch({ destination, departDate, returnDate, onSe
             className="input"
           />
         </div>
-        <button type="button" onClick={search} disabled={!canSearch} className="btn-primary shrink-0">
+        <button type="button" onClick={search} disabled={!canSearch} className="btn-primary shrink-0 w-full sm:w-auto">
           <Plane size={16} />
           {loading ? "Searching…" : "Search flights"}
         </button>
