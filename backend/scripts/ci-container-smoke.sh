@@ -31,10 +31,13 @@ REG=$(curl -fsS -X POST "$BASE/api/auth/register" \
   -d '{"email":"ci-smoke@example.com","password":"Password123!"}')
 TOKEN=$(printf '%s' "$REG" | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
 
+START=$(date -u -d '+3 days' +%F)
+END=$(date -u -d '+5 days' +%F)
+
 TRIP=$(curl -fsS -X POST "$BASE/api/trips" \
   -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
-  -d '{"destination":"Barcelona","startDate":"2026-09-10","endDate":"2026-09-12","airline":"EL AL","numPeople":2,"vacationType":"Beach"}')
+  -d "{\"destination\":\"Barcelona\",\"startDate\":\"$START\",\"endDate\":\"$END\",\"airline\":\"EL AL\",\"numPeople\":2,\"vacationType\":\"Beach\"}")
 
 printf '%s' "$TRIP" | python3 -c "
 import json, sys
