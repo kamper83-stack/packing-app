@@ -61,6 +61,19 @@ describe("ensureSchema (Issue #22 / #32 migration)", () => {
     expect(described.aiError).toBeDefined();
   });
 
+  it("adds isActive to a legacy Users table, defaulting existing rows to active (soft-delete)", async () => {
+    const queryInterface = sequelize.getQueryInterface();
+
+    await queryInterface.removeColumn("Users", "isActive");
+    let described = await queryInterface.describeTable("Users");
+    expect(described.isActive).toBeUndefined();
+
+    await ensureSchema();
+
+    described = await queryInterface.describeTable("Users");
+    expect(described.isActive).toBeDefined();
+  });
+
   it("is a safe no-op when the columns already exist", async () => {
     await expect(ensureSchema()).resolves.toBeUndefined();
 

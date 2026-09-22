@@ -41,6 +41,11 @@ const COLUMNS_TO_ENSURE = [
     column: "isAdmin",
     definition: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false }, // Issue #49
   },
+  {
+    table: "Users",
+    column: "isActive",
+    definition: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true }, // soft-delete for users
+  },
 ];
 
 async function ensureSchema() {

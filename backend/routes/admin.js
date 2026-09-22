@@ -65,7 +65,7 @@ router.get("/status", async (req, res) => {
 router.get("/users", async (req, res) => {
   try {
     const users = await User.findAll({
-      attributes: ["id", "email", "isAdmin", "createdAt"],
+      attributes: ["id", "email", "isAdmin", "isActive", "createdAt"],
       order: [["createdAt", "ASC"]],
     });
     const counts = await Trip.findAll({
@@ -82,12 +82,40 @@ router.get("/users", async (req, res) => {
         id: user.id,
         email: user.email,
         isAdmin: user.isAdmin,
+        isActive: user.isActive,
         createdAt: user.createdAt,
         tripCount: countByUser[user.id] || 0,
       }))
     );
   } catch (error) {
     console.error("Admin users error:", error);
+    res.status(500).json({ error: "Internal server error." });
+  }
+});
+
+// PATCH /api/admin/users/:id/status — activate or deactivate a user
+// (soft-delete: the account and its trips are kept, login and API access
+// are just blocked). Body: { isActive: boolean }.
+router.patch("/users/:id/status", async (req, res) => {
+  try {
+    const { isActive } = req.body;
+    if (typeof isActive !== "boolean") {
+      return res.status(400).json({ error: "isActive (boolean) is required." });
+    }
+
+    if (!isActive && req.params.id === req.adminUser.id) {
+      return res.status(400).json({ error: "You cannot deactivate your own account." });
+    }
+
+    const user = await User.findByPk(req.params.id);
+    if (!user) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    await user.update({ isActive });
+    res.json({ id: user.id, email: user.email, isAdmin: user.isAdmin, isActive: user.isActive });
+  } catch (error) {
+    console.error("Admin user status error:", error);
     res.status(500).json({ error: "Internal server error." });
   }
 });
