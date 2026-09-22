@@ -78,8 +78,14 @@ describe("GET /api/trips/locations (country -> airport cities)", () => {
 
     const allCities = Object.values(res.body.citiesByCountry).flat();
 
-    // Must exist: well-known real TLV routes.
-    for (const city of ["Paris", "Rome", "Barcelona", "Larnaca", "Tbilisi", "Athens"]) {
+    // Must exist: well-known real TLV routes, including ones a stale
+    // (frozen-since-2014) data source would have missed — Dubai, Lisbon and
+    // Tokyo are current El Al routes that an earlier version of this catalog
+    // incorrectly excluded. See build-tlv-destinations.js history note.
+    for (const city of [
+      "Paris", "Rome", "Barcelona", "Larnaca", "Tbilisi", "Athens",
+      "Dubai", "Lisbon", "Tokyo",
+    ]) {
       expect(allCities).toContain(city);
     }
 

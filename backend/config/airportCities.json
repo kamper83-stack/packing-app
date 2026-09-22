@@ -1,27 +1,33 @@
 {
-  "_comment": "Destinations reachable by a real flight route from Ben Gurion Airport (TLV), derived from OpenFlights route data (public domain, frozen ~2014) plus a small hand-curated exclude/rename list. Regenerate with node backend/scripts/build-tlv-destinations.js — see that file for the known staleness caveat (routes suspended since 2022, and post-2014 routes not reflected in the source data). 38 countries, 59 cities.",
+  "_comment": "Destinations reachable by a real, currently-bookable flight route from Ben Gurion Airport (TLV). Source of truth: backend/scripts/tlv-destinations-source.json (hand-maintained allow-list, researched 2026-09-22 — see that file's _meta block for method and sources). Regenerate with node backend/scripts/build-tlv-destinations.js after editing the source file. 42 countries, 82 cities.",
   "citiesByCountry": {
-    "Austria": [
-      "Vienna"
+    "Albania": [
+      "Tirana"
     ],
-    "Azerbaijan": [
-      "Baku"
+    "Argentina": [
+      "Buenos Aires"
+    ],
+    "Austria": [
+      "Salzburg",
+      "Vienna"
     ],
     "Belgium": [
       "Brussels"
     ],
     "Bulgaria": [
-      "Sofia"
+      "Sofia",
+      "Varna"
     ],
     "Canada": [
-      "Montreal",
       "Toronto"
     ],
-    "China": [
-      "Beijing"
+    "Croatia": [
+      "Dubrovnik",
+      "Zagreb"
     ],
     "Cyprus": [
-      "Larnaca"
+      "Larnaca",
+      "Paphos"
     ],
     "Czech Republic": [
       "Prague"
@@ -30,33 +36,34 @@
       "Copenhagen"
     ],
     "Egypt": [
-      "Cairo"
-    ],
-    "Ethiopia": [
-      "Addis Ababa"
-    ],
-    "Finland": [
-      "Helsinki"
+      "Sharm El Sheikh"
     ],
     "France": [
+      "Lyon",
       "Marseille",
-      "Mulhouse",
       "Nice",
       "Paris"
     ],
     "Georgia": [
+      "Batumi",
       "Tbilisi"
     ],
     "Germany": [
       "Berlin",
-      "Cologne",
-      "Düsseldorf",
       "Frankfurt",
       "Munich"
     ],
     "Greece": [
       "Athens",
-      "Heraklion"
+      "Heraklion",
+      "Kefalonia",
+      "Lefkada",
+      "Mykonos",
+      "Patras",
+      "Rhodes",
+      "Santorini",
+      "Sitia",
+      "Thessaloniki"
     ],
     "Hong Kong": [
       "Hong Kong"
@@ -65,40 +72,61 @@
       "Budapest"
     ],
     "India": [
+      "Delhi",
       "Mumbai"
     ],
-    "Israel": [
-      "Eilat"
+    "Ireland": [
+      "Dublin"
     ],
     "Italy": [
+      "Cagliari",
+      "Catania",
       "Milan",
       "Naples",
       "Rome",
-      "Venice"
+      "Venice",
+      "Verona"
     ],
-    "Jordan": [
-      "Amman"
-    ],
-    "Latvia": [
-      "Riga"
+    "Japan": [
+      "Tokyo"
     ],
     "Lithuania": [
       "Vilnius"
+    ],
+    "Moldova": [
+      "Chisinau"
+    ],
+    "Montenegro": [
+      "Podgorica",
+      "Tivat"
+    ],
+    "Morocco": [
+      "Casablanca",
+      "Marrakech"
     ],
     "Netherlands": [
       "Amsterdam"
     ],
     "Poland": [
-      "Katowice",
+      "Krakow",
       "Warsaw"
+    ],
+    "Portugal": [
+      "Lisbon",
+      "Porto"
     ],
     "Romania": [
       "Bucharest",
-      "Cluj-Napoca",
-      "Iasi"
+      "Cluj-Napoca"
     ],
     "Serbia": [
       "Belgrade"
+    ],
+    "Slovakia": [
+      "Bratislava"
+    ],
+    "Slovenia": [
+      "Ljubljana"
     ],
     "South Africa": [
       "Johannesburg"
@@ -110,31 +138,34 @@
       "Barcelona",
       "Madrid"
     ],
-    "Sweden": [
-      "Stockholm"
-    ],
     "Switzerland": [
+      "Basel",
       "Geneva",
       "Zurich"
     ],
     "Thailand": [
-      "Bangkok"
+      "Bangkok",
+      "Phuket"
     ],
     "Turkey": [
       "Istanbul"
     ],
+    "United Arab Emirates": [
+      "Dubai"
+    ],
     "United Kingdom": [
-      "London",
-      "Manchester"
+      "London"
     ],
     "United States": [
+      "Boston",
+      "Fort Lauderdale",
       "Los Angeles",
+      "Miami",
       "New York",
-      "Newark",
-      "Philadelphia"
+      "San Francisco"
     ],
-    "Uzbekistan": [
-      "Tashkent"
+    "Vietnam": [
+      "Hanoi"
     ]
   }
 }

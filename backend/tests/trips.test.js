@@ -299,7 +299,7 @@ describe("Trips API Endpoints (Issue #6)", () => {
         .post("/api/trips")
         .set("Authorization", `Bearer ${tokenA}`)
         .send({
-          destination: "Amsterdam",
+          destination: "Lisbon",
           startDate: "2026-11-10",
           endDate: "2026-11-12",
           airline: "EL AL",
@@ -326,7 +326,7 @@ describe("Trips API Endpoints (Issue #6)", () => {
         .post("/api/trips")
         .set("Authorization", `Bearer ${tokenA}`)
         .send({
-          destination: "Seoul",
+          destination: "Tokyo",
           startDate: "2026-11-20",
           endDate: "2026-11-22",
           airline: "EL AL",
@@ -353,7 +353,7 @@ describe("Trips API Endpoints (Issue #6)", () => {
         .post("/api/trips")
         .set("Authorization", `Bearer ${tokenA}`)
         .send({
-          destination: "Seoul",
+          destination: "Tokyo",
           startDate: "2026-11-25",
           endDate: "2026-11-28",
           airline: "EL AL",
