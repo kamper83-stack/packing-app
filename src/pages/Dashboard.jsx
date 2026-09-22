@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ShieldCheck, LogOut, Calendar, Plane, Users, MapPin, ArrowRight, Sparkles } from "lucide-react";
 import { api } from "../services/api";
@@ -38,9 +38,6 @@ export default function Dashboard() {
   const [destination, setDestination] = useState(""); // the selected city
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  // Ref to the end (landing) date input so choosing a departure date can send
-  // the user straight to picking the return date, without hunting for it.
-  const endDateRef = useRef(null);
   const [airline, setAirline] = useState("EL AL");
   const [passengers, setPassengers] = useState(emptyComposition());
   const [vacationType, setVacationType] = useState("City Trip");
@@ -202,26 +199,10 @@ export default function Dashboard() {
                     onChange={(e) => {
                       const nextStart = e.target.value;
                       setStartDate(nextStart);
-                      // Keep the return date on/after departure so the form
-                      // can't hold an end-before-start range.
-                      if (endDate && nextStart && endDate < nextStart) {
+                      // Start the return-date picker at the selected departure
+                      // date, while preserving a later return date if one exists.
+                      if (!endDate || (nextStart && endDate < nextStart)) {
                         setEndDate(nextStart);
-                      }
-                      // Once a departure date is chosen, advance the user
-                      // straight to picking the landing date.
-                      if (nextStart) {
-                        const el = endDateRef.current;
-                        if (el) {
-                          el.focus();
-                          // showPicker() opens the native calendar where the
-                          // browser supports it; guard it since it can be
-                          // unsupported (older browsers, jsdom) or blocked.
-                          try {
-                            el.showPicker?.();
-                          } catch {
-                            /* fall back to the plain focus above */
-                          }
-                        }
                       }
                     }}
                   />
@@ -229,7 +210,6 @@ export default function Dashboard() {
                 <div>
                   <label className="label">End date</label>
                   <input
-                    ref={endDateRef}
                     type="date"
                     required
                     min={startDate || DATE_INPUT_MIN}
