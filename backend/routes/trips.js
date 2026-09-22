@@ -435,9 +435,11 @@ router.put("/:id", async (req, res) => {
   }
   const startYearError = plausibleYearError("startDate", startDate);
   const endYearError = plausibleYearError("endDate", endDate);
-  const startPastError = pastDateError("startDate", startDate);
-  const endPastError = pastDateError("endDate", endDate);
-  const dateError = startYearError || endYearError || startPastError || endPastError;
+  // Unlike creating a trip, editing one must not enforce pastDateError: the
+  // trip may already be in progress or just finished, and the user should
+  // still be able to tweak details and regenerate the packing list for it
+  // (PR #124 review). Only implausible years and end-before-start are blocked.
+  const dateError = startYearError || endYearError;
   if (dateError) return res.status(400).json({ error: dateError });
   if (new Date(endDate) < new Date(startDate)) {
     return res.status(400).json({ error: "End date cannot be before start date." });

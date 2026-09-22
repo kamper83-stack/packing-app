@@ -580,6 +580,29 @@ describe("Trips API Endpoints (Issue #6)", () => {
       expect(res.status).toBe(404);
     });
 
+    it("allows editing a trip whose start/end date is already in the past (PR #124 review)", async () => {
+      const created = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({
+          destination: "Lisbon",
+          startDate: "2026-10-20",
+          endDate: "2026-10-22",
+          airline: "EL AL",
+          passengerComposition: { infants: 0, children: 0, women: 1, men: 0 },
+          vacationType: "City Trip",
+        });
+
+      const res = await request(app)
+        .put(`/api/trips/${created.body.id}`)
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({ ...editedTrip, destination: "Lisbon", startDate: "2026-08-01", endDate: "2026-08-03" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.startDate).toBe("2026-08-01");
+      expect(res.body.endDate).toBe("2026-08-03");
+    });
+
     it("rolls back trip and item changes if regenerated items cannot be persisted", async () => {
       const before = await request(app)
         .get(`/api/trips/${editableTripId}`)
