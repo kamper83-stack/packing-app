@@ -123,6 +123,32 @@ describe("api service (frontend HTTP layer)", () => {
       expect(options.method).toBe("DELETE");
     });
 
+    it("updateTrip PUTs edited data to the trip endpoint", async () => {
+      fetchMock.mockResolvedValueOnce(
+        mockResponse({ json: () => Promise.resolve({ id: "t1", destination: "Rome" }) })
+      );
+      const payload = { destination: "Rome", startDate: "2026-10-01", endDate: "2026-10-01" };
+
+      await api.updateTrip("t1", payload);
+
+      const [url, options] = fetchMock.mock.calls[0];
+      expect(url).toBe(`${API_BASE}/trips/t1`);
+      expect(options.method).toBe("PUT");
+      expect(JSON.parse(options.body)).toEqual(payload);
+    });
+
+    it("refreshWeather POSTs to the trip weather endpoint", async () => {
+      fetchMock.mockResolvedValueOnce(
+        mockResponse({ json: () => Promise.resolve({ weatherSource: "live" }) })
+      );
+
+      await api.refreshWeather("t1");
+
+      const [url, options] = fetchMock.mock.calls[0];
+      expect(url).toBe(`${API_BASE}/trips/t1/weather`);
+      expect(options.method).toBe("POST");
+    });
+
     it("searchFlights builds the query string and omits origin/returnDate when absent", async () => {
       fetchMock.mockResolvedValueOnce(
         mockResponse({ json: () => Promise.resolve({ offers: [], isMock: true }) })

@@ -18,6 +18,7 @@ jest.mock("../services/api", () => ({
     getDestinations: jest.fn(),
     getLocations: jest.fn(),
     searchFlights: jest.fn(),
+    deleteTrip: jest.fn(),
     getMe: jest.fn(),
   },
 }));
@@ -80,15 +81,40 @@ describe("Dashboard (Issue #9)", () => {
     renderDashboard();
 
     expect(await screen.findByText("Barcelona")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /view checklist/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /edit trip/i })).toHaveAttribute(
       "href",
       "/trip/t1"
     );
     const card = screen.getByText("Barcelona").closest("div");
     expect(card).toHaveTextContent(/1 נשים/);
     expect(card).toHaveTextContent(/1 גברים/);
+    expect(card.querySelector('[dir="rtl"]')).toHaveStyle({ unicodeBidi: "isolate" });
     expect(card).not.toHaveTextContent(/תינוקות/);
     expect(card).not.toHaveTextContent(/ילדים/);
+  });
+
+  it("deletes a trip from the dashboard after confirmation", async () => {
+    api.getTrips.mockResolvedValue([
+      {
+        id: "t1",
+        destination: "Barcelona",
+        startDate: "2026-10-01",
+        endDate: "2026-10-05",
+        airline: "EL AL",
+        numPeople: 1,
+        vacationType: "City Trip",
+      },
+    ]);
+    api.deleteTrip.mockResolvedValue({ message: "Trip deleted successfully." });
+    const confirmSpy = jest.spyOn(window, "confirm").mockReturnValue(true);
+
+    renderDashboard();
+    expect(await screen.findByText("Barcelona")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /delete trip to Barcelona/i }));
+
+    await waitFor(() => expect(api.deleteTrip).toHaveBeenCalledWith("t1"));
+    await waitFor(() => expect(screen.queryByText("Barcelona")).not.toBeInTheDocument());
+    confirmSpy.mockRestore();
   });
 
   it("falls back to numPeople for legacy trips without a composition", async () => {
@@ -243,6 +269,37 @@ describe("Dashboard (Issue #9)", () => {
 
     expect(endInput).toHaveValue("2026-09-22");
     expect(endInput).toHaveAttribute("min", "2026-09-22");
+    expect(endInput).toHaveFocus();
+  });
+
+  it("keeps focus on the start-date picker when calendar arrow navigation changes its value", async () => {
+    api.getTrips.mockResolvedValue([]);
+
+    const { container } = renderDashboard();
+    await screen.findByText(/plan a new trip/i);
+
+    const [startInput, endInput] = container.querySelectorAll('input[type="date"]');
+    startInput.focus();
+    fireEvent.keyDown(startInput, { key: "ArrowRight" });
+    fireEvent.change(startInput, { target: { value: "2026-10-22" } });
+
+    expect(startInput).toHaveFocus();
+    expect(endInput).not.toHaveFocus();
+    expect(endInput).toHaveValue("2026-10-22");
+  });
+
+  it("does not let month-only arrow navigation suppress a later date selection", async () => {
+    api.getTrips.mockResolvedValue([]);
+
+    const { container } = renderDashboard();
+    await screen.findByText(/plan a new trip/i);
+
+    const [startInput, endInput] = container.querySelectorAll('input[type="date"]');
+    startInput.focus();
+    fireEvent.keyDown(startInput, { key: "PageDown" });
+    fireEvent.keyUp(startInput, { key: "PageDown" });
+    fireEvent.change(startInput, { target: { value: "2026-11-22" } });
+
     expect(endInput).toHaveFocus();
   });
 

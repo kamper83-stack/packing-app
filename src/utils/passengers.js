@@ -51,7 +51,9 @@ export const buildComposition = (form) => ({
   men: toCount(form.men),
 });
 
-// Human-readable summary of the non-zero categories, e.g. "1 נשים · 2 גברים".
+// Human-readable logical order for Hebrew, e.g. "1 נשים · 2 גברים".
+// Callers render this value in an isolated RTL span so surrounding LTR trip
+// metadata cannot reorder the digits and labels.
 // Returns null when there is no usable composition so callers can fall back
 // to the legacy numPeople total for older trips.
 export const summarizePassengers = (composition) => {

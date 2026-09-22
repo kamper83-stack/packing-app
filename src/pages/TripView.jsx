@@ -15,8 +15,11 @@ import {
   Sparkles,
   FileText,
   AlertTriangle,
+  RefreshCw,
+  Pencil,
+  X,
 } from "lucide-react";
-import { summarizePassengers } from "../utils/passengers";
+import { PASSENGER_CATEGORIES, buildComposition, emptyComposition, invalidPassengerCategories, totalPassengers, summarizePassengers } from "../utils/passengers";
 import useDocumentTitle from "../utils/useDocumentTitle";
 
 // Issue #36 / #65: compact indicator of where the weather forecast came from.
@@ -105,13 +108,31 @@ export default function TripView() {
   // whether an item is still to pack or already packed.
   const [bagFilter, setBagFilter] = useState("All"); // "All" | "Backpack" | "Suitcase"
   const [statusFilter, setStatusFilter] = useState("All"); // "All" | "ToPack" | "Packed"
-
+  const [editing, setEditing] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [refreshingWeather, setRefreshingWeather] = useState(false);
+  const [editForm, setEditForm] = useState({
+    destination: "",
+    startDate: "",
+    endDate: "",
+    airline: "EL AL",
+    passengerComposition: emptyComposition(),
+    vacationType: "City Trip",
+  });
   const fetchTripDetails = useCallback(async () => {
     setLoading(true);
     try {
       const data = await api.getTrip(id);
       setTrip(data);
       setItems(data.PackingItems || []);
+      setEditForm({
+        destination: data.destination || "",
+        startDate: data.startDate || "",
+        endDate: data.endDate || "",
+        airline: data.airline || "EL AL",
+        passengerComposition: data.passengerComposition || { ...emptyComposition(), men: data.numPeople || 1 },
+        vacationType: data.vacationType || "City Trip",
+      });
     } catch (err) {
       setError("Failed to fetch trip details.");
     } finally {
@@ -170,6 +191,44 @@ export default function TripView() {
     }
   };
 
+  const handleRefreshWeather = async () => {
+    setRefreshingWeather(true);
+    setError("");
+    try {
+      const updated = await api.refreshWeather(id);
+      setTrip(updated);
+      setItems(updated.PackingItems || []);
+    } catch (err) {
+      setError(err.message || "Failed to refresh weather.");
+    } finally {
+      setRefreshingWeather(false);
+    }
+  };
+
+  const handleSaveEdit = async (event) => {
+    event.preventDefault();
+    const invalid = invalidPassengerCategories(editForm.passengerComposition);
+    const composition = buildComposition(editForm.passengerComposition);
+    if (!editForm.destination || !editForm.startDate || !editForm.endDate || invalid.length || totalPassengers(composition) === 0) {
+      setError("Please complete the destination, dates, and passenger details.");
+      return;
+    }
+    setSavingEdit(true);
+    setError("");
+    try {
+      const updated = await api.updateTrip(id, { ...editForm, passengerComposition: composition });
+      setTrip(updated);
+      setItems(updated.PackingItems || []);
+      setEditing(false);
+    } catch (err) {
+      setError(err.message || "Failed to update and regenerate trip.");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const updateEditField = (field, value) => setEditForm((current) => ({ ...current, [field]: value }));
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-paper">
@@ -178,7 +237,7 @@ export default function TripView() {
     );
   }
 
-  if (error || !trip) {
+  if (!trip) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-paper p-4">
         <div className="text-danger-600 text-lg mb-4">{error || "Trip not found."}</div>
@@ -206,6 +265,7 @@ export default function TripView() {
 
   // Group the visible items by category.
   const categories = [...new Set(visibleItems.map((i) => i.category))];
+  const passengerSummary = summarizePassengers(trip.passengerComposition);
 
   return (
     <div className="min-h-screen bg-paper bg-paper-glow py-8 px-4 sm:px-6 lg:px-8">
@@ -228,26 +288,86 @@ export default function TripView() {
                 <Plane size={15} /> {trip.airline}
               </span>
               <span className="inline-flex items-center gap-1.5">
-                <Users size={15} />{" "}
-                {summarizePassengers(trip.passengerComposition) ||
-                  `${trip.numPeople} ${trip.numPeople > 1 ? "people" : "person"}`}
+                <Users size={15} />
+                {passengerSummary ? (
+                  <span dir="rtl" style={{ unicodeBidi: "isolate" }}>{passengerSummary}</span>
+                ) : (
+                  `${trip.numPeople} ${trip.numPeople > 1 ? "people" : "person"}`
+                )}
               </span>
             </div>
             <div className="mt-3">
               <AiSourceBadge source={trip.aiSource} />
             </div>
           </div>
-          <button onClick={handleDeleteTrip} className="btn-ghost text-danger-600 hover:text-danger-700 hover:bg-danger-50">
-            <Trash2 size={16} /> Delete trip
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => setEditing((value) => !value)} className="btn-secondary">
+              {editing ? <X size={16} /> : <Pencil size={16} />}
+              {editing ? "Cancel edit" : "Edit & regenerate"}
+            </button>
+            <button onClick={handleDeleteTrip} className="btn-ghost text-danger-600 hover:text-danger-700 hover:bg-danger-50">
+              <Trash2 size={16} /> Delete trip
+            </button>
+          </div>
         </div>
+
+        {error && (
+          <div role="alert" className="rounded-xl bg-danger-50 text-danger-700 px-4 py-3 text-sm border border-danger-200">
+            {error}
+          </div>
+        )}
+
+        {editing && (
+          <form onSubmit={handleSaveEdit} className="card p-6 space-y-4">
+            <h2 className="text-lg font-bold text-ink">Edit trip and regenerate list</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="block"><span className="label">Destination city</span>
+                <input className="input" value={editForm.destination} onChange={(e) => updateEditField("destination", e.target.value)} required />
+              </label>
+              <label className="block"><span className="label">Airline</span>
+                <select className="input" value={editForm.airline} onChange={(e) => updateEditField("airline", e.target.value)}>
+                  <option>EL AL</option><option>Ryanair</option><option>Wizz Air</option><option>EasyJet</option><option>Delta</option><option>United</option><option>Other</option>
+                </select>
+              </label>
+              <label className="block"><span className="label">Start date</span>
+                <input type="date" className="input" min={new Date().toISOString().split("T")[0]} value={editForm.startDate} onChange={(e) => updateEditField("startDate", e.target.value)} required />
+              </label>
+              <label className="block"><span className="label">End date</span>
+                <input type="date" className="input" min={editForm.startDate || new Date().toISOString().split("T")[0]} value={editForm.endDate} onChange={(e) => updateEditField("endDate", e.target.value)} required />
+              </label>
+            </div>
+            <fieldset>
+              <legend className="label">Passengers</legend>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {PASSENGER_CATEGORIES.map((category) => (
+                  <label key={category.key} className="block"><span className="block text-xs text-muted mb-1">{category.label}</span>
+                    <input type="number" min="0" step="1" className="input" value={editForm.passengerComposition[category.key]} onChange={(e) => updateEditField("passengerComposition", { ...editForm.passengerComposition, [category.key]: e.target.value })} />
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <label className="block"><span className="label">Vacation type</span>
+              <select className="input" value={editForm.vacationType} onChange={(e) => updateEditField("vacationType", e.target.value)}>
+                <option>City Trip</option><option>Beach Vacation</option><option>Winter/Snow Sports</option><option>Hiking/Active Outdoors</option><option>Business Trip</option>
+              </select>
+            </label>
+            <button type="submit" disabled={savingEdit} className="btn-primary">
+              {savingEdit ? "Regenerating…" : "Save changes & regenerate"}
+            </button>
+          </form>
+        )}
 
         {/* Weather Forecast and Baggage Constraints */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Weather Widget */}
           <div className="md:col-span-2 card p-6">
             <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
-              <h2 className="text-lg font-bold text-ink">Weather forecast</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-ink">Weather forecast</h2>
+                <button type="button" onClick={handleRefreshWeather} disabled={refreshingWeather} className="btn-ghost !p-1.5" aria-label="Refresh weather and packing list">
+                  <RefreshCw size={15} className={refreshingWeather ? "animate-spin" : ""} />
+                </button>
+              </div>
               <WeatherSourceBadge source={trip.weatherSource} />
             </div>
             {trip.weatherError && (

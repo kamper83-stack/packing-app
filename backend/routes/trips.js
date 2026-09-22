@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { Trip, PackingItem } = require("../models");
+const { sequelize, Trip, PackingItem } = require("../models");
 const authMiddleware = require("../middleware/auth");
 const weatherService = require("../services/weatherService");
 const geminiService = require("../services/geminiService");
@@ -421,6 +421,145 @@ router.post("/", async (req, res) => {
   } catch (error) {
     console.error("Create trip & generate list error:", error);
     res.status(500).json({ error: "Failed to create trip and generate packing list." });
+  }
+});
+
+// PUT /api/trips/:id - Edit trip details and regenerate weather + packing list.
+router.put("/:id", async (req, res) => {
+  const { destination, startDate, endDate, airline, passengerComposition, vacationType } = req.body;
+  if (![destination, startDate, endDate, airline, vacationType].every((value) => typeof value === "string" && value.trim())) {
+    return res.status(400).json({ error: "All trip fields must be filled." });
+  }
+  if (!isValidDate(startDate) || !isValidDate(endDate)) {
+    return res.status(400).json({ error: "Invalid start or end date." });
+  }
+  const startYearError = plausibleYearError("startDate", startDate);
+  const endYearError = plausibleYearError("endDate", endDate);
+  const startPastError = pastDateError("startDate", startDate);
+  const endPastError = pastDateError("endDate", endDate);
+  const dateError = startYearError || endYearError || startPastError || endPastError;
+  if (dateError) return res.status(400).json({ error: dateError });
+  if (new Date(endDate) < new Date(startDate)) {
+    return res.status(400).json({ error: "End date cannot be before start date." });
+  }
+  const days = Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)) + 1;
+  if (days > MAX_TRIP_DAYS) {
+    return res.status(400).json({ error: `Trip duration cannot exceed ${MAX_TRIP_DAYS} days.` });
+  }
+  const cityMatch = canonicalCity(destination);
+  if (!cityMatch) return res.status(400).json({ error: "Please choose a destination city that has an airport." });
+  const composition = validatePassengerComposition(passengerComposition);
+  if (!composition) return res.status(400).json({ error: "Invalid passenger composition." });
+  const numPeople = Object.values(composition).reduce((sum, count) => sum + count, 0);
+  if (numPeople > MAX_NUM_PEOPLE) {
+    return res.status(400).json({ error: `Number of people cannot exceed ${MAX_NUM_PEOPLE}.` });
+  }
+
+  try {
+    const trip = await Trip.findOne({ where: { id: req.params.id, userId: req.user.id } });
+    if (!trip) return res.status(404).json({ error: "Trip not found." });
+    const cleanDestination = cityMatch;
+    const cleanAirline = airline.trim();
+    const cleanVacationType = vacationType.trim();
+    const weatherInfo = await weatherService.getForecast(cleanDestination, startDate, endDate);
+    const airlineInfo = airlines[cleanAirline] || {
+      cabin: { weightKg: 8, dimensionsCm: "Unknown", count: 1 },
+      checked: { weightKg: 23, dimensionsCm: "Unknown", count: 1 },
+      isEstimated: true,
+    };
+    const aiResult = await geminiService.generatePackingList({
+      destination: cleanDestination,
+      days,
+      numPeople,
+      passengerComposition: composition,
+      vacationType: cleanVacationType,
+      airline: cleanAirline,
+      weatherSummary: weatherInfo.forecast,
+      baggageAllowance: airlineInfo,
+    });
+    await sequelize.transaction(async (transaction) => {
+      await trip.update({
+        destination: cleanDestination,
+        startDate,
+        endDate,
+        airline: cleanAirline,
+        numPeople,
+        passengerComposition: composition,
+        vacationType: cleanVacationType,
+        weatherData: weatherInfo.forecast,
+        weatherSource: weatherInfo.isSeasonal ? "seasonal" : weatherInfo.isMock ? "mock" : "live",
+        weatherError: weatherInfo.error ? String(weatherInfo.error) : null,
+        aiSource: aiResult.isMock ? "mock" : "live",
+        aiError: aiResult.error ? String(aiResult.error) : null,
+      }, { transaction });
+      await PackingItem.destroy({ where: { tripId: trip.id, isCustom: false }, transaction });
+      await PackingItem.bulkCreate(aiResult.items.map((item) => ({
+        name: item.name,
+        category: item.category,
+        quantity: item.quantity,
+        targetBag: item.targetBag || "Suitcase",
+        isPacked: false,
+        isCustom: false,
+        tripId: trip.id,
+      })), { transaction });
+    });
+    res.json(await Trip.findByPk(trip.id, { include: [PackingItem] }));
+  } catch (error) {
+    console.error("Update and regenerate trip error:", error);
+    res.status(500).json({ error: "Failed to update trip and regenerate packing list." });
+  }
+});
+
+// POST /api/trips/:id/weather - Refresh weather and regenerate the dependent packing list.
+router.post("/:id/weather", async (req, res) => {
+  try {
+    const trip = await Trip.findOne({ where: { id: req.params.id, userId: req.user.id } });
+    if (!trip) return res.status(404).json({ error: "Trip not found." });
+
+    const weatherInfo = await weatherService.getForecast(trip.destination, trip.startDate, trip.endDate);
+    const days = Math.ceil(
+      (new Date(trip.endDate) - new Date(trip.startDate)) / (1000 * 60 * 60 * 24)
+    ) + 1;
+    const airlineInfo = airlines[trip.airline] || {
+      cabin: { weightKg: 8, dimensionsCm: "Unknown", count: 1 },
+      checked: { weightKg: 23, dimensionsCm: "Unknown", count: 1 },
+      isEstimated: true,
+    };
+    const aiResult = await geminiService.generatePackingList({
+      destination: trip.destination,
+      days,
+      numPeople: trip.numPeople,
+      ...(trip.passengerComposition ? { passengerComposition: trip.passengerComposition } : {}),
+      vacationType: trip.vacationType,
+      airline: trip.airline,
+      weatherSummary: weatherInfo.forecast,
+      baggageAllowance: airlineInfo,
+    });
+
+    await sequelize.transaction(async (transaction) => {
+      await trip.update({
+        weatherData: weatherInfo.forecast,
+        weatherSource: weatherInfo.isSeasonal ? "seasonal" : weatherInfo.isMock ? "mock" : "live",
+        weatherError: weatherInfo.error ? String(weatherInfo.error) : null,
+        aiSource: aiResult.isMock ? "mock" : "live",
+        aiError: aiResult.error ? String(aiResult.error) : null,
+      }, { transaction });
+      await PackingItem.destroy({ where: { tripId: trip.id, isCustom: false }, transaction });
+      await PackingItem.bulkCreate(aiResult.items.map((item) => ({
+        name: item.name,
+        category: item.category,
+        quantity: item.quantity,
+        targetBag: item.targetBag || "Suitcase",
+        isPacked: false,
+        isCustom: false,
+        tripId: trip.id,
+      })), { transaction });
+    });
+
+    res.json(await Trip.findByPk(trip.id, { include: [PackingItem] }));
+  } catch (error) {
+    console.error("Refresh weather error:", error);
+    res.status(500).json({ error: "Failed to refresh weather and regenerate packing list." });
   }
 });
 

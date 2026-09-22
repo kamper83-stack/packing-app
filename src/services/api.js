@@ -53,6 +53,17 @@ export const api = {
       body: JSON.stringify(tripData),
     }),
 
+  updateTrip: (id, tripData) =>
+    request(`/trips/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(tripData),
+    }),
+
+  refreshWeather: (id) =>
+    request(`/trips/${id}/weather`, {
+      method: "POST",
+    }),
+
   deleteTrip: (id) =>
     request(`/trips/${id}`, {
       method: "DELETE",
