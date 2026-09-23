@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ShieldCheck, LogOut, Calendar, Plane, Users, MapPin, ArrowRight, Sparkles, Trash2, Luggage } from "lucide-react";
+import { ShieldCheck, LogOut, Calendar, Users, MapPin, ArrowRight, Sparkles, Trash2, Luggage } from "lucide-react";
 import { api } from "../services/api";
 import {
   PASSENGER_CATEGORIES,
@@ -10,6 +10,7 @@ import {
   summarizePassengers,
   totalPassengers,
 } from "../utils/passengers";
+import { DEFAULT_AIRLINE, MAX_TROLLEY_COUNT } from "../utils/luggage";
 import DestinationPicker from "../components/DestinationPicker";
 import Logo from "../components/Logo";
 import useDocumentTitle from "../utils/useDocumentTitle";
@@ -40,7 +41,6 @@ export default function Dashboard() {
   const [endDate, setEndDate] = useState("");
   const endDateRef = useRef(null);
   const skipEndDateAutoOpenRef = useRef(false);
-  const [airline, setAirline] = useState("EL AL");
   const [passengers, setPassengers] = useState(emptyComposition());
   const [vacationType, setVacationType] = useState("City Trip");
   const [trolleyCount, setTrolleyCount] = useState(1);
@@ -108,16 +108,29 @@ export default function Dashboard() {
       return;
     }
 
+    // A trolley count must be a non-negative whole number — reject fractional
+    // values up front instead of silently truncating with parseInt (same
+    // philosophy as the passenger-count validation above).
+    const trolleyValue = String(trolleyCount).trim();
+    if (trolleyValue === "" || !/^\d+$/.test(trolleyValue)) {
+      setError("Trolley suitcase count must be a whole number (no decimals).");
+      return;
+    }
+    const cleanTrolleyCount = Math.min(MAX_TROLLEY_COUNT, Number(trolleyValue));
+
     setCreating(true);
     try {
       const newTrip = await api.createTrip({
         destination,
         startDate,
         endDate,
-        airline,
+        // The backend always requires a non-empty airline (it drives baggage
+        // allowance into the packing prompt); the UI no longer collects it, so
+        // send a fixed default rather than a user-chosen field.
+        airline: DEFAULT_AIRLINE,
         passengerComposition,
         vacationType,
-        trolleyCount,
+        trolleyCount: cleanTrolleyCount,
       });
       // Redirect to the trip details view
       navigate(`/trip/${newTrip.id}`);
@@ -141,6 +154,14 @@ export default function Dashboard() {
     localStorage.removeItem("token");
     navigate("/login");
   };
+
+  // One cabin backpack per traveler is assumed automatically (the stack no
+  // longer asks for backpacks); the helper text mirrors exactly how many the
+  // packing list will enumerate, based on the chosen passenger composition.
+  // TODO: infants are currently counted toward this backpack total along with
+  // every other traveller — semantics unchanged from the legacy numPeople
+  // total; revisit whether lap infants should be excluded here.
+  const cabinBackpackCount = totalPassengers(buildComposition(passengers));
 
   return (
     <div className="min-h-screen bg-paper bg-paper-glow">
@@ -259,19 +280,6 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div>
-                <label className="label">Airline</label>
-                <select className="input" value={airline} onChange={(e) => setAirline(e.target.value)}>
-                  <option value="EL AL">EL AL</option>
-                  <option value="Ryanair">Ryanair</option>
-                  <option value="Wizz Air">Wizz Air</option>
-                  <option value="EasyJet">EasyJet</option>
-                  <option value="Delta">Delta</option>
-                  <option value="United">United</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-
               <fieldset>
                 <legend className="label">Passengers</legend>
                 <div className="grid grid-cols-2 gap-3">
@@ -294,20 +302,23 @@ export default function Dashboard() {
               </fieldset>
 
               <div>
-                <label className="label" htmlFor="trolley-count">Trolley suitcases</label>
+                <label className="label" htmlFor="trolley-count">Trolley / checked suitcases</label>
                 <input
                   id="trolley-count"
                   type="number"
                   min="0"
-                  max="10"
+                  max={MAX_TROLLEY_COUNT}
                   step="1"
                   inputMode="numeric"
                   className="input"
                   value={trolleyCount}
-                  onChange={(e) => setTrolleyCount(Math.min(10, Math.max(0, parseInt(e.target.value, 10) || 0)))}
+                  // Keep the raw string so a fractional entry (e.g. "3.7") is
+                  // preserved and rejected with a clear message on submit,
+                  // instead of being silently truncated by parseInt.
+                  onChange={(e) => setTrolleyCount(e.target.value)}
                 />
                 <span className="block mt-1 text-xs text-muted">
-                  Plus one cabin backpack per traveler, assumed automatically.
+                  Plus {cabinBackpackCount} cabin backpack{cabinBackpackCount === 1 ? "" : "s"} per traveler, added automatically.
                 </span>
               </div>
 
@@ -387,9 +398,6 @@ export default function Dashboard() {
                         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
                           <span className="inline-flex items-center gap-1.5">
                             <Calendar size={14} /> {trip.startDate} – {trip.endDate}
-                          </span>
-                          <span className="inline-flex items-center gap-1.5">
-                            <Plane size={14} /> {trip.airline}
                           </span>
                           <span className="inline-flex items-center gap-1.5">
                             <Users size={14} />

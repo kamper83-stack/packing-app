@@ -1,6 +1,6 @@
 # PackPlanner
 
-PackPlanner is a full-stack travel packing assistant. Users create a trip, provide the destination, dates, airline, group size, and vacation type, and receive a weather-aware packing checklist tailored to the trip.
+PackPlanner is a full-stack travel packing assistant. Users create a trip, provide the destination, dates, group size and vacation type, and receive a weather-aware packing checklist tailored to the trip. Airline is no longer a user-chosen field — the client always sends a fixed default (`EL AL`, `src/utils/luggage.js`) so the backend's baggage-allowance calculation stays constant.
 
 ## Features
 
