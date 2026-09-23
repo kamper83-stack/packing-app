@@ -1,11 +1,13 @@
 const axios = require("axios");
 const climateService = require("./climateService");
+const googleWeatherService = require("./googleWeatherService");
 
 // Values that look like a key but aren't one. The docker-compose / .env.example
 // default is a placeholder, so it must behave like "no key" — otherwise we call
 // WeatherAPI with a bad key, get a 401, and silently fall back to mock, which
 // looks exactly like a real key that "doesn't work".
 const PLACEHOLDER_KEYS = new Set(["your_weather_api_key_here"]);
+const GOOGLE_PLACEHOLDER_KEYS = new Set(["your_google_weather_api_key_here"]);
 
 // WeatherAPI's /forecast.json horizon is up to 14 days. Trips scheduled beyond
 // this window can't get a daily forecast and are handled by seasonal climate
@@ -92,6 +94,18 @@ function weatherApiQuery(destination, country) {
   return country ? `${destination}, ${country}` : destination;
 }
 
+function hasRealGoogleWeatherKey() {
+  const key = (process.env.GOOGLE_WEATHER_API_KEY || "").trim();
+  return key.length > 0 && !GOOGLE_PLACEHOLDER_KEYS.has(key);
+}
+
+// Use Google Weather when its key is configured. The legacy WeatherAPI path is
+// retained as a compatibility fallback for existing deployments during rollout.
+function shouldUseGoogleWeather() {
+  return process.env.WEATHER_PROVIDER === "google" ||
+    (!process.env.WEATHER_PROVIDER && hasRealGoogleWeatherKey());
+}
+
 async function getForecast(destination, startDate, endDate, country) {
   // Trips beyond the live-forecast window can't get a daily forecast, so use a
   // seasonal climate estimate instead (Issue #65). Done here so the single
@@ -102,6 +116,10 @@ async function getForecast(destination, startDate, endDate, country) {
         "using seasonal climate estimate."
     );
     return climateService.getSeasonalEstimate(destination, startDate, endDate);
+  }
+
+  if (shouldUseGoogleWeather()) {
+    return googleWeatherService.getForecast(destination, startDate, endDate, country);
   }
 
   const start = new Date(startDate);

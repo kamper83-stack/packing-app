@@ -6,7 +6,7 @@ PackPlanner is a full-stack travel packing assistant. Users create a trip, provi
 
 - JWT-based registration and login.
 - Trip creation and per-user trip listing.
-- Weather-aware packing inputs from WeatherAPI.com through the backend.
+- Weather-aware packing inputs from Google Weather API through the backend, with legacy WeatherAPI compatibility.
 - Gemini-powered packing-list generation with a JSON item contract.
 - Current live model: `gemini-3.5-flash` (configurable via `GEMINI_MODEL`).
 - Offline Mock mode for development and tests when live credentials are unavailable.
@@ -22,11 +22,11 @@ PackPlanner is a full-stack travel packing assistant. Users create a trip, provi
 ```text
 packing-app/
 ├── backend/
-│   ├── config/              # SQLite and airline baggage configuration
+│   ├── config/              # SQLite, airline baggage, and destination coordinates
 │   ├── middleware/          # Authentication middleware
 │   ├── models/              # Sequelize models for users, trips, and items
 │   ├── routes/              # Auth, trips, checklist, and item endpoints
-│   ├── services/            # WeatherAPI and Gemini integrations
+│   ├── services/            # Google Weather, legacy WeatherAPI, and Gemini integrations
 │   └── tests/               # Jest + Supertest backend tests
 ├── src/
 │   ├── pages/               # Login, Signup, Dashboard, and TripView
@@ -38,14 +38,15 @@ packing-app/
 └── .github/workflows/       # CI and deployment workflows
 ```
 
-The browser talks to the PackPlanner backend. The backend owns authentication, SQLite persistence, WeatherAPI calls, Gemini calls, and Mock fallback behavior. Provider keys must remain server-side.
+The browser talks to the PackPlanner backend. The backend owns authentication, SQLite persistence, Google Weather API calls, legacy WeatherAPI compatibility, Gemini calls, and Mock fallback behavior. Provider keys must remain server-side.
 
 ## Requirements
 
 - Node.js 20+
 - npm
 - Docker and Docker Compose for the containerized stack
-- A WeatherAPI.com key for live weather
+- A Google Weather API key for live weather
+- A WeatherAPI.com key only if the legacy provider is needed
 - A Gemini API key and available model quota for live packing-list generation
 
 ## Local development
@@ -61,13 +62,14 @@ npm run dev
 
 The backend listens on `http://localhost:5001` by default. Set `USE_MOCKS=true` for fully offline weather and Gemini development, or provide real keys and set `USE_MOCKS=false`.
 
-> **Note:** The placeholder `WEATHER_API_KEY=your_weather_api_key_here` shipped in
-> `.env.example` counts as "no real key" — the backend detects it and stays in
-> mock mode instead of calling WeatherAPI with an invalid key. Set a real key to
-> get live forecasts.
+> **Google Weather:** set `GOOGLE_WEATHER_API_KEY` and `WEATHER_PROVIDER=google`. Google Weather returns up to 10 daily forecast days and the backend uses a checked-in coordinate catalog, so no geocoding request is made at runtime.
 >
-> Live WeatherAPI failures do **not** block trip creation. The trip is saved with
-> a mock forecast, `weatherSource: "mock"`, and `weatherError` describing the
+> The Google Maps Geocoding API can resolve city names to coordinates, but it requires billing for this project; the coordinate catalog was generated offline and is validated by tests.
+>
+> The legacy `WEATHER_API_KEY` remains supported for compatibility when `WEATHER_PROVIDER=weatherapi`.
+
+> Live weather failures do **not** block trip creation. The trip is saved with a
+> mock forecast, `weatherSource: "mock"`, and `weatherError` describing the
 > failure so the UI can show fallback state. Legacy trips without these fields
 > remain readable (`weatherSource` / `weatherError` are null).
 >
@@ -99,7 +101,8 @@ Docker Compose reads environment interpolation from the project-root `.env`. For
 
 ```env
 JWT_SECRET=replace-with-a-long-random-secret
-WEATHER_API_KEY=replace-with-a-real-weatherapi-key
+GOOGLE_WEATHER_API_KEY=replace-with-a-google-weather-key
+WEATHER_PROVIDER=google
 GEMINI_API_KEY=replace-with-a-real-gemini-key
 USE_MOCKS=false
 ```

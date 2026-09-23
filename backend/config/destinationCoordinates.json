@@ -1,0 +1,535 @@
+{
+  "_comment": "Static destination coordinates for Google Weather API. Airport coordinates use the route dataset; city-only destinations use Open-Meteo geocoding; Marrakech uses a city-center fallback because the geocoder omitted it. Do not call geocoding at runtime.",
+  "destinations": {
+    "Amsterdam": {
+      "country": "Netherlands",
+      "latitude": 52.308601,
+      "longitude": 4.76389,
+      "source": "OpenFlights airport subset",
+      "airportCode": "AMS"
+    },
+    "Athens": {
+      "country": "Greece",
+      "latitude": 37.9364013672,
+      "longitude": 23.9444999695,
+      "source": "OpenFlights airport subset",
+      "airportCode": "ATH"
+    },
+    "Bangkok": {
+      "country": "Thailand",
+      "latitude": 13.681099891662598,
+      "longitude": 100.74700164794922,
+      "source": "OpenFlights airport subset",
+      "airportCode": "BKK"
+    },
+    "Barcelona": {
+      "country": "Spain",
+      "latitude": 41.2971,
+      "longitude": 2.07846,
+      "source": "OpenFlights airport subset",
+      "airportCode": "BCN"
+    },
+    "Basel": {
+      "country": "Switzerland",
+      "latitude": 47.55839,
+      "longitude": 7.57327,
+      "source": "Open-Meteo geocoding"
+    },
+    "Batumi": {
+      "country": "Georgia",
+      "latitude": 41.64077,
+      "longitude": 41.6306,
+      "source": "Open-Meteo geocoding"
+    },
+    "Belgrade": {
+      "country": "Serbia",
+      "latitude": 44.8184013367,
+      "longitude": 20.3090991974,
+      "source": "OpenFlights airport subset",
+      "airportCode": "BEG"
+    },
+    "Berlin": {
+      "country": "Germany",
+      "latitude": 52.380001,
+      "longitude": 13.5225,
+      "source": "OpenFlights airport subset",
+      "airportCode": "SXF"
+    },
+    "Boston": {
+      "country": "United States",
+      "latitude": 42.35843,
+      "longitude": -71.05977,
+      "source": "Open-Meteo geocoding"
+    },
+    "Bratislava": {
+      "country": "Slovakia",
+      "latitude": 48.14816,
+      "longitude": 17.10674,
+      "source": "Open-Meteo geocoding"
+    },
+    "Brussels": {
+      "country": "Belgium",
+      "latitude": 50.901401519800004,
+      "longitude": 4.48443984985,
+      "source": "OpenFlights airport subset",
+      "airportCode": "BRU"
+    },
+    "Bucharest": {
+      "country": "Romania",
+      "latitude": 44.5711111,
+      "longitude": 26.085,
+      "source": "OpenFlights airport subset",
+      "airportCode": "OTP"
+    },
+    "Budapest": {
+      "country": "Hungary",
+      "latitude": 47.42976,
+      "longitude": 19.261093,
+      "source": "OpenFlights airport subset",
+      "airportCode": "BUD"
+    },
+    "Buenos Aires": {
+      "country": "Argentina",
+      "latitude": -34.61315,
+      "longitude": -58.37723,
+      "source": "Open-Meteo geocoding"
+    },
+    "Cagliari": {
+      "country": "Italy",
+      "latitude": 39.23054,
+      "longitude": 9.11917,
+      "source": "Open-Meteo geocoding"
+    },
+    "Casablanca": {
+      "country": "Morocco",
+      "latitude": 33.58831,
+      "longitude": -7.61138,
+      "source": "Open-Meteo geocoding"
+    },
+    "Catania": {
+      "country": "Italy",
+      "latitude": 37.49223,
+      "longitude": 15.07041,
+      "source": "Open-Meteo geocoding"
+    },
+    "Chisinau": {
+      "country": "Moldova",
+      "latitude": 47.00902,
+      "longitude": 28.85938,
+      "source": "Open-Meteo geocoding"
+    },
+    "Cluj-Napoca": {
+      "country": "Romania",
+      "latitude": 46.76667,
+      "longitude": 23.6,
+      "source": "Open-Meteo geocoding"
+    },
+    "Copenhagen": {
+      "country": "Denmark",
+      "latitude": 55.617900848389,
+      "longitude": 12.656000137329,
+      "source": "OpenFlights airport subset",
+      "airportCode": "CPH"
+    },
+    "Delhi": {
+      "country": "India",
+      "latitude": 28.65195,
+      "longitude": 77.23149,
+      "source": "Open-Meteo geocoding"
+    },
+    "Dubai": {
+      "country": "United Arab Emirates",
+      "latitude": 25.07725,
+      "longitude": 55.30927,
+      "source": "Open-Meteo geocoding"
+    },
+    "Dublin": {
+      "country": "Ireland",
+      "latitude": 53.33306,
+      "longitude": -6.24889,
+      "source": "Open-Meteo geocoding"
+    },
+    "Dubrovnik": {
+      "country": "Croatia",
+      "latitude": 42.64125,
+      "longitude": 18.10909,
+      "source": "Open-Meteo geocoding"
+    },
+    "Fort Lauderdale": {
+      "country": "United States",
+      "latitude": 26.12231,
+      "longitude": -80.14338,
+      "source": "Open-Meteo geocoding"
+    },
+    "Frankfurt": {
+      "country": "Germany",
+      "latitude": 50.033333,
+      "longitude": 8.570556,
+      "source": "OpenFlights airport subset",
+      "airportCode": "FRA"
+    },
+    "Geneva": {
+      "country": "Switzerland",
+      "latitude": 46.23809814453125,
+      "longitude": 6.108950138092041,
+      "source": "OpenFlights airport subset",
+      "airportCode": "GVA"
+    },
+    "Hanoi": {
+      "country": "Vietnam",
+      "latitude": 21.0245,
+      "longitude": 105.84117,
+      "source": "Open-Meteo geocoding"
+    },
+    "Heraklion": {
+      "country": "Greece",
+      "latitude": 35.3396987915,
+      "longitude": 25.180299758900002,
+      "source": "OpenFlights airport subset",
+      "airportCode": "HER"
+    },
+    "Hong Kong": {
+      "country": "Hong Kong",
+      "latitude": 22.308901,
+      "longitude": 113.915001,
+      "source": "OpenFlights airport subset",
+      "airportCode": "HKG"
+    },
+    "Istanbul": {
+      "country": "Turkey",
+      "latitude": 40.898601532,
+      "longitude": 29.3092002869,
+      "source": "OpenFlights airport subset",
+      "airportCode": "SAW"
+    },
+    "Johannesburg": {
+      "country": "South Africa",
+      "latitude": -26.1392,
+      "longitude": 28.246,
+      "source": "OpenFlights airport subset",
+      "airportCode": "JNB"
+    },
+    "Kefalonia": {
+      "country": "Greece",
+      "latitude": 38.12227,
+      "longitude": 20.50246,
+      "source": "Open-Meteo geocoding"
+    },
+    "Krakow": {
+      "country": "Poland",
+      "latitude": 50.06143,
+      "longitude": 19.93658,
+      "source": "Open-Meteo geocoding"
+    },
+    "Larnaca": {
+      "country": "Cyprus",
+      "latitude": 34.875099182128906,
+      "longitude": 33.624900817871094,
+      "source": "OpenFlights airport subset",
+      "airportCode": "LCA"
+    },
+    "Lefkada": {
+      "country": "Greece",
+      "latitude": 38.83036,
+      "longitude": 20.70442,
+      "source": "Open-Meteo geocoding"
+    },
+    "Lisbon": {
+      "country": "Portugal",
+      "latitude": 38.72509,
+      "longitude": -9.1498,
+      "source": "Open-Meteo geocoding"
+    },
+    "Ljubljana": {
+      "country": "Slovenia",
+      "latitude": 46.05108,
+      "longitude": 14.50513,
+      "source": "Open-Meteo geocoding"
+    },
+    "London": {
+      "country": "United Kingdom",
+      "latitude": 51.874698638916016,
+      "longitude": -0.36833301186561584,
+      "source": "OpenFlights airport subset",
+      "airportCode": "LTN"
+    },
+    "Los Angeles": {
+      "country": "United States",
+      "latitude": 33.94250107,
+      "longitude": -118.4079971,
+      "source": "OpenFlights airport subset",
+      "airportCode": "LAX"
+    },
+    "Lyon": {
+      "country": "France",
+      "latitude": 45.74906,
+      "longitude": 4.84789,
+      "source": "Open-Meteo geocoding"
+    },
+    "Madrid": {
+      "country": "Spain",
+      "latitude": 40.471926,
+      "longitude": -3.56264,
+      "source": "OpenFlights airport subset",
+      "airportCode": "MAD"
+    },
+    "Marrakech": {
+      "country": "Morocco",
+      "latitude": 31.6295,
+      "longitude": -7.9811,
+      "source": "Manual city center fallback"
+    },
+    "Marseille": {
+      "country": "France",
+      "latitude": 43.439271922,
+      "longitude": 5.22142410278,
+      "source": "OpenFlights airport subset",
+      "airportCode": "MRS"
+    },
+    "Miami": {
+      "country": "United States",
+      "latitude": 25.77427,
+      "longitude": -80.19366,
+      "source": "Open-Meteo geocoding"
+    },
+    "Milan": {
+      "country": "Italy",
+      "latitude": 45.46427,
+      "longitude": 9.18951,
+      "source": "Open-Meteo geocoding"
+    },
+    "Mumbai": {
+      "country": "India",
+      "latitude": 19.0886993408,
+      "longitude": 72.8678970337,
+      "source": "OpenFlights airport subset",
+      "airportCode": "BOM"
+    },
+    "Munich": {
+      "country": "Germany",
+      "latitude": 48.353802,
+      "longitude": 11.7861,
+      "source": "OpenFlights airport subset",
+      "airportCode": "MUC"
+    },
+    "Mykonos": {
+      "country": "Greece",
+      "latitude": 37.44529,
+      "longitude": 25.32872,
+      "source": "Open-Meteo geocoding"
+    },
+    "Naples": {
+      "country": "Italy",
+      "latitude": 40.886002,
+      "longitude": 14.2908,
+      "source": "OpenFlights airport subset",
+      "airportCode": "NAP"
+    },
+    "New York": {
+      "country": "United States",
+      "latitude": 40.63980103,
+      "longitude": -73.77890015,
+      "source": "OpenFlights airport subset",
+      "airportCode": "JFK"
+    },
+    "Nice": {
+      "country": "France",
+      "latitude": 43.6584014893,
+      "longitude": 7.215869903560001,
+      "source": "OpenFlights airport subset",
+      "airportCode": "NCE"
+    },
+    "Paphos": {
+      "country": "Cyprus",
+      "latitude": 34.77679,
+      "longitude": 32.42451,
+      "source": "Open-Meteo geocoding"
+    },
+    "Paris": {
+      "country": "France",
+      "latitude": 49.012798,
+      "longitude": 2.55,
+      "source": "OpenFlights airport subset",
+      "airportCode": "CDG"
+    },
+    "Patras": {
+      "country": "Greece",
+      "latitude": 38.15111,
+      "longitude": 21.42556,
+      "source": "Open-Meteo geocoding"
+    },
+    "Phuket": {
+      "country": "Thailand",
+      "latitude": 7.89059,
+      "longitude": 98.3981,
+      "source": "Open-Meteo geocoding"
+    },
+    "Podgorica": {
+      "country": "Montenegro",
+      "latitude": 42.44124,
+      "longitude": 19.26309,
+      "source": "Open-Meteo geocoding"
+    },
+    "Porto": {
+      "country": "Portugal",
+      "latitude": 41.1485,
+      "longitude": -8.61097,
+      "source": "Open-Meteo geocoding"
+    },
+    "Prague": {
+      "country": "Czech Republic",
+      "latitude": 50.1008,
+      "longitude": 14.26,
+      "source": "OpenFlights airport subset",
+      "airportCode": "PRG"
+    },
+    "Rhodes": {
+      "country": "Greece",
+      "latitude": 36.43556,
+      "longitude": 28.22199,
+      "source": "Open-Meteo geocoding"
+    },
+    "Rome": {
+      "country": "Italy",
+      "latitude": 41.8002778,
+      "longitude": 12.2388889,
+      "source": "OpenFlights airport subset",
+      "airportCode": "FCO"
+    },
+    "Salzburg": {
+      "country": "Austria",
+      "latitude": 47.79941,
+      "longitude": 13.04399,
+      "source": "Open-Meteo geocoding"
+    },
+    "San Francisco": {
+      "country": "United States",
+      "latitude": 37.77493,
+      "longitude": -122.41942,
+      "source": "Open-Meteo geocoding"
+    },
+    "Santorini": {
+      "country": "Greece",
+      "latitude": 36.40572,
+      "longitude": 25.45682,
+      "source": "Open-Meteo geocoding"
+    },
+    "Seoul": {
+      "country": "South Korea",
+      "latitude": 37.46910095214844,
+      "longitude": 126.45099639892578,
+      "source": "OpenFlights airport subset",
+      "airportCode": "ICN"
+    },
+    "Sharm El Sheikh": {
+      "country": "Egypt",
+      "latitude": 27.91582,
+      "longitude": 34.32995,
+      "source": "Open-Meteo geocoding"
+    },
+    "Sitia": {
+      "country": "Greece",
+      "latitude": 35.20783,
+      "longitude": 26.10467,
+      "source": "Open-Meteo geocoding"
+    },
+    "Sofia": {
+      "country": "Bulgaria",
+      "latitude": 42.696693420410156,
+      "longitude": 23.411436080932617,
+      "source": "OpenFlights airport subset",
+      "airportCode": "SOF"
+    },
+    "Tbilisi": {
+      "country": "Georgia",
+      "latitude": 41.6692008972,
+      "longitude": 44.95470047,
+      "source": "OpenFlights airport subset",
+      "airportCode": "TBS"
+    },
+    "Thessaloniki": {
+      "country": "Greece",
+      "latitude": 40.64072,
+      "longitude": 22.93493,
+      "source": "Open-Meteo geocoding"
+    },
+    "Tirana": {
+      "country": "Albania",
+      "latitude": 41.32744,
+      "longitude": 19.81866,
+      "source": "Open-Meteo geocoding"
+    },
+    "Tivat": {
+      "country": "Montenegro",
+      "latitude": 42.43623,
+      "longitude": 18.69361,
+      "source": "Open-Meteo geocoding"
+    },
+    "Tokyo": {
+      "country": "Japan",
+      "latitude": 35.6895,
+      "longitude": 139.69171,
+      "source": "Open-Meteo geocoding"
+    },
+    "Toronto": {
+      "country": "Canada",
+      "latitude": 43.6772003174,
+      "longitude": -79.63059997559999,
+      "source": "OpenFlights airport subset",
+      "airportCode": "YYZ"
+    },
+    "Varna": {
+      "country": "Bulgaria",
+      "latitude": 43.21912,
+      "longitude": 27.91024,
+      "source": "Open-Meteo geocoding"
+    },
+    "Venice": {
+      "country": "Italy",
+      "latitude": 45.505299,
+      "longitude": 12.3519,
+      "source": "OpenFlights airport subset",
+      "airportCode": "VCE"
+    },
+    "Verona": {
+      "country": "Italy",
+      "latitude": 45.43854,
+      "longitude": 10.9938,
+      "source": "Open-Meteo geocoding"
+    },
+    "Vienna": {
+      "country": "Austria",
+      "latitude": 48.110298156738,
+      "longitude": 16.569700241089,
+      "source": "OpenFlights airport subset",
+      "airportCode": "VIE"
+    },
+    "Vilnius": {
+      "country": "Lithuania",
+      "latitude": 54.634102,
+      "longitude": 25.285801,
+      "source": "OpenFlights airport subset",
+      "airportCode": "VNO"
+    },
+    "Warsaw": {
+      "country": "Poland",
+      "latitude": 52.1656990051,
+      "longitude": 20.967100143399996,
+      "source": "OpenFlights airport subset",
+      "airportCode": "WAW"
+    },
+    "Zagreb": {
+      "country": "Croatia",
+      "latitude": 45.81444,
+      "longitude": 15.97798,
+      "source": "Open-Meteo geocoding"
+    },
+    "Zurich": {
+      "country": "Switzerland",
+      "latitude": 47.464699,
+      "longitude": 8.54917,
+      "source": "OpenFlights airport subset",
+      "airportCode": "ZRH"
+    }
+  }
+}
