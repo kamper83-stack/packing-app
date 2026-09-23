@@ -5,7 +5,7 @@ process.env.GEMINI_API_KEY = "";
 
 const request = require("supertest");
 const app = require("../server");
-const { sequelize, User, Trip } = require("../models");
+const { sequelize, User, Trip, PackingItem } = require("../models");
 
 beforeAll(async () => {
   await sequelize.sync({ force: true });
@@ -259,6 +259,11 @@ describe("Admin API (Issue #49)", () => {
       // Trip.destroy + user.destroy share one transaction (Issue: expert
       // review before deploy of PR #124) — the trip cannot survive the user.
       expect(await Trip.findByPk(trip.body.id)).toBeNull();
+      // PackingItem rows are destroyed explicitly (shirikyky's review of
+      // PR #125): SQLite FK enforcement is off, so onDelete: "CASCADE"
+      // alone would leave these as orphans pointing at a deleted trip.
+      const remainingItems = await PackingItem.findAll({ where: { tripId: trip.body.id } });
+      expect(remainingItems).toHaveLength(0);
     });
   });
 });

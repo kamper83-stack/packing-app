@@ -1,6 +1,6 @@
 const express = require("express");
 const { Op } = require("sequelize");
-const { User, Trip, sequelize } = require("../models");
+const { User, Trip, PackingItem, sequelize } = require("../models");
 const authMiddleware = require("../middleware/auth");
 const adminMiddleware = require("../middleware/admin");
 const logStore = require("../services/logStore");
@@ -127,6 +127,14 @@ router.patch("/users/:id/status", async (req, res) => {
 // losing the account/trips). Delete is for "remove this user for good".
 // Trip.destroy + user.destroy run inside one transaction so a mid-way
 // failure can never leave trips deleted with the user still present.
+//
+// PackingItem rows are destroyed explicitly rather than relying on the
+// Trip -> PackingItem onDelete: "CASCADE" association: this SQLite
+// connection (backend/config/database.js) does not set
+// `dialectOptions: { foreign_keys: true }`, so SQLite never enforces that
+// constraint and a bulk Trip.destroy({ where }) would silently orphan the
+// deleted trips' packing items instead of removing them (flagged in review
+// of this PR).
 router.delete("/users/:id", async (req, res) => {
   try {
     if (req.params.id === req.adminUser.id) {
@@ -139,6 +147,15 @@ router.delete("/users/:id", async (req, res) => {
     }
 
     await sequelize.transaction(async (transaction) => {
+      const trips = await Trip.findAll({
+        where: { userId: user.id },
+        attributes: ["id"],
+        transaction,
+      });
+      const tripIds = trips.map((trip) => trip.id);
+      if (tripIds.length > 0) {
+        await PackingItem.destroy({ where: { tripId: tripIds }, transaction });
+      }
       await Trip.destroy({ where: { userId: user.id }, transaction });
       await user.destroy({ transaction });
     });
