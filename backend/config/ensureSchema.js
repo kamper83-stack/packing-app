@@ -37,6 +37,14 @@ const COLUMNS_TO_ENSURE = [
     definition: { type: DataTypes.STRING, allowNull: true }, // Issue #30
   },
   {
+    table: "Trips",
+    column: "trolleyCount",
+    // Feature: choose trolley-suitcase count (+ a fixed one-backpack-per-traveler
+    // assumption) to constrain packing-list quantities. Existing trips default
+    // to 1 trolley suitcase, matching the model's defaultValue for new rows.
+    definition: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
+  },
+  {
     table: "Users",
     column: "isAdmin",
     definition: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false }, // Issue #49

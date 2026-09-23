@@ -78,6 +78,55 @@ describe("geminiService.generatePackingList - mock mode", () => {
     expect(byName.Toothpaste.quantity).toBe(1); // fixed, independent of people
   });
 
+  it("leaves quantities untouched when trolleyCount covers every traveler (plenty of room)", async () => {
+    const result = await generatePackingList({ ...baseArgs, days: 5, numPeople: 2, trolleyCount: 2 });
+    const byName = Object.fromEntries(result.items.map((i) => [i.name, i]));
+
+    expect(byName.Underwear.quantity).toBe(10); // unchanged from the no-trolleyCount baseline
+    expect(byName.Shirts.quantity).toBe(12);
+  });
+
+  it("scales down Suitcase-targeted Clothing quantities when there are fewer trolleys than travelers", async () => {
+    const result = await generatePackingList({ ...baseArgs, days: 5, numPeople: 4, trolleyCount: 1 });
+    const byName = Object.fromEntries(result.items.map((i) => [i.name, i]));
+
+    // Baseline (no luggage constraint) would be days * numPeople = 20; factor
+    // is max(1, 0.5) / 4 = 0.25 -> round(20 * 0.25) = 5.
+    expect(byName.Underwear.quantity).toBe(5);
+    expect(byName.Socks.quantity).toBe(5);
+  });
+
+  it("never scales a Suitcase Clothing item's quantity below 1", async () => {
+    const result = await generatePackingList({ ...baseArgs, days: 1, numPeople: 10, trolleyCount: 1, vacationType: "Beach Vacation" });
+    const swimsuit = result.items.find((item) => item.name === "Swimsuit");
+
+    expect(swimsuit.quantity).toBeGreaterThanOrEqual(1);
+  });
+
+  it("does not scale Backpack items or non-Clothing categories by trolleyCount", async () => {
+    const result = await generatePackingList({ ...baseArgs, days: 5, numPeople: 4, trolleyCount: 1 });
+    const byName = Object.fromEntries(result.items.map((i) => [i.name, i]));
+
+    expect(byName.Toothpaste.targetBag).toBe("Backpack");
+    expect(byName.Toothpaste.quantity).toBe(1); // fixed, not people/trolley-scaled
+    expect(byName["Phone Charger"].quantity).toBe(4); // Electronics, unaffected by luggage rule
+  });
+
+  it("treats 0 declared trolleys as backpack-overflow room, not zero suitcase capacity", async () => {
+    const result = await generatePackingList({ ...baseArgs, days: 5, numPeople: 4, trolleyCount: 0 });
+    const byName = Object.fromEntries(result.items.map((i) => [i.name, i]));
+
+    // factor = max(0, 0.5) / 4 = 0.125 -> round(20 * 0.125) = 3 (not 0).
+    expect(byName.Underwear.quantity).toBe(3);
+  });
+
+  it("leaves quantities untouched when trolleyCount is not provided (backward compatible)", async () => {
+    const result = await generatePackingList({ ...baseArgs, days: 5, numPeople: 4 });
+    const byName = Object.fromEntries(result.items.map((i) => [i.name, i]));
+
+    expect(byName.Underwear.quantity).toBe(20); // days * numPeople, no scaling applied
+  });
+
   it("does not pack overnight-only clothing or toiletries for a one-day trip", async () => {
     const result = await generatePackingList({
       ...baseArgs,
@@ -183,6 +232,44 @@ describe("geminiService.generatePackingList - real API path (mocked SDK)", () =>
     expect(prompt).toMatch(/combined weight and size.*allowed baggage/i);
     expect(result.isMock).toBe(false);
     expect(result.items).toEqual(aiItems);
+  });
+
+  it("includes the declared trolley/backpack luggage in the prompt when trolleyCount is provided", async () => {
+    enableRealPath();
+    mockGenerateContent.mockResolvedValue({
+      response: { text: () => JSON.stringify([{ name: "Camera", category: "Electronics", quantity: 1, targetBag: "Backpack" }]) },
+    });
+
+    await generatePackingList({ ...baseArgs, numPeople: 3, trolleyCount: 2 });
+
+    const prompt = mockGenerateContent.mock.calls[0][0].contents[0].parts[0].text;
+    expect(prompt).toContain("2 trolley suitcase(s)");
+    expect(prompt).toContain("3 backpack(s)");
+  });
+
+  it("omits the luggage line from the prompt when trolleyCount is not provided", async () => {
+    enableRealPath();
+    mockGenerateContent.mockResolvedValue({
+      response: { text: () => JSON.stringify([{ name: "Camera", category: "Electronics", quantity: 1, targetBag: "Backpack" }]) },
+    });
+
+    await generatePackingList(baseArgs);
+
+    const prompt = mockGenerateContent.mock.calls[0][0].contents[0].parts[0].text;
+    expect(prompt).not.toContain("trolley suitcase");
+  });
+
+  it("scales live model output by trolleyCount just like mock output", async () => {
+    enableRealPath();
+    const aiItems = [{ name: "Shirts", category: "Clothing", quantity: 20, targetBag: "Suitcase" }];
+    mockGenerateContent.mockResolvedValue({
+      response: { text: () => JSON.stringify(aiItems) },
+    });
+
+    const result = await generatePackingList({ ...baseArgs, numPeople: 4, trolleyCount: 1 });
+
+    // factor = max(1, 0.5) / 4 = 0.25 -> round(20 * 0.25) = 5.
+    expect(result.items[0].quantity).toBe(5);
   });
 
   it("enforces one-day duration rules on otherwise valid live model output", async () => {

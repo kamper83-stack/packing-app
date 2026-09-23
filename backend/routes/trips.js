@@ -20,11 +20,25 @@ router.use(authMiddleware);
 // destination and to store a consistent spelling. First occurrence wins for the
 // rare case of the same city name appearing in more than one country.
 const canonicalCityByKey = new Map();
+// lowercased city -> country, so a bare stored/submitted city name (e.g.
+// "Patras") can be disambiguated for WeatherAPI as "Patras, Greece" instead
+// of colliding with a same-named place elsewhere (Issue: Jev-verified
+// weather-coverage audit found Patras/Sitia/Delhi/Krakow/Porto resolve to the
+// wrong country by city name alone).
+const countryByCityKey = new Map();
 for (const country of Object.keys(airportCities)) {
   for (const cityName of airportCities[country]) {
     const key = cityName.trim().toLowerCase();
     if (!canonicalCityByKey.has(key)) canonicalCityByKey.set(key, cityName);
+    if (!countryByCityKey.has(key)) countryByCityKey.set(key, country);
   }
+}
+
+// Country for a canonical airport-city name (case-insensitive), or undefined
+// when not a known airport city (e.g. legacy/free-text stored destinations).
+function countryOf(cityName) {
+  if (typeof cityName !== "string") return undefined;
+  return countryByCityKey.get(cityName.trim().toLowerCase());
 }
 
 // Sorted, de-duplicated flat list of airport-city names (for the legacy
@@ -100,6 +114,28 @@ function pastDateError(fieldLabel, dateStr) {
 // data volume and any live Gemini calls proportional to an actual trip.
 const MAX_TRIP_DAYS = 60;
 const MAX_NUM_PEOPLE = 20;
+// Feature: choose how many trolley/checked suitcases the group is bringing.
+// 0 is a valid choice (backpacks-only trip); the upper bound just keeps the
+// value sane (same spirit as MAX_NUM_PEOPLE) — real airlines cap checked bags
+// well below this anyway.
+const MAX_TROLLEY_COUNT = 10;
+const DEFAULT_TROLLEY_COUNT = 1;
+
+// Validate an optional trolleyCount from the request body: undefined is
+// allowed (the caller decides the fallback — a fresh default on create, the
+// trip's existing value on update), anything else must be a non-negative
+// integer within MAX_TROLLEY_COUNT. Returns { value } (possibly undefined)
+// on success or { error } on failure so callers can respond with one
+// consistent message.
+function resolveTrolleyCount(rawValue) {
+  if (rawValue === undefined) return { value: undefined };
+  if (!Number.isInteger(rawValue) || rawValue < 0 || rawValue > MAX_TROLLEY_COUNT) {
+    return {
+      error: `Trolley suitcase count must be a whole number from 0 to ${MAX_TROLLEY_COUNT}.`,
+    };
+  }
+  return { value: rawValue };
+}
 
 // Shared validation for packing-item fields (audit findings H1 and M4).
 // `name`/`category` must be non-empty strings within a sane length; `quantity`
@@ -252,7 +288,7 @@ router.get("/:id", async (req, res) => {
 
 // POST /api/trips - Create new trip & generate packing list
 router.post("/", async (req, res) => {
-  const { destination, startDate, endDate, airline, numPeople, passengerComposition, vacationType } = req.body;
+  const { destination, startDate, endDate, airline, numPeople, passengerComposition, vacationType, trolleyCount } = req.body;
 
   if (!destination || !startDate || !endDate || !airline || !vacationType) {
     return res.status(400).json({ error: "All required fields must be filled." });
@@ -348,6 +384,12 @@ router.post("/", async (req, res) => {
       .json({ error: `Number of people must be a positive integer up to ${MAX_NUM_PEOPLE}.` });
   }
 
+  const trolleyCountResult = resolveTrolleyCount(trolleyCount);
+  if (trolleyCountResult.error) {
+    return res.status(400).json({ error: trolleyCountResult.error });
+  }
+  const cleanTrolleyCount = trolleyCountResult.value ?? DEFAULT_TROLLEY_COUNT;
+
   // Persist the canonical airport-city spelling so stored destinations stay
   // consistent regardless of the submitted casing/whitespace.
   const cleanDestination = cityMatch;
@@ -356,7 +398,7 @@ router.post("/", async (req, res) => {
 
   try {
     // 1. Fetch weather forecast
-    const weatherInfo = await weatherService.getForecast(cleanDestination, startDate, endDate);
+    const weatherInfo = await weatherService.getForecast(cleanDestination, startDate, endDate, countryOf(cleanDestination));
 
     // 2. Fetch baggage allowance for airline (fallback to estimating if not listed)
     const airlineInfo = airlines[cleanAirline] || {
@@ -380,6 +422,7 @@ router.post("/", async (req, res) => {
       airline: cleanAirline,
       weatherSummary: weatherInfo.forecast,
       baggageAllowance: airlineInfo,
+      trolleyCount: cleanTrolleyCount,
     });
 
     // 4. Create Trip in DB
@@ -389,6 +432,7 @@ router.post("/", async (req, res) => {
       endDate,
       airline: cleanAirline,
       numPeople: effectiveNumPeople ?? numPeople ?? 1,
+      trolleyCount: cleanTrolleyCount,
       ...(composition ? { passengerComposition: composition } : {}),
       vacationType: cleanVacationType,
       weatherData: weatherInfo.forecast,
@@ -426,7 +470,7 @@ router.post("/", async (req, res) => {
 
 // PUT /api/trips/:id - Edit trip details and regenerate weather + packing list.
 router.put("/:id", async (req, res) => {
-  const { destination, startDate, endDate, airline, passengerComposition, vacationType } = req.body;
+  const { destination, startDate, endDate, airline, passengerComposition, vacationType, trolleyCount } = req.body;
   if (![destination, startDate, endDate, airline, vacationType].every((value) => typeof value === "string" && value.trim())) {
     return res.status(400).json({ error: "All trip fields must be filled." });
   }
@@ -456,14 +500,21 @@ router.put("/:id", async (req, res) => {
   if (numPeople > MAX_NUM_PEOPLE) {
     return res.status(400).json({ error: `Number of people cannot exceed ${MAX_NUM_PEOPLE}.` });
   }
+  const trolleyCountResult = resolveTrolleyCount(trolleyCount);
+  if (trolleyCountResult.error) {
+    return res.status(400).json({ error: trolleyCountResult.error });
+  }
 
   try {
     const trip = await Trip.findOne({ where: { id: req.params.id, userId: req.user.id } });
     if (!trip) return res.status(404).json({ error: "Trip not found." });
+    // Omitting trolleyCount on an update keeps the trip's existing value
+    // instead of silently resetting it to the create-time default.
+    const cleanTrolleyCount = trolleyCountResult.value ?? trip.trolleyCount ?? DEFAULT_TROLLEY_COUNT;
     const cleanDestination = cityMatch;
     const cleanAirline = airline.trim();
     const cleanVacationType = vacationType.trim();
-    const weatherInfo = await weatherService.getForecast(cleanDestination, startDate, endDate);
+    const weatherInfo = await weatherService.getForecast(cleanDestination, startDate, endDate, countryOf(cleanDestination));
     const airlineInfo = airlines[cleanAirline] || {
       cabin: { weightKg: 8, dimensionsCm: "Unknown", count: 1 },
       checked: { weightKg: 23, dimensionsCm: "Unknown", count: 1 },
@@ -478,6 +529,7 @@ router.put("/:id", async (req, res) => {
       airline: cleanAirline,
       weatherSummary: weatherInfo.forecast,
       baggageAllowance: airlineInfo,
+      trolleyCount: cleanTrolleyCount,
     });
     await sequelize.transaction(async (transaction) => {
       await trip.update({
@@ -486,6 +538,7 @@ router.put("/:id", async (req, res) => {
         endDate,
         airline: cleanAirline,
         numPeople,
+        trolleyCount: cleanTrolleyCount,
         passengerComposition: composition,
         vacationType: cleanVacationType,
         weatherData: weatherInfo.forecast,
@@ -518,7 +571,7 @@ router.post("/:id/weather", async (req, res) => {
     const trip = await Trip.findOne({ where: { id: req.params.id, userId: req.user.id } });
     if (!trip) return res.status(404).json({ error: "Trip not found." });
 
-    const weatherInfo = await weatherService.getForecast(trip.destination, trip.startDate, trip.endDate);
+    const weatherInfo = await weatherService.getForecast(trip.destination, trip.startDate, trip.endDate, countryOf(trip.destination));
     const days = Math.ceil(
       (new Date(trip.endDate) - new Date(trip.startDate)) / (1000 * 60 * 60 * 24)
     ) + 1;
@@ -536,6 +589,7 @@ router.post("/:id/weather", async (req, res) => {
       airline: trip.airline,
       weatherSummary: weatherInfo.forecast,
       baggageAllowance: airlineInfo,
+      trolleyCount: trip.trolleyCount,
     });
 
     await sequelize.transaction(async (transaction) => {

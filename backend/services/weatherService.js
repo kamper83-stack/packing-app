@@ -79,7 +79,20 @@ function mockForecast(start, tripDays, { mild = false } = {}) {
   });
 }
 
-async function getForecast(destination, startDate, endDate) {
+// Some airport-city names collide with a differently-located place sharing
+// the same name (e.g. "Patras" also matches a town in West Bengal, India;
+// "Porto" also matches Porto Alegre, Brazil). WeatherAPI's search/forecast
+// geocoding picks its own "best" match for a bare city name, which is not
+// always the airport city we mean. When the caller knows the country, send
+// "City, Country" so WeatherAPI resolves the right place (verified against
+// WeatherAPI's own geocoding via a Jev batch check across all 82 packing-app
+// destinations — Patras, Sitia, Delhi, Krakow and Porto were confirmed
+// mis-resolved by city name alone).
+function weatherApiQuery(destination, country) {
+  return country ? `${destination}, ${country}` : destination;
+}
+
+async function getForecast(destination, startDate, endDate, country) {
   // Trips beyond the live-forecast window can't get a daily forecast, so use a
   // seasonal climate estimate instead (Issue #65). Done here so the single
   // getForecast entry point still governs weather sourcing.
@@ -126,7 +139,7 @@ async function getForecast(destination, startDate, endDate) {
     const response = await axios.get(`https://api.weatherapi.com/v1/forecast.json`, {
       params: {
         key: apiKey,
-        q: destination,
+        q: weatherApiQuery(destination, country),
         days: days,
       },
     });

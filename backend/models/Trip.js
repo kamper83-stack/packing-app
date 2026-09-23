@@ -31,6 +31,15 @@ const Trip = sequelize.define("Trip", {
     type: DataTypes.JSON, // { infants, children, women, men } — Issue #22
     allowNull: true,
   },
+  // How many trolley/checked suitcases the travelers are bringing on this
+  // trip. A separate cabin backpack per traveler is a fixed working
+  // assumption (not stored — always derived as numPeople), not a user input.
+  // Both feed the packing-list quantity constraints in geminiService.
+  trolleyCount: {
+    type: DataTypes.INTEGER,
+    defaultValue: 1,
+    allowNull: false,
+  },
   vacationType: {
     type: DataTypes.STRING,
     allowNull: false,

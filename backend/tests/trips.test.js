@@ -247,6 +247,69 @@ describe("Trips API Endpoints (Issue #6)", () => {
       expect(res.body.PackingItems.length).toBeGreaterThan(0);
     });
 
+    // Feature: trolley-suitcase count + one-backpack-per-traveler assumption.
+    describe("trolleyCount", () => {
+      it("defaults to 1 trolley suitcase when not provided", async () => {
+        const res = await request(app)
+          .post("/api/trips")
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send(validTrip);
+
+        expect(res.status).toBe(201);
+        expect(res.body.trolleyCount).toBe(1);
+      });
+
+      it("persists an explicit trolleyCount", async () => {
+        const res = await request(app)
+          .post("/api/trips")
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send({ ...validTrip, trolleyCount: 3 });
+
+        expect(res.status).toBe(201);
+        expect(res.body.trolleyCount).toBe(3);
+      });
+
+      it("accepts 0 trolleys (backpacks-only trip)", async () => {
+        const res = await request(app)
+          .post("/api/trips")
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send({ ...validTrip, trolleyCount: 0 });
+
+        expect(res.status).toBe(201);
+        expect(res.body.trolleyCount).toBe(0);
+      });
+
+      it("rejects a negative trolleyCount", async () => {
+        const res = await request(app)
+          .post("/api/trips")
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send({ ...validTrip, trolleyCount: -1 });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error).toMatch(/trolley suitcase count/i);
+      });
+
+      it("rejects a non-integer trolleyCount", async () => {
+        const res = await request(app)
+          .post("/api/trips")
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send({ ...validTrip, trolleyCount: 1.5 });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error).toMatch(/trolley suitcase count/i);
+      });
+
+      it("rejects a trolleyCount above the cap", async () => {
+        const res = await request(app)
+          .post("/api/trips")
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send({ ...validTrip, trolleyCount: 999 });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error).toMatch(/trolley suitcase count/i);
+      });
+    });
+
     it.each([
       { description: "a fractional count", composition: { infants: 0, children: 1.5, women: 1, men: 0 } },
       { description: "a negative count", composition: { infants: -1, children: 1, women: 1, men: 1 } },
@@ -549,6 +612,7 @@ describe("Trips API Endpoints (Issue #6)", () => {
           numPeople: 4,
           passengerComposition: editedTrip.passengerComposition,
           vacationType: "City Trip",
+          trolleyCount: 1, // omitted in editedTrip -> keeps the trip's existing value
         })
       );
       expect(generationSpy).toHaveBeenCalledWith(
@@ -561,6 +625,7 @@ describe("Trips API Endpoints (Issue #6)", () => {
           airline: "Wizz Air",
           weatherSummary: expect.any(Array),
           baggageAllowance: expect.objectContaining({ cabin: expect.any(Object) }),
+          trolleyCount: 1,
         })
       );
       const itemNames = res.body.PackingItems.map((item) => item.name);
@@ -569,6 +634,26 @@ describe("Trips API Endpoints (Issue #6)", () => {
       expect(res.body.PackingItems).toEqual(
         expect.arrayContaining([expect.objectContaining({ id: editableCustomItemId, isCustom: true })])
       );
+    });
+
+    it("updates trolleyCount when explicitly provided", async () => {
+      const res = await request(app)
+        .put(`/api/trips/${editableTripId}`)
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({ ...editedTrip, trolleyCount: 4 });
+
+      expect(res.status).toBe(200);
+      expect(res.body.trolleyCount).toBe(4);
+    });
+
+    it("rejects an invalid trolleyCount on update", async () => {
+      const res = await request(app)
+        .put(`/api/trips/${editableTripId}`)
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({ ...editedTrip, trolleyCount: -1 });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/trolley suitcase count/i);
     });
 
     it("does not allow another user to edit the trip", async () => {
@@ -644,7 +729,7 @@ describe("Trips API Endpoints (Issue #6)", () => {
         .set("Authorization", `Bearer ${tokenA}`);
 
       expect(res.status).toBe(200);
-      expect(weatherSpy).toHaveBeenCalledWith("Rome", "2026-10-15", "2026-10-15");
+      expect(weatherSpy).toHaveBeenCalledWith("Rome", "2026-10-15", "2026-10-15", "Italy");
       expect(generationSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           destination: "Rome",

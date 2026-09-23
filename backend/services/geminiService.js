@@ -52,6 +52,34 @@ function applyDurationRules(items, days, numPeople) {
     });
 }
 
+// Feature: user-chosen trolley-suitcase count, plus a fixed working
+// assumption of exactly one cabin backpack per traveler. Fewer suitcases
+// than travelers means less checked-bag room than the "one wardrobe change
+// set per person" quantities the model/mock list otherwise assumes, so
+// Suitcase-targeted Clothing quantities are scaled down proportionally
+// (never below 1 of an item — a partial outfit is still useful, an empty
+// entry is not). trolleyCount >= numPeople is treated as "plenty of room"
+// and left untouched; backpack quantities are never touched here since the
+// one-backpack-per-traveler assumption is fixed, not a capacity to scale by.
+function applyLuggageRules(items, trolleyCount, numPeople) {
+  if (
+    trolleyCount === undefined ||
+    trolleyCount === null ||
+    !numPeople ||
+    trolleyCount >= numPeople
+  ) {
+    return items;
+  }
+  // 0 declared trolleys still leaves some checked-bag-equivalent room via
+  // backpack overflow in practice, so floor the scaling factor rather than
+  // letting it collapse straight to (near-)zero.
+  const factor = Math.max(trolleyCount, 0.5) / numPeople;
+  return items.map((item) => {
+    if (item.category.toLowerCase() !== "clothing" || item.targetBag !== "Suitcase") return item;
+    return { ...item, quantity: Math.max(1, Math.round(item.quantity * factor)) };
+  });
+}
+
 // Deterministic fallback used when live AI is unavailable. A one-day trip has
 // zero overnight stays, so its base list contains only items that are actually
 // carried during the day; overnight clothing/toiletries begin at two days.
@@ -108,18 +136,32 @@ async function generatePackingList({
   airline,
   weatherSummary,
   baggageAllowance,
+  trolleyCount,
 }) {
   // Describe the traveler mix in one line for prompt/mock use.
   const travelersLine = passengerComposition
     ? `Traveler Mix: ${JSON.stringify(passengerComposition)}`
     : `Number of People: ${numPeople}`;
 
+  // Feature: trolley-suitcase count is user-chosen; one cabin backpack per
+  // traveler is a fixed working assumption (not user input) — see
+  // applyLuggageRules for how this constrains Suitcase-item quantities.
+  const backpackCount = numPeople;
+  const luggageLine =
+    trolleyCount !== undefined && trolleyCount !== null
+      ? `Luggage: ${trolleyCount} trolley suitcase(s) (checked) + ${backpackCount} backpack(s), one per traveler (cabin).`
+      : null;
+
   const useMocks = process.env.USE_MOCKS === "true" || !process.env.GEMINI_API_KEY;
 
   if (useMocks) {
     console.log(`[GEMINI SERVICE] Using mock packing list for ${destination} (${vacationType})`);
     return {
-      items: applyDurationRules(getMockPackingList(vacationType, days, numPeople), days, numPeople),
+      items: applyLuggageRules(
+        applyDurationRules(getMockPackingList(vacationType, days, numPeople), days, numPeople),
+        trolleyCount,
+        numPeople
+      ),
       isMock: true,
     };
   }
@@ -140,6 +182,7 @@ async function generatePackingList({
       - Airline: ${airline}
       - Weather forecast summary: ${JSON.stringify(weatherSummary)}
       - Allowed baggage: ${JSON.stringify(baggageAllowance)}
+      ${luggageLine ? `- ${luggageLine}` : ""}
 
       Duration is a hard constraint for both item selection and quantity:
       - For a one-day trip with zero overnight stays, do not include overnight-only items such as spare everyday outfits, underwear, sleepwear, toothbrushes, or toothpaste unless the stated activity specifically requires a change of clothes.
@@ -147,6 +190,7 @@ async function generatePackingList({
       - Count shared items once (or only as many as the group needs) and count per-person gear once per relevant traveler.
       - Use the weather and vacation type to add only activity-specific or protective gear that will actually be used.
       - Keep the combined weight and size of all suggested items within the allowed baggage limits, favoring fewer multi-use items when space is constrained.
+      ${luggageLine ? `- Respect the declared luggage: favor fewer, multi-use Clothing items over one full outfit per person per day for Suitcase-targeted items, and keep Backpack-targeted item quantities realistic for one personal cabin backpack per traveler. Do not attempt to compute an exact quantity cut for the ${trolleyCount} declared trolley suitcase(s) yourself — a separate deterministic pass scales Suitcase-targeted Clothing quantities down afterwards when suitcases are scarcer than travelers, so keep your own quantities at the normal (unconstrained) level here.` : ""}
 
       Output MUST be a JSON array of objects. Do not include any markdown format tags like \`\`\`json. Only return the raw JSON array.
       Each object must match this schema:
@@ -174,7 +218,7 @@ async function generatePackingList({
     const parsed = JSON.parse(text);
     const validatedItems = validatePackingItems(parsed);
     return {
-      items: applyDurationRules(validatedItems, days, numPeople),
+      items: applyLuggageRules(applyDurationRules(validatedItems, days, numPeople), trolleyCount, numPeople),
       isMock: false,
     };
   } catch (error) {
@@ -183,7 +227,11 @@ async function generatePackingList({
       error.message
     );
     return {
-      items: applyDurationRules(getMockPackingList(vacationType, days, numPeople), days, numPeople),
+      items: applyLuggageRules(
+        applyDurationRules(getMockPackingList(vacationType, days, numPeople), days, numPeople),
+        trolleyCount,
+        numPeople
+      ),
       isMock: true,
       error: error.message,
     };
