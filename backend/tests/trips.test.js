@@ -291,6 +291,16 @@ describe("Trips API Endpoints (Issue #6)", () => {
         expect(res.body.trolleyCount).toBe(3);
       });
 
+      it("persists separate trolley and checked-suitcase counts", async () => {
+        const res = await request(app)
+          .post("/api/trips")
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send({ ...validTrip, trolleyCount: 2, checkedSuitcaseCount: 4 });
+
+        expect(res.status).toBe(201);
+        expect(res.body.trolleyCount).toBe(2);
+        expect(res.body.checkedSuitcaseCount).toBe(4);
+      });
       it("accepts 0 trolleys (backpacks-only trip)", async () => {
         const res = await request(app)
           .post("/api/trips")

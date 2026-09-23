@@ -119,6 +119,7 @@ export default function TripView() {
     passengerComposition: emptyComposition(),
     vacationType: "City Trip",
     trolleyCount: 1,
+    checkedSuitcaseCount: 1,
   });
   const fetchTripDetails = useCallback(async () => {
     setLoading(true);
@@ -137,6 +138,7 @@ export default function TripView() {
         passengerComposition: data.passengerComposition || { ...emptyComposition(), men: data.numPeople || 1 },
         vacationType: data.vacationType || "City Trip",
         trolleyCount: typeof data.trolleyCount === "number" ? data.trolleyCount : 1,
+        checkedSuitcaseCount: typeof data.checkedSuitcaseCount === "number" ? data.checkedSuitcaseCount : 1,
       });
     } catch (err) {
       setError("Failed to fetch trip details.");
@@ -227,6 +229,12 @@ export default function TripView() {
       return;
     }
     const cleanTrolleyCount = Math.min(MAX_TROLLEY_COUNT, Number(trolleyValue));
+    const checkedSuitcaseValue = String(editForm.checkedSuitcaseCount).trim();
+    if (checkedSuitcaseValue === "" || !/^\d+$/.test(checkedSuitcaseValue)) {
+      setError("Checked suitcase count must be a whole number (no decimals).");
+      return;
+    }
+    const cleanCheckedSuitcaseCount = Math.min(MAX_TROLLEY_COUNT, Number(checkedSuitcaseValue));
 
     setSavingEdit(true);
     setError("");
@@ -235,6 +243,7 @@ export default function TripView() {
         ...editForm,
         passengerComposition: composition,
         trolleyCount: cleanTrolleyCount,
+        checkedSuitcaseCount: cleanCheckedSuitcaseCount,
       });
       setTrip(updated);
       setItems(updated.PackingItems || []);
@@ -358,23 +367,35 @@ export default function TripView() {
                 ))}
               </div>
             </fieldset>
-            <label className="block"><span className="label">Trolley / checked suitcases</span>
-              <input
-                type="number"
-                min="0"
-                max={MAX_TROLLEY_COUNT}
-                step="1"
-                className="input"
-                value={editForm.trolleyCount}
-                // Keep the raw string so a fractional entry (e.g. "3.7") is
-                // rejected with a clear message on save instead of silently
-                // truncated by parseInt.
-                onChange={(e) => updateEditField("trolleyCount", e.target.value)}
-              />
-              <span className="block mt-1 text-xs text-muted">
-                Plus {totalPassengers(editForm.passengerComposition)} cabin backpack{totalPassengers(editForm.passengerComposition) === 1 ? "" : "s"} per traveler, added automatically.
-              </span>
-            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="block"><span className="label">Trolley (cabin)</span>
+                <input
+                  aria-label="Trolley"
+                  type="number"
+                  min="0"
+                  max={MAX_TROLLEY_COUNT}
+                  step="1"
+                  className="input"
+                  value={editForm.trolleyCount}
+                  onChange={(e) => updateEditField("trolleyCount", e.target.value)}
+                />
+              </label>
+              <label className="block"><span className="label">Checked suitcases</span>
+                <input
+                  aria-label="Checked suitcases"
+                  type="number"
+                  min="0"
+                  max={MAX_TROLLEY_COUNT}
+                  step="1"
+                  className="input"
+                  value={editForm.checkedSuitcaseCount}
+                  onChange={(e) => updateEditField("checkedSuitcaseCount", e.target.value)}
+                />
+              </label>
+            </div>
+            <span className="block mt-1 text-xs text-muted">
+              Plus {totalPassengers(editForm.passengerComposition)} cabin backpack{totalPassengers(editForm.passengerComposition) === 1 ? "" : "s"} per traveler, added automatically.
+            </span>
             <label className="block"><span className="label">Vacation type</span>
               <select className="input" value={editForm.vacationType} onChange={(e) => updateEditField("vacationType", e.target.value)}>
                 <option>City Trip</option><option>Beach Vacation</option><option>Winter/Snow Sports</option><option>Hiking/Active Outdoors</option><option>Business Trip</option>
@@ -458,12 +479,12 @@ export default function TripView() {
               </div>
               <div className="p-3 bg-paper border border-line rounded-xl">
                 <span className="flex items-center gap-2 font-bold text-ink">
-                  <Luggage size={16} /> Checked trolley suitcase{trip.trolleyCount === 1 ? "" : "s"}
+                  <Luggage size={16} /> Trolley (cabin) and checked suitcases
                 </span>
                 <span className="block mt-1 text-xs">
-                  {typeof trip.trolleyCount === "number" ? trip.trolleyCount : 1} declared. Limit 23 kg each. Heavy clothing &amp; liquids here.
-                  {typeof trip.trolleyCount === "number" && trip.trolleyCount < trip.numPeople && (
-                    <> Fewer suitcases than travelers — quantities were trimmed to fit.</>
+                  Trolley: {typeof trip.trolleyCount === "number" ? trip.trolleyCount : 1}; checked suitcases: {typeof trip.checkedSuitcaseCount === "number" ? trip.checkedSuitcaseCount : 1}. Cabin trolley and checked luggage limits apply separately.
+                  {typeof trip.checkedSuitcaseCount === "number" && trip.checkedSuitcaseCount < trip.numPeople && (
+                    <> Fewer checked suitcases than travelers — quantities were trimmed to fit.</>
                   )}
                 </span>
               </div>

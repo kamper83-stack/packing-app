@@ -127,14 +127,18 @@ const DEFAULT_TROLLEY_COUNT = 1;
 // integer within MAX_TROLLEY_COUNT. Returns { value } (possibly undefined)
 // on success or { error } on failure so callers can respond with one
 // consistent message.
-function resolveTrolleyCount(rawValue) {
+function resolveLuggageCount(rawValue, label) {
   if (rawValue === undefined) return { value: undefined };
   if (!Number.isInteger(rawValue) || rawValue < 0 || rawValue > MAX_TROLLEY_COUNT) {
     return {
-      error: `Trolley suitcase count must be a whole number from 0 to ${MAX_TROLLEY_COUNT}.`,
+      error: `${label} count must be a whole number from 0 to ${MAX_TROLLEY_COUNT}.`,
     };
   }
   return { value: rawValue };
+}
+
+function resolveTrolleyCount(rawValue) {
+  return resolveLuggageCount(rawValue, "Trolley suitcase");
 }
 
 // Shared validation for packing-item fields (audit findings H1 and M4).
@@ -288,7 +292,7 @@ router.get("/:id", async (req, res) => {
 
 // POST /api/trips - Create new trip & generate packing list
 router.post("/", async (req, res) => {
-  const { destination, startDate, endDate, airline, numPeople, passengerComposition, vacationType, trolleyCount } = req.body;
+  const { destination, startDate, endDate, airline, numPeople, passengerComposition, vacationType, trolleyCount, checkedSuitcaseCount } = req.body;
 
   if (!destination || !startDate || !endDate || !airline || !vacationType) {
     return res.status(400).json({ error: "All required fields must be filled." });
@@ -389,6 +393,11 @@ router.post("/", async (req, res) => {
     return res.status(400).json({ error: trolleyCountResult.error });
   }
   const cleanTrolleyCount = trolleyCountResult.value ?? DEFAULT_TROLLEY_COUNT;
+  const checkedSuitcaseCountResult = resolveLuggageCount(checkedSuitcaseCount ?? trolleyCount, "Checked suitcase");
+  if (checkedSuitcaseCountResult.error) {
+    return res.status(400).json({ error: checkedSuitcaseCountResult.error });
+  }
+  const cleanCheckedSuitcaseCount = checkedSuitcaseCountResult.value ?? DEFAULT_TROLLEY_COUNT;
 
   // Persist the canonical airport-city spelling so stored destinations stay
   // consistent regardless of the submitted casing/whitespace.
@@ -423,6 +432,7 @@ router.post("/", async (req, res) => {
       weatherSummary: weatherInfo.forecast,
       baggageAllowance: airlineInfo,
       trolleyCount: cleanTrolleyCount,
+      checkedSuitcaseCount: cleanCheckedSuitcaseCount,
     });
 
     // 4. Create Trip in DB
@@ -433,6 +443,7 @@ router.post("/", async (req, res) => {
       airline: cleanAirline,
       numPeople: effectiveNumPeople ?? numPeople ?? 1,
       trolleyCount: cleanTrolleyCount,
+      checkedSuitcaseCount: cleanCheckedSuitcaseCount,
       ...(composition ? { passengerComposition: composition } : {}),
       vacationType: cleanVacationType,
       weatherData: weatherInfo.forecast,
@@ -470,7 +481,7 @@ router.post("/", async (req, res) => {
 
 // PUT /api/trips/:id - Edit trip details and regenerate weather + packing list.
 router.put("/:id", async (req, res) => {
-  const { destination, startDate, endDate, airline, passengerComposition, vacationType, trolleyCount } = req.body;
+  const { destination, startDate, endDate, airline, passengerComposition, vacationType, trolleyCount, checkedSuitcaseCount } = req.body;
   if (![destination, startDate, endDate, airline, vacationType].every((value) => typeof value === "string" && value.trim())) {
     return res.status(400).json({ error: "All trip fields must be filled." });
   }
@@ -504,6 +515,10 @@ router.put("/:id", async (req, res) => {
   if (trolleyCountResult.error) {
     return res.status(400).json({ error: trolleyCountResult.error });
   }
+  const checkedSuitcaseCountResult = resolveLuggageCount(checkedSuitcaseCount ?? trolleyCount, "Checked suitcase");
+  if (checkedSuitcaseCountResult.error) {
+    return res.status(400).json({ error: checkedSuitcaseCountResult.error });
+  }
 
   try {
     const trip = await Trip.findOne({ where: { id: req.params.id, userId: req.user.id } });
@@ -511,6 +526,7 @@ router.put("/:id", async (req, res) => {
     // Omitting trolleyCount on an update keeps the trip's existing value
     // instead of silently resetting it to the create-time default.
     const cleanTrolleyCount = trolleyCountResult.value ?? trip.trolleyCount ?? DEFAULT_TROLLEY_COUNT;
+    const cleanCheckedSuitcaseCount = checkedSuitcaseCountResult.value ?? trip.checkedSuitcaseCount ?? DEFAULT_TROLLEY_COUNT;
     const cleanDestination = cityMatch;
     const cleanAirline = airline.trim();
     const cleanVacationType = vacationType.trim();
@@ -530,6 +546,7 @@ router.put("/:id", async (req, res) => {
       weatherSummary: weatherInfo.forecast,
       baggageAllowance: airlineInfo,
       trolleyCount: cleanTrolleyCount,
+      checkedSuitcaseCount: cleanCheckedSuitcaseCount,
     });
     await sequelize.transaction(async (transaction) => {
       await trip.update({
@@ -539,6 +556,7 @@ router.put("/:id", async (req, res) => {
         airline: cleanAirline,
         numPeople,
         trolleyCount: cleanTrolleyCount,
+        checkedSuitcaseCount: cleanCheckedSuitcaseCount,
         passengerComposition: composition,
         vacationType: cleanVacationType,
         weatherData: weatherInfo.forecast,

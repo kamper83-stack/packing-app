@@ -40,6 +40,11 @@ const Trip = sequelize.define("Trip", {
     defaultValue: 1,
     allowNull: false,
   },
+  checkedSuitcaseCount: {
+    type: DataTypes.INTEGER,
+    defaultValue: 1,
+    allowNull: false,
+  },
   vacationType: {
     type: DataTypes.STRING,
     allowNull: false,

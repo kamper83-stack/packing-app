@@ -44,6 +44,7 @@ export default function Dashboard() {
   const [passengers, setPassengers] = useState(emptyComposition());
   const [vacationType, setVacationType] = useState("City Trip");
   const [trolleyCount, setTrolleyCount] = useState(1);
+  const [checkedSuitcaseCount, setCheckedSuitcaseCount] = useState(1);
   const [creating, setCreating] = useState(false);
 
   const navigate = useNavigate();
@@ -117,6 +118,12 @@ export default function Dashboard() {
       return;
     }
     const cleanTrolleyCount = Math.min(MAX_TROLLEY_COUNT, Number(trolleyValue));
+    const checkedSuitcaseValue = String(checkedSuitcaseCount).trim();
+    if (checkedSuitcaseValue === "" || !/^\d+$/.test(checkedSuitcaseValue)) {
+      setError("Checked suitcase count must be a whole number (no decimals).");
+      return;
+    }
+    const cleanCheckedSuitcaseCount = Math.min(MAX_TROLLEY_COUNT, Number(checkedSuitcaseValue));
 
     setCreating(true);
     try {
@@ -131,6 +138,7 @@ export default function Dashboard() {
         passengerComposition,
         vacationType,
         trolleyCount: cleanTrolleyCount,
+        checkedSuitcaseCount: cleanCheckedSuitcaseCount,
       });
       // Redirect to the trip details view
       navigate(`/trip/${newTrip.id}`);
@@ -301,26 +309,39 @@ export default function Dashboard() {
                 </div>
               </fieldset>
 
-              <div>
-                <label className="label" htmlFor="trolley-count">Trolley / checked suitcases</label>
-                <input
-                  id="trolley-count"
-                  type="number"
-                  min="0"
-                  max={MAX_TROLLEY_COUNT}
-                  step="1"
-                  inputMode="numeric"
-                  className="input"
-                  value={trolleyCount}
-                  // Keep the raw string so a fractional entry (e.g. "3.7") is
-                  // preserved and rejected with a clear message on submit,
-                  // instead of being silently truncated by parseInt.
-                  onChange={(e) => setTrolleyCount(e.target.value)}
-                />
-                <span className="block mt-1 text-xs text-muted">
-                  Plus {cabinBackpackCount} cabin backpack{cabinBackpackCount === 1 ? "" : "s"} per traveler, added automatically.
-                </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label className="block" htmlFor="trolley-count">
+                  <span className="label">Trolley (cabin)</span>
+                  <input
+                    id="trolley-count"
+                    type="number"
+                    min="0"
+                    max={MAX_TROLLEY_COUNT}
+                    step="1"
+                    inputMode="numeric"
+                    className="input"
+                    value={trolleyCount}
+                    onChange={(e) => setTrolleyCount(e.target.value)}
+                  />
+                </label>
+                <label className="block" htmlFor="checked-suitcase-count">
+                  <span className="label">Checked suitcases</span>
+                  <input
+                    id="checked-suitcase-count"
+                    type="number"
+                    min="0"
+                    max={MAX_TROLLEY_COUNT}
+                    step="1"
+                    inputMode="numeric"
+                    className="input"
+                    value={checkedSuitcaseCount}
+                    onChange={(e) => setCheckedSuitcaseCount(e.target.value)}
+                  />
+                </label>
               </div>
+              <span className="block mt-1 text-xs text-muted">
+                Plus {cabinBackpackCount} cabin backpack{cabinBackpackCount === 1 ? "" : "s"} per traveler, added automatically.
+              </span>
 
               <div>
                 <label className="label">Vacation type</label>
@@ -411,7 +432,7 @@ export default function Dashboard() {
                           {typeof trip.trolleyCount === "number" && (
                             <span className="inline-flex items-center gap-1.5">
                               <Luggage size={14} />
-                              {trip.trolleyCount} {trip.trolleyCount === 1 ? "trolley" : "trolleys"}
+                              {trip.trolleyCount} trolley{trip.trolleyCount === 1 ? "" : "s"} · {typeof trip.checkedSuitcaseCount === "number" ? trip.checkedSuitcaseCount : 1} checked suitcase{(trip.checkedSuitcaseCount ?? 1) === 1 ? "" : "s"}
                             </span>
                           )}
                         </div>
