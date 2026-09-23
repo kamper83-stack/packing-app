@@ -356,7 +356,7 @@ export default function TripView() {
                 step="1"
                 className="input"
                 value={editForm.trolleyCount}
-                onChange={(e) => updateEditField("trolleyCount", Math.max(0, parseInt(e.target.value, 10) || 0))}
+                onChange={(e) => updateEditField("trolleyCount", Math.min(10, Math.max(0, parseInt(e.target.value, 10) || 0)))}
               />
               <span className="block mt-1 text-xs text-muted">Plus one cabin backpack per traveler, assumed automatically.</span>
             </label>

@@ -190,7 +190,7 @@ async function generatePackingList({
       - Count shared items once (or only as many as the group needs) and count per-person gear once per relevant traveler.
       - Use the weather and vacation type to add only activity-specific or protective gear that will actually be used.
       - Keep the combined weight and size of all suggested items within the allowed baggage limits, favoring fewer multi-use items when space is constrained.
-      ${luggageLine ? `- Respect the declared luggage: keep total Suitcase-targeted item quantities realistic for ${trolleyCount} checked trolley suitcase(s) (favor fewer, multi-use Clothing items over one full outfit per person per day when suitcases are scarcer than travelers), and keep Backpack-targeted item quantities realistic for one personal cabin backpack per traveler.` : ""}
+      ${luggageLine ? `- Respect the declared luggage: favor fewer, multi-use Clothing items over one full outfit per person per day for Suitcase-targeted items, and keep Backpack-targeted item quantities realistic for one personal cabin backpack per traveler. Do not attempt to compute an exact quantity cut for the ${trolleyCount} declared trolley suitcase(s) yourself — a separate deterministic pass scales Suitcase-targeted Clothing quantities down afterwards when suitcases are scarcer than travelers, so keep your own quantities at the normal (unconstrained) level here.` : ""}
 
       Output MUST be a JSON array of objects. Do not include any markdown format tags like \`\`\`json. Only return the raw JSON array.
       Each object must match this schema:

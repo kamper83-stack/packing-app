@@ -304,7 +304,7 @@ export default function Dashboard() {
                   inputMode="numeric"
                   className="input"
                   value={trolleyCount}
-                  onChange={(e) => setTrolleyCount(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                  onChange={(e) => setTrolleyCount(Math.min(10, Math.max(0, parseInt(e.target.value, 10) || 0)))}
                 />
                 <span className="block mt-1 text-xs text-muted">
                   Plus one cabin backpack per traveler, assumed automatically.
