@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ShieldCheck, LogOut, Calendar, Plane, Users, MapPin, ArrowRight, Sparkles, Trash2, Pencil } from "lucide-react";
+import { ShieldCheck, LogOut, Calendar, Plane, Users, MapPin, ArrowRight, Sparkles, Trash2, Pencil, Luggage } from "lucide-react";
 import { api } from "../services/api";
 import {
   PASSENGER_CATEGORIES,
@@ -43,6 +43,7 @@ export default function Dashboard() {
   const [airline, setAirline] = useState("EL AL");
   const [passengers, setPassengers] = useState(emptyComposition());
   const [vacationType, setVacationType] = useState("City Trip");
+  const [trolleyCount, setTrolleyCount] = useState(1);
   const [creating, setCreating] = useState(false);
 
   const navigate = useNavigate();
@@ -116,6 +117,7 @@ export default function Dashboard() {
         airline,
         passengerComposition,
         vacationType,
+        trolleyCount,
       });
       // Redirect to the trip details view
       navigate(`/trip/${newTrip.id}`);
@@ -292,6 +294,24 @@ export default function Dashboard() {
               </fieldset>
 
               <div>
+                <label className="label" htmlFor="trolley-count">Trolley suitcases</label>
+                <input
+                  id="trolley-count"
+                  type="number"
+                  min="0"
+                  max="10"
+                  step="1"
+                  inputMode="numeric"
+                  className="input"
+                  value={trolleyCount}
+                  onChange={(e) => setTrolleyCount(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                />
+                <span className="block mt-1 text-xs text-muted">
+                  Plus one cabin backpack per traveler, assumed automatically.
+                </span>
+              </div>
+
+              <div>
                 <label className="label">Vacation type</label>
                 <select className="input" value={vacationType} onChange={(e) => setVacationType(e.target.value)}>
                   <option value="City Trip">City trip</option>
@@ -362,6 +382,12 @@ export default function Dashboard() {
                               {travellers}
                             </span>
                           </span>
+                          {typeof trip.trolleyCount === "number" && (
+                            <span className="inline-flex items-center gap-1.5">
+                              <Luggage size={14} />
+                              {trip.trolleyCount} {trip.trolleyCount === 1 ? "trolley" : "trolleys"}
+                            </span>
+                          )}
                         </div>
                         <span className="badge mt-3 border-brand-100 bg-brand-50 text-brand-700">
                           {trip.vacationType}

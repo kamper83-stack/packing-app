@@ -118,6 +118,7 @@ export default function TripView() {
     airline: "EL AL",
     passengerComposition: emptyComposition(),
     vacationType: "City Trip",
+    trolleyCount: 1,
   });
   const fetchTripDetails = useCallback(async () => {
     setLoading(true);
@@ -132,6 +133,7 @@ export default function TripView() {
         airline: data.airline || "EL AL",
         passengerComposition: data.passengerComposition || { ...emptyComposition(), men: data.numPeople || 1 },
         vacationType: data.vacationType || "City Trip",
+        trolleyCount: typeof data.trolleyCount === "number" ? data.trolleyCount : 1,
       });
     } catch (err) {
       setError("Failed to fetch trip details.");
@@ -346,6 +348,18 @@ export default function TripView() {
                 ))}
               </div>
             </fieldset>
+            <label className="block"><span className="label">Trolley suitcases</span>
+              <input
+                type="number"
+                min="0"
+                max="10"
+                step="1"
+                className="input"
+                value={editForm.trolleyCount}
+                onChange={(e) => updateEditField("trolleyCount", Math.max(0, parseInt(e.target.value, 10) || 0))}
+              />
+              <span className="block mt-1 text-xs text-muted">Plus one cabin backpack per traveler, assumed automatically.</span>
+            </label>
             <label className="block"><span className="label">Vacation type</span>
               <select className="input" value={editForm.vacationType} onChange={(e) => updateEditField("vacationType", e.target.value)}>
                 <option>City Trip</option><option>Beach Vacation</option><option>Winter/Snow Sports</option><option>Hiking/Active Outdoors</option><option>Business Trip</option>
@@ -416,15 +430,22 @@ export default function TripView() {
             <div className="space-y-3 text-sm text-muted">
               <div className="p-3 bg-brand-50 border border-brand-100 rounded-xl">
                 <span className="flex items-center gap-2 font-bold text-ink">
-                  <Briefcase size={16} /> Cabin baggage
+                  <Briefcase size={16} /> Cabin backpack
                 </span>
-                <span className="block mt-1 text-xs">Limit 8–10 kg. Keep documents &amp; chargers here.</span>
+                <span className="block mt-1 text-xs">
+                  {trip.numPeople} backpack{trip.numPeople === 1 ? "" : "s"} (one per traveler, assumed). Limit 8–10 kg. Keep documents &amp; chargers here.
+                </span>
               </div>
               <div className="p-3 bg-paper border border-line rounded-xl">
                 <span className="flex items-center gap-2 font-bold text-ink">
-                  <Luggage size={16} /> Checked baggage
+                  <Luggage size={16} /> Checked trolley suitcase{trip.trolleyCount === 1 ? "" : "s"}
                 </span>
-                <span className="block mt-1 text-xs">Limit 23 kg. Heavy clothing &amp; liquids here.</span>
+                <span className="block mt-1 text-xs">
+                  {typeof trip.trolleyCount === "number" ? trip.trolleyCount : 1} declared. Limit 23 kg each. Heavy clothing &amp; liquids here.
+                  {typeof trip.trolleyCount === "number" && trip.trolleyCount < trip.numPeople && (
+                    <> Fewer suitcases than travelers — quantities were trimmed to fit.</>
+                  )}
+                </span>
               </div>
             </div>
           </div>

@@ -74,6 +74,19 @@ describe("ensureSchema (Issue #22 / #32 migration)", () => {
     expect(described.isActive).toBeDefined();
   });
 
+  it("adds trolleyCount to a legacy Trips table, defaulting existing rows to 1 (trolley-count feature)", async () => {
+    const queryInterface = sequelize.getQueryInterface();
+
+    await queryInterface.removeColumn("Trips", "trolleyCount");
+    let described = await queryInterface.describeTable("Trips");
+    expect(described.trolleyCount).toBeUndefined();
+
+    await ensureSchema();
+
+    described = await queryInterface.describeTable("Trips");
+    expect(described.trolleyCount).toBeDefined();
+  });
+
   it("is a safe no-op when the columns already exist", async () => {
     await expect(ensureSchema()).resolves.toBeUndefined();
 
@@ -83,5 +96,6 @@ describe("ensureSchema (Issue #22 / #32 migration)", () => {
     expect(described.weatherError).toBeDefined();
     expect(described.aiSource).toBeDefined();
     expect(described.aiError).toBeDefined();
+    expect(described.trolleyCount).toBeDefined();
   });
 });
