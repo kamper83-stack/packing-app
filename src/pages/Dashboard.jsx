@@ -200,7 +200,7 @@ export default function Dashboard() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="label">Start date</label>
                   <input
@@ -208,7 +208,7 @@ export default function Dashboard() {
                     required
                     min={DATE_INPUT_MIN}
                     max={DATE_INPUT_MAX}
-                    className="input"
+                    className="input w-full min-w-0"
                     value={startDate}
                     onKeyDown={(e) => {
                       if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown"].includes(e.key)) {
@@ -252,7 +252,7 @@ export default function Dashboard() {
                     required
                     min={startDate || DATE_INPUT_MIN}
                     max={DATE_INPUT_MAX}
-                    className="input"
+                    className="input w-full min-w-0"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
                   />
