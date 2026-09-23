@@ -128,6 +128,26 @@ describe("weatherService.getForecast - real API path (mocked axios)", () => {
     ]);
   });
 
+  it("appends the country to disambiguate a city name that collides with a same-named place elsewhere (e.g. Patras, India vs Patras, Greece)", async () => {
+    enableRealPath();
+    axios.get.mockResolvedValue({ data: { forecast: { forecastday: [] } } });
+
+    await getForecast("Patras", "2026-09-01", "2026-09-02", "Greece");
+
+    const [, config] = axios.get.mock.calls[0];
+    expect(config.params.q).toBe("Patras, Greece");
+  });
+
+  it("falls back to the bare city name when no country is provided (backward compatible)", async () => {
+    enableRealPath();
+    axios.get.mockResolvedValue({ data: { forecast: { forecastday: [] } } });
+
+    await getForecast("Barcelona", "2026-09-01", "2026-09-02");
+
+    const [, config] = axios.get.mock.calls[0];
+    expect(config.params.q).toBe("Barcelona");
+  });
+
   it("trims a padded WEATHER_API_KEY before sending it to WeatherAPI", async () => {
     process.env.USE_MOCKS = "false";
     process.env.WEATHER_API_KEY = "  test-key  ";
