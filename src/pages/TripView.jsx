@@ -268,6 +268,7 @@ export default function TripView() {
   // Group the visible items by category.
   const categories = [...new Set(visibleItems.map((i) => i.category))];
   const passengerSummary = summarizePassengers(trip.passengerComposition);
+  const forecastDayCount = trip.weatherData ? Math.min(trip.weatherData.length, 4) : 0;
 
   return (
     <div className="min-h-screen bg-paper bg-paper-glow py-8 px-4 sm:px-6 lg:px-8">
@@ -371,10 +372,14 @@ export default function TripView() {
           </form>
         )}
 
-        {/* Weather Forecast and Baggage Constraints */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+        {/* Weather Forecast and Baggage Constraints.
+            The weather card only claims the wide 2/3 layout once there are
+            enough forecast days to fill it (3+); shorter trips render it at
+            the same width as the luggage card instead of leaving a big
+            disproportionate empty area to the right/below a single square. */}
+        <div className={`grid grid-cols-1 ${forecastDayCount >= 3 ? "md:grid-cols-3" : "md:grid-cols-2"} gap-6 items-start`}>
           {/* Weather Widget */}
-          <div className="md:col-span-2 card p-6">
+          <div className={`${forecastDayCount >= 3 ? "md:col-span-2" : ""} card p-6`}>
             <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-bold text-ink">Weather forecast</h2>
