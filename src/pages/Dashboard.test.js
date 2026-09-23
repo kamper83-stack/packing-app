@@ -64,7 +64,7 @@ beforeEach(() => {
 });
 
 describe("Dashboard (Issue #9)", () => {
-  it("loads and renders the user's trips with a link to each checklist", async () => {
+  it("loads and renders the user's trips as a clickable card that opens the checklist", async () => {
     api.getTrips.mockResolvedValue([
       {
         id: "t1",
@@ -81,16 +81,60 @@ describe("Dashboard (Issue #9)", () => {
     renderDashboard();
 
     expect(await screen.findByText("Barcelona")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /edit trip/i })).toHaveAttribute(
-      "href",
-      "/trip/t1"
-    );
-    const card = screen.getByText("Barcelona").closest("div");
+    const card = screen.getByText("Barcelona").closest('[role="button"]');
     expect(card).toHaveTextContent(/1 נשים/);
     expect(card).toHaveTextContent(/1 גברים/);
     expect(card.querySelector('[dir="rtl"]')).toHaveStyle({ unicodeBidi: "isolate" });
     expect(card).not.toHaveTextContent(/תינוקות/);
     expect(card).not.toHaveTextContent(/ילדים/);
+
+    fireEvent.click(card);
+    expect(mockNavigate).toHaveBeenCalledWith("/trip/t1");
+  });
+
+  it("does not navigate to the trip when the delete button is clicked", async () => {
+    api.getTrips.mockResolvedValue([
+      {
+        id: "t1",
+        destination: "Barcelona",
+        startDate: "2026-09-01",
+        endDate: "2026-09-05",
+        airline: "EL AL",
+        numPeople: 2,
+        vacationType: "Beach Vacation",
+      },
+    ]);
+    const confirmSpy = jest.spyOn(window, "confirm").mockReturnValue(false);
+
+    renderDashboard();
+    expect(await screen.findByText("Barcelona")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /delete trip to Barcelona/i }));
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(mockNavigate).not.toHaveBeenCalledWith("/trip/t1");
+    confirmSpy.mockRestore();
+  });
+
+  it("does not navigate when Enter is pressed while the delete button is focused (PR #127 review)", async () => {
+    api.getTrips.mockResolvedValue([
+      {
+        id: "t1",
+        destination: "Barcelona",
+        startDate: "2026-09-01",
+        endDate: "2026-09-05",
+        airline: "EL AL",
+        numPeople: 2,
+        vacationType: "Beach Vacation",
+      },
+    ]);
+
+    renderDashboard();
+    expect(await screen.findByText("Barcelona")).toBeInTheDocument();
+    const deleteButton = screen.getByRole("button", { name: /delete trip to Barcelona/i });
+
+    fireEvent.keyDown(deleteButton, { key: "Enter" });
+
+    expect(mockNavigate).not.toHaveBeenCalledWith("/trip/t1");
   });
 
   it("deletes a trip from the dashboard after confirmation", async () => {

@@ -268,6 +268,7 @@ export default function TripView() {
   // Group the visible items by category.
   const categories = [...new Set(visibleItems.map((i) => i.category))];
   const passengerSummary = summarizePassengers(trip.passengerComposition);
+  const forecastDayCount = trip.weatherData ? Math.min(trip.weatherData.length, 4) : 0;
 
   return (
     <div className="min-h-screen bg-paper bg-paper-glow py-8 px-4 sm:px-6 lg:px-8">
@@ -371,10 +372,14 @@ export default function TripView() {
           </form>
         )}
 
-        {/* Weather Forecast and Baggage Constraints */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Weather Forecast and Baggage Constraints.
+            The weather card only claims the wide 2/3 layout once there are
+            enough forecast days to fill it (3+); shorter trips render it at
+            the same width as the luggage card instead of leaving a big
+            disproportionate empty area to the right/below a single square. */}
+        <div className={`grid grid-cols-1 ${forecastDayCount >= 3 ? "md:grid-cols-3" : "md:grid-cols-2"} gap-6 items-start`}>
           {/* Weather Widget */}
-          <div className="md:col-span-2 card p-6">
+          <div className={`${forecastDayCount >= 3 ? "md:col-span-2" : ""} card p-6`}>
             <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-bold text-ink">Weather forecast</h2>
@@ -409,9 +414,12 @@ export default function TripView() {
               </div>
             )}
             {trip.weatherData && trip.weatherData.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="flex flex-wrap gap-3">
                 {trip.weatherData.slice(0, 4).map((day, idx) => (
-                  <div key={idx} className="p-3 bg-paper border border-line rounded-xl text-center">
+                  <div
+                    key={idx}
+                    className="w-[calc(50%-0.375rem)] sm:w-28 p-3 bg-paper border border-line rounded-xl text-center"
+                  >
                     <span className="block text-xs font-semibold text-muted">{day.date}</span>
                     <span className="block text-2xl font-extrabold text-ink mt-1">{day.tempC}°</span>
                     <span className="block text-xs text-muted mt-1">{day.condition}</span>
