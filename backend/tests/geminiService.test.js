@@ -234,16 +234,17 @@ describe("geminiService.generatePackingList - real API path (mocked SDK)", () =>
     expect(result.items).toEqual(aiItems);
   });
 
-  it("includes the declared trolley/backpack luggage in the prompt when trolleyCount is provided", async () => {
+  it("includes separate trolley and checked-suitcase counts in the prompt", async () => {
     enableRealPath();
     mockGenerateContent.mockResolvedValue({
       response: { text: () => JSON.stringify([{ name: "Camera", category: "Electronics", quantity: 1, targetBag: "Backpack" }]) },
     });
 
-    await generatePackingList({ ...baseArgs, numPeople: 3, trolleyCount: 2 });
+    await generatePackingList({ ...baseArgs, numPeople: 3, trolleyCount: 2, checkedSuitcaseCount: 4 });
 
     const prompt = mockGenerateContent.mock.calls[0][0].contents[0].parts[0].text;
-    expect(prompt).toContain("2 trolley suitcase(s)");
+    expect(prompt).toContain("2 trolley(s)");
+    expect(prompt).toContain("4 checked suitcase(s)");
     expect(prompt).toContain("3 backpack(s)");
   });
 

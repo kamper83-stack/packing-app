@@ -414,22 +414,24 @@ describe("TripView (Issue #10)", () => {
     );
   });
 
-  it("loads the trip's stored trolley count into the edit form and sends changes", async () => {
-    api.getTrip.mockResolvedValue({ ...sampleTrip, trolleyCount: 3 });
-    api.updateTrip.mockResolvedValue({ ...sampleTrip, trolleyCount: 3 });
+  it("loads separate stored trolley and checked-suitcase counts into the edit form and sends changes", async () => {
+    api.getTrip.mockResolvedValue({ ...sampleTrip, trolleyCount: 3, checkedSuitcaseCount: 4 });
+    api.updateTrip.mockResolvedValue({ ...sampleTrip, trolleyCount: 3, checkedSuitcaseCount: 4 });
 
     renderTripView();
     await screen.findByRole("heading", { name: "Barcelona" });
     fireEvent.click(screen.getByRole("button", { name: /edit & regenerate/i }));
 
-    expect(screen.getByLabelText(/trolley/i)).toHaveValue(3);
-    fireEvent.change(screen.getByLabelText(/trolley/i), { target: { value: "5" } });
+    expect(screen.getByLabelText(/^trolley$/i)).toHaveValue(3);
+    expect(screen.getByLabelText(/checked suitcases/i)).toHaveValue(4);
+    fireEvent.change(screen.getByLabelText(/^trolley$/i), { target: { value: "5" } });
+    fireEvent.change(screen.getByLabelText(/checked suitcases/i), { target: { value: "6" } });
     fireEvent.click(screen.getByRole("button", { name: /save changes & regenerate/i }));
 
     await waitFor(() =>
       expect(api.updateTrip).toHaveBeenCalledWith(
         "t1",
-        expect.objectContaining({ trolleyCount: 5 })
+        expect.objectContaining({ trolleyCount: 5, checkedSuitcaseCount: 6 })
       )
     );
   });

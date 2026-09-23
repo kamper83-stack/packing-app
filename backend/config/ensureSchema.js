@@ -45,6 +45,12 @@ const COLUMNS_TO_ENSURE = [
     definition: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
   },
   {
+    table: "Trips",
+    column: "checkedSuitcaseCount",
+    backfillFrom: "trolleyCount",
+    definition: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 }, // separate checked-bag count
+  },
+  {
     table: "Users",
     column: "isAdmin",
     definition: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false }, // Issue #49
@@ -59,7 +65,7 @@ const COLUMNS_TO_ENSURE = [
 async function ensureSchema() {
   const queryInterface = sequelize.getQueryInterface();
 
-  for (const { table, column, definition } of COLUMNS_TO_ENSURE) {
+  for (const { table, column, definition, backfillFrom } of COLUMNS_TO_ENSURE) {
     let described;
     try {
       described = await queryInterface.describeTable(table);
@@ -71,6 +77,9 @@ async function ensureSchema() {
 
     if (!described[column]) {
       await queryInterface.addColumn(table, column, definition);
+      if (backfillFrom) {
+        await sequelize.query(`UPDATE "${table}" SET "${column}" = "${backfillFrom}"`);
+      }
       console.log(`[DB] Added missing column ${table}.${column}.`);
     }
   }

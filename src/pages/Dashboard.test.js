@@ -375,7 +375,7 @@ describe("Dashboard (Issue #9)", () => {
 
   // ---- Trolley / checked-suitcase count ----\\
 
-  it("sends the default trolleyCount of 1", async () => {
+  it("sends separate default trolley and checked-suitcase counts", async () => {
     api.getTrips.mockResolvedValue([]);
     api.createTrip.mockResolvedValue({ id: "t1" });
 
@@ -387,6 +387,7 @@ describe("Dashboard (Issue #9)", () => {
 
     await waitFor(() => expect(api.createTrip).toHaveBeenCalled());
     expect(api.createTrip.mock.calls[0][0].trolleyCount).toBe(1);
+    expect(api.createTrip.mock.calls[0][0].checkedSuitcaseCount).toBe(1);
   });
 
   it("sends a non-default trolleyCount when the user changes it", async () => {
@@ -398,10 +399,12 @@ describe("Dashboard (Issue #9)", () => {
 
     await fillTripForm(container);
     fireEvent.change(screen.getByLabelText(/trolley/i), { target: { value: "3" } });
+    fireEvent.change(screen.getByLabelText(/checked suitcases/i), { target: { value: "4" } });
     fireEvent.click(screen.getByRole("button", { name: /create trip/i }));
 
     await waitFor(() => expect(api.createTrip).toHaveBeenCalled());
     expect(api.createTrip.mock.calls[0][0].trolleyCount).toBe(3);
+    expect(api.createTrip.mock.calls[0][0].checkedSuitcaseCount).toBe(4);
   });
 
   it("allows and sends a trolleyCount of zero", async () => {
