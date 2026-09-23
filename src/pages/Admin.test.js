@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import Admin from "./Admin";
 import { api } from "../services/api";
@@ -16,6 +17,8 @@ jest.mock("../services/api", () => ({
     getAdminUsers: jest.fn(),
     getAdminLogs: jest.fn(),
     getAdminSystemLogs: jest.fn(),
+    setUserActive: jest.fn(),
+    deleteUser: jest.fn(),
   },
 }));
 
@@ -99,6 +102,41 @@ describe("Admin panel (Issue #49)", () => {
     expect(screen.getByText("Barcelona")).toBeInTheDocument();
     expect(screen.getByText(/weatherapi request failed/i)).toBeInTheDocument();
     expect(screen.queryByText(/ghp_/i)).not.toBeInTheDocument();
+  });
+
+  // Reversible deactivate/reactivate must stay reachable from the UI
+  // alongside permanent Delete (expert review before deploy of PR #124).
+  it("lets an admin deactivate and reactivate another user without deleting them", async () => {
+    api.getMe.mockResolvedValue({ id: "u1", email: "admin@example.com", isAdmin: true });
+    api.getAdminStatus.mockResolvedValue({
+      useMocks: true,
+      weather: { configured: false, suffix: null, mode: "mock", lastSource: null, lastError: null, lastAt: null },
+      gemini: { configured: false, suffix: null, mode: "mock", lastSource: null, lastError: null, lastAt: null },
+    });
+    api.getAdminUsers.mockResolvedValue([
+      {
+        id: "u2",
+        email: "member@example.com",
+        isAdmin: false,
+        isActive: true,
+        createdAt: "2026-08-01T00:00:00.000Z",
+        tripCount: 1,
+      },
+    ]);
+    api.getAdminLogs.mockResolvedValue([]);
+    api.setUserActive.mockResolvedValue({ id: "u2", email: "member@example.com", isAdmin: false, isActive: false });
+
+    renderAdmin();
+
+    const deactivateButton = await screen.findByRole("button", { name: /deactivate member@example.com/i });
+    expect(screen.getByRole("button", { name: /delete member@example.com/i })).toBeInTheDocument();
+
+    userEvent.click(deactivateButton);
+
+    await waitFor(() => expect(api.setUserActive).toHaveBeenCalledWith("u2", false));
+    expect(api.deleteUser).not.toHaveBeenCalled();
+    expect(await screen.findByRole("button", { name: /reactivate member@example.com/i })).toBeInTheDocument();
+    expect(screen.getByText("Deactivated")).toBeInTheDocument();
   });
 
   it("renders the operational system log viewer for an admin (Issue #62)", async () => {

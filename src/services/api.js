@@ -107,6 +107,13 @@ export const api = {
 
   getAdminUsers: () => request("/admin/users"),
 
+  // Reversible: blocks login without losing the account/trips.
+  setUserActive: (id, isActive) =>
+    request(`/admin/users/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ isActive }),
+    }),
+
   deleteUser: (id) =>
     request(`/admin/users/${id}`, {
       method: "DELETE",
