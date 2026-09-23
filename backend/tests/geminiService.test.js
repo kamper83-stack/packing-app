@@ -260,14 +260,19 @@ describe("geminiService.generatePackingList - real API path (mocked SDK)", () =>
     expect(prompt).not.toContain("trolley suitcase");
   });
 
-  it("scales live model output by trolleyCount just like mock output", async () => {
+  it("scales live model output by checkedSuitcaseCount, not trolleyCount", async () => {
     enableRealPath();
     const aiItems = [{ name: "Shirts", category: "Clothing", quantity: 20, targetBag: "Suitcase" }];
     mockGenerateContent.mockResolvedValue({
       response: { text: () => JSON.stringify(aiItems) },
     });
 
-    const result = await generatePackingList({ ...baseArgs, numPeople: 4, trolleyCount: 1 });
+    const result = await generatePackingList({
+      ...baseArgs,
+      numPeople: 4,
+      trolleyCount: 4,
+      checkedSuitcaseCount: 1,
+    });
 
     // factor = max(1, 0.5) / 4 = 0.25 -> round(20 * 0.25) = 5.
     expect(result.items[0].quantity).toBe(5);
