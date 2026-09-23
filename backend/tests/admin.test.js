@@ -5,7 +5,7 @@ process.env.GEMINI_API_KEY = "";
 
 const request = require("supertest");
 const app = require("../server");
-const { sequelize, User } = require("../models");
+const { sequelize, User, Trip } = require("../models");
 
 beforeAll(async () => {
   await sequelize.sync({ force: true });
@@ -232,15 +232,33 @@ describe("Admin API (Issue #49)", () => {
       expect(res.body.error).toMatch(/cannot delete your own account/i);
     });
 
-    it("permanently deletes another user", async () => {
+    it("permanently deletes another user and their trips in one transaction", async () => {
       const target = await register("permanent-delete@example.com");
       const targetId = target.body.user.id;
+      const targetToken = target.body.token;
+
+      const trip = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${targetToken}`)
+        .send({
+          destination: "Lisbon",
+          startDate: "2027-01-10",
+          endDate: "2027-01-12",
+          airline: "EL AL",
+          numPeople: 1,
+          vacationType: "City",
+        });
+      expect(trip.status).toBe(201);
+
       const res = await request(app)
         .delete(`/api/admin/users/${targetId}`)
         .set("Authorization", `Bearer ${adminToken}`);
       expect(res.status).toBe(200);
       expect(res.body.id).toBe(targetId);
       expect(await User.findByPk(targetId)).toBeNull();
+      // Trip.destroy + user.destroy share one transaction (Issue: expert
+      // review before deploy of PR #124) — the trip cannot survive the user.
+      expect(await Trip.findByPk(trip.body.id)).toBeNull();
     });
   });
 });

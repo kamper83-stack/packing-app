@@ -123,8 +123,10 @@ router.patch("/users/:id/status", async (req, res) => {
 // DELETE /api/admin/users/:id — permanently remove a user and their trips.
 // Intentionally irreversible (explicit product decision, PR #124): this is a
 // distinct action from PATCH /users/:id/status above, which stays available
-// for a reversible temporary deactivation (blocks login without losing the
-// account/trips). Delete is for "remove this user for good".
+// in the UI for a reversible temporary deactivation (blocks login without
+// losing the account/trips). Delete is for "remove this user for good".
+// Trip.destroy + user.destroy run inside one transaction so a mid-way
+// failure can never leave trips deleted with the user still present.
 router.delete("/users/:id", async (req, res) => {
   try {
     if (req.params.id === req.adminUser.id) {
@@ -136,8 +138,10 @@ router.delete("/users/:id", async (req, res) => {
       return res.status(404).json({ error: "User not found." });
     }
 
-    await Trip.destroy({ where: { userId: user.id } });
-    await user.destroy();
+    await sequelize.transaction(async (transaction) => {
+      await Trip.destroy({ where: { userId: user.id }, transaction });
+      await user.destroy({ transaction });
+    });
     res.json({ message: "User deleted successfully.", id: req.params.id });
   } catch (error) {
     console.error("Admin user delete error:", error);

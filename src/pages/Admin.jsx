@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../services/api";
-import { ChevronLeft, Trash2 } from "lucide-react";
+import { ChevronLeft, Trash2, UserX, UserCheck } from "lucide-react";
 import Logo from "../components/Logo";
 import useDocumentTitle from "../utils/useDocumentTitle";
 
@@ -118,6 +118,22 @@ export default function Admin() {
     }
   }
 
+  // Reversible alternative to deleteUser above: blocks login without losing
+  // the account or its trips.
+  async function toggleUserActive(user) {
+    const nextActive = !user.isActive;
+    setStatusUpdatingId(user.id);
+    setError("");
+    try {
+      const updated = await api.setUserActive(user.id, nextActive);
+      setUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, isActive: updated.isActive } : u)));
+    } catch (err) {
+      setError(err.message || "Failed to update user status.");
+    } finally {
+      setStatusUpdatingId(null);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-paper bg-paper-glow">
       <nav className="sticky top-0 z-20 bg-surface/80 backdrop-blur border-b border-line">
@@ -191,16 +207,28 @@ export default function Admin() {
                             {user.id === meId ? (
                               <span className="text-xs text-muted">You</span>
                             ) : (
-                              <button
-                                type="button"
-                                className="btn-ghost !py-1 !px-2 text-xs text-danger-600"
-                                disabled={statusUpdatingId === user.id}
-                                onClick={() => deleteUser(user)}
-                                aria-label={`Delete ${user.email}`}
-                              >
-                                <Trash2 size={14} />
-                                {statusUpdatingId === user.id ? "..." : "Delete"}
-                              </button>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  className="btn-ghost !py-1 !px-2 text-xs"
+                                  disabled={statusUpdatingId === user.id}
+                                  onClick={() => toggleUserActive(user)}
+                                  aria-label={`${user.isActive ? "Deactivate" : "Reactivate"} ${user.email}`}
+                                >
+                                  {user.isActive ? <UserX size={14} /> : <UserCheck size={14} />}
+                                  {statusUpdatingId === user.id ? "..." : user.isActive ? "Deactivate" : "Reactivate"}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-ghost !py-1 !px-2 text-xs text-danger-600"
+                                  disabled={statusUpdatingId === user.id}
+                                  onClick={() => deleteUser(user)}
+                                  aria-label={`Delete ${user.email}`}
+                                >
+                                  <Trash2 size={14} />
+                                  {statusUpdatingId === user.id ? "..." : "Delete"}
+                                </button>
+                              </div>
                             )}
                           </td>
                         </tr>
