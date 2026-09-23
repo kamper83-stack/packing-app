@@ -417,7 +417,7 @@ export default function TripView() {
                 {trip.weatherData.slice(0, 4).map((day, idx) => (
                   <div
                     key={idx}
-                    className="flex-1 min-w-0 sm:min-w-[7rem] p-3 bg-paper border border-line rounded-xl text-center"
+                    className="w-[calc(50%-0.375rem)] sm:w-auto sm:flex-1 sm:min-w-[7rem] p-3 bg-paper border border-line rounded-xl text-center"
                   >
                     <span className="block text-xs font-semibold text-muted">{day.date}</span>
                     <span className="block text-2xl font-extrabold text-ink mt-1">{day.tempC}°</span>
@@ -431,7 +431,7 @@ export default function TripView() {
           </div>
 
           {/* Baggage Limits Warning */}
-          <div className="md:flex-1 card p-6">
+          <div className={`${forecastDayCount <= 1 ? "md:col-span-2" : "md:col-span-1"} card p-6`}>
             <h2 className="text-lg font-bold text-ink mb-4">Luggage constraints</h2>
             <p className="text-sm font-semibold text-brand-700 mb-3">{trip.airline}</p>
             <div className="space-y-3 text-sm text-muted">
