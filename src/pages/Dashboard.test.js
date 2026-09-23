@@ -18,6 +18,7 @@ jest.mock("../services/api", () => ({
     getDestinations: jest.fn(),
     getLocations: jest.fn(),
     searchFlights: jest.fn(),
+    deleteTrip: jest.fn(),
     getMe: jest.fn(),
   },
 }));
@@ -80,15 +81,40 @@ describe("Dashboard (Issue #9)", () => {
     renderDashboard();
 
     expect(await screen.findByText("Barcelona")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /view checklist/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /edit trip/i })).toHaveAttribute(
       "href",
       "/trip/t1"
     );
     const card = screen.getByText("Barcelona").closest("div");
     expect(card).toHaveTextContent(/1 נשים/);
     expect(card).toHaveTextContent(/1 גברים/);
+    expect(card.querySelector('[dir="rtl"]')).toHaveStyle({ unicodeBidi: "isolate" });
     expect(card).not.toHaveTextContent(/תינוקות/);
     expect(card).not.toHaveTextContent(/ילדים/);
+  });
+
+  it("deletes a trip from the dashboard after confirmation", async () => {
+    api.getTrips.mockResolvedValue([
+      {
+        id: "t1",
+        destination: "Barcelona",
+        startDate: "2026-10-01",
+        endDate: "2026-10-05",
+        airline: "EL AL",
+        numPeople: 1,
+        vacationType: "City Trip",
+      },
+    ]);
+    api.deleteTrip.mockResolvedValue({ message: "Trip deleted successfully." });
+    const confirmSpy = jest.spyOn(window, "confirm").mockReturnValue(true);
+
+    renderDashboard();
+    expect(await screen.findByText("Barcelona")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /delete trip to Barcelona/i }));
+
+    await waitFor(() => expect(api.deleteTrip).toHaveBeenCalledWith("t1"));
+    await waitFor(() => expect(screen.queryByText("Barcelona")).not.toBeInTheDocument());
+    confirmSpy.mockRestore();
   });
 
   it("falls back to numPeople for legacy trips without a composition", async () => {
@@ -218,7 +244,18 @@ describe("Dashboard (Issue #9)", () => {
     expect(screen.queryByRole("link", { name: /admin panel/i })).not.toBeInTheDocument();
   });
 
-  it("advances focus to the end (landing) date after a start date is picked", async () => {
+  it("starts both date pickers from today rather than January", async () => {
+    api.getTrips.mockResolvedValue([]);
+
+    const { container } = renderDashboard();
+    await screen.findByText(/plan a new trip/i);
+
+    const today = new Date().toISOString().split("T")[0];
+    const dateInputs = container.querySelectorAll('input[type="date"]');
+    expect(dateInputs[0]).toHaveAttribute("min", today);
+    expect(dateInputs[1]).toHaveAttribute("min", today);
+  });
+  it("moves to the end date picker and opens it after choosing a start date", async () => {
     api.getTrips.mockResolvedValue([]);
 
     const { container } = renderDashboard();
@@ -227,12 +264,43 @@ describe("Dashboard (Issue #9)", () => {
     const dateInputs = container.querySelectorAll('input[type="date"]');
     const [startInput, endInput] = dateInputs;
 
-    fireEvent.change(startInput, { target: { value: "2026-09-01" } });
+    startInput.focus();
+    fireEvent.change(startInput, { target: { value: "2026-09-22" } });
 
-    // The user is sent straight to picking the return date.
+    expect(endInput).toHaveValue("2026-09-22");
+    expect(endInput).toHaveAttribute("min", "2026-09-22");
     expect(endInput).toHaveFocus();
-    // And the end date can't be set before the chosen departure date.
-    expect(endInput).toHaveAttribute("min", "2026-09-01");
+  });
+
+  it("keeps focus on the start-date picker when calendar arrow navigation changes its value", async () => {
+    api.getTrips.mockResolvedValue([]);
+
+    const { container } = renderDashboard();
+    await screen.findByText(/plan a new trip/i);
+
+    const [startInput, endInput] = container.querySelectorAll('input[type="date"]');
+    startInput.focus();
+    fireEvent.keyDown(startInput, { key: "ArrowRight" });
+    fireEvent.change(startInput, { target: { value: "2026-10-22" } });
+
+    expect(startInput).toHaveFocus();
+    expect(endInput).not.toHaveFocus();
+    expect(endInput).toHaveValue("2026-10-22");
+  });
+
+  it("does not let month-only arrow navigation suppress a later date selection", async () => {
+    api.getTrips.mockResolvedValue([]);
+
+    const { container } = renderDashboard();
+    await screen.findByText(/plan a new trip/i);
+
+    const [startInput, endInput] = container.querySelectorAll('input[type="date"]');
+    startInput.focus();
+    fireEvent.keyDown(startInput, { key: "PageDown" });
+    fireEvent.keyUp(startInput, { key: "PageDown" });
+    fireEvent.change(startInput, { target: { value: "2026-11-22" } });
+
+    expect(endInput).toHaveFocus();
   });
 
   it("pulls an earlier end date forward when a later start date is chosen", async () => {
@@ -250,42 +318,4 @@ describe("Dashboard (Issue #9)", () => {
     expect(endInput).toHaveValue("2026-09-10");
   });
 
-  it("fills the trip's start and end dates from a selected flight offer", async () => {
-    api.getTrips.mockResolvedValue([]);
-    api.searchFlights.mockResolvedValue({
-      isMock: true,
-      offers: [
-        {
-          id: "sample-0",
-          price: 289,
-          currency: "USD",
-          departDate: "2026-12-10",
-          returnDate: "2026-12-17",
-          outbound: { from: "Tel Aviv", to: "Rome", airline: "EL AL", departTime: "2026-12-10T08:15:00" },
-          inbound: { from: "Rome", to: "Tel Aviv", airline: "EL AL", departTime: "2026-12-17T19:40:00" },
-        },
-      ],
-    });
-
-    const { container } = renderDashboard();
-    await screen.findByText(/no trips planned yet/i);
-
-    // Choose a destination (country + city) and a departure date to enable search.
-    const countrySelect = await screen.findByLabelText("Country");
-    await waitFor(() =>
-      expect(screen.getByLabelText("Country").querySelectorAll("option").length).toBeGreaterThan(1)
-    );
-    fireEvent.change(countrySelect, { target: { value: "Italy" } });
-    fireEvent.change(screen.getByLabelText("City"), { target: { value: "Rome" } });
-    const dateInputs = container.querySelectorAll('input[type="date"]');
-    fireEvent.change(dateInputs[0], { target: { value: "2026-12-10" } });
-
-    fireEvent.click(screen.getByRole("button", { name: /search flights/i }));
-    await screen.findByRole("button", { name: /use dates/i });
-    fireEvent.click(screen.getByRole("button", { name: /use dates/i }));
-
-    // Both trip dates are populated from the chosen round-trip offer.
-    expect(dateInputs[0]).toHaveValue("2026-12-10");
-    expect(dateInputs[1]).toHaveValue("2026-12-17");
-  });
 });

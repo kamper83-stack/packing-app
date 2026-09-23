@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { Trip, PackingItem } = require("../models");
+const { sequelize, Trip, PackingItem } = require("../models");
 const authMiddleware = require("../middleware/auth");
 const weatherService = require("../services/weatherService");
 const geminiService = require("../services/geminiService");
@@ -81,6 +81,17 @@ function plausibleYearError(fieldLabel, dateStr) {
   return null;
 }
 
+function todayIsoDate() {
+  return new Date().toISOString().split("T")[0];
+}
+
+function pastDateError(fieldLabel, dateStr) {
+  if (dateStr < todayIsoDate()) {
+    return `${fieldLabel} cannot be in the past.`;
+  }
+  return null;
+}
+
 // Audit finding M3: trip creation had no upper bound on trip length or
 // number of travelers. A 100-year trip or numPeople: 1000000 was previously
 // accepted and produced packing-item quantities in the tens of thousands to
@@ -126,11 +137,10 @@ function validateItemFields({ name, category, quantity, targetBag, isPacked }) {
 
 // GET /api/trips/flights - Search real round-trip flight offers for a route and
 // dates. Declared before "/:id" so the literal path isn't read as a trip id.
-// Query: destination (required), departDate (required), origin (optional,
-// defaults to Tel Aviv), returnDate (optional). Selecting an offer in the UI
-// auto-fills the trip's start/end dates from the outbound/return legs.
+// Query: destination (required), departDate (required), returnDate (optional).
+// The final project always departs from Tel Aviv.
 router.get("/flights", async (req, res) => {
-  const { origin, destination, departDate, returnDate } = req.query;
+  const { destination, departDate, returnDate } = req.query;
 
   if (!destination || !departDate) {
     return res.status(400).json({ error: "destination and departDate are required." });
@@ -158,12 +168,22 @@ router.get("/flights", async (req, res) => {
       return res.status(400).json({ error: returnYearError });
     }
   }
+  const departPastError = pastDateError("departDate", departDate);
+  if (departPastError) {
+    return res.status(400).json({ error: departPastError });
+  }
+  if (returnDate) {
+    const returnPastError = pastDateError("returnDate", returnDate);
+    if (returnPastError) {
+      return res.status(400).json({ error: returnPastError });
+    }
+  }
   if (returnDate && new Date(returnDate) < new Date(departDate)) {
     return res.status(400).json({ error: "returnDate cannot be before departDate." });
   }
 
   try {
-    const result = await flightsService.searchFlights({ origin, destination, departDate, returnDate });
+    const result = await flightsService.searchFlights({ destination, departDate, returnDate });
     res.json(result);
   } catch (error) {
     console.error("Flight search error:", error);
@@ -265,6 +285,14 @@ router.post("/", async (req, res) => {
   const endYearError = plausibleYearError("endDate", endDate);
   if (endYearError) {
     return res.status(400).json({ error: endYearError });
+  }
+  const startPastError = pastDateError("startDate", startDate);
+  if (startPastError) {
+    return res.status(400).json({ error: startPastError });
+  }
+  const endPastError = pastDateError("endDate", endDate);
+  if (endPastError) {
+    return res.status(400).json({ error: endPastError });
   }
   if (new Date(endDate) < new Date(startDate)) {
     return res.status(400).json({ error: "End date cannot be before start date." });
@@ -393,6 +421,147 @@ router.post("/", async (req, res) => {
   } catch (error) {
     console.error("Create trip & generate list error:", error);
     res.status(500).json({ error: "Failed to create trip and generate packing list." });
+  }
+});
+
+// PUT /api/trips/:id - Edit trip details and regenerate weather + packing list.
+router.put("/:id", async (req, res) => {
+  const { destination, startDate, endDate, airline, passengerComposition, vacationType } = req.body;
+  if (![destination, startDate, endDate, airline, vacationType].every((value) => typeof value === "string" && value.trim())) {
+    return res.status(400).json({ error: "All trip fields must be filled." });
+  }
+  if (!isValidDate(startDate) || !isValidDate(endDate)) {
+    return res.status(400).json({ error: "Invalid start or end date." });
+  }
+  const startYearError = plausibleYearError("startDate", startDate);
+  const endYearError = plausibleYearError("endDate", endDate);
+  // Unlike creating a trip, editing one must not enforce pastDateError: the
+  // trip may already be in progress or just finished, and the user should
+  // still be able to tweak details and regenerate the packing list for it
+  // (PR #124 review). Only implausible years and end-before-start are blocked.
+  const dateError = startYearError || endYearError;
+  if (dateError) return res.status(400).json({ error: dateError });
+  if (new Date(endDate) < new Date(startDate)) {
+    return res.status(400).json({ error: "End date cannot be before start date." });
+  }
+  const days = Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)) + 1;
+  if (days > MAX_TRIP_DAYS) {
+    return res.status(400).json({ error: `Trip duration cannot exceed ${MAX_TRIP_DAYS} days.` });
+  }
+  const cityMatch = canonicalCity(destination);
+  if (!cityMatch) return res.status(400).json({ error: "Please choose a destination city that has an airport." });
+  const composition = validatePassengerComposition(passengerComposition);
+  if (!composition) return res.status(400).json({ error: "Invalid passenger composition." });
+  const numPeople = Object.values(composition).reduce((sum, count) => sum + count, 0);
+  if (numPeople > MAX_NUM_PEOPLE) {
+    return res.status(400).json({ error: `Number of people cannot exceed ${MAX_NUM_PEOPLE}.` });
+  }
+
+  try {
+    const trip = await Trip.findOne({ where: { id: req.params.id, userId: req.user.id } });
+    if (!trip) return res.status(404).json({ error: "Trip not found." });
+    const cleanDestination = cityMatch;
+    const cleanAirline = airline.trim();
+    const cleanVacationType = vacationType.trim();
+    const weatherInfo = await weatherService.getForecast(cleanDestination, startDate, endDate);
+    const airlineInfo = airlines[cleanAirline] || {
+      cabin: { weightKg: 8, dimensionsCm: "Unknown", count: 1 },
+      checked: { weightKg: 23, dimensionsCm: "Unknown", count: 1 },
+      isEstimated: true,
+    };
+    const aiResult = await geminiService.generatePackingList({
+      destination: cleanDestination,
+      days,
+      numPeople,
+      passengerComposition: composition,
+      vacationType: cleanVacationType,
+      airline: cleanAirline,
+      weatherSummary: weatherInfo.forecast,
+      baggageAllowance: airlineInfo,
+    });
+    await sequelize.transaction(async (transaction) => {
+      await trip.update({
+        destination: cleanDestination,
+        startDate,
+        endDate,
+        airline: cleanAirline,
+        numPeople,
+        passengerComposition: composition,
+        vacationType: cleanVacationType,
+        weatherData: weatherInfo.forecast,
+        weatherSource: weatherInfo.isSeasonal ? "seasonal" : weatherInfo.isMock ? "mock" : "live",
+        weatherError: weatherInfo.error ? String(weatherInfo.error) : null,
+        aiSource: aiResult.isMock ? "mock" : "live",
+        aiError: aiResult.error ? String(aiResult.error) : null,
+      }, { transaction });
+      await PackingItem.destroy({ where: { tripId: trip.id, isCustom: false }, transaction });
+      await PackingItem.bulkCreate(aiResult.items.map((item) => ({
+        name: item.name,
+        category: item.category,
+        quantity: item.quantity,
+        targetBag: item.targetBag || "Suitcase",
+        isPacked: false,
+        isCustom: false,
+        tripId: trip.id,
+      })), { transaction });
+    });
+    res.json(await Trip.findByPk(trip.id, { include: [PackingItem] }));
+  } catch (error) {
+    console.error("Update and regenerate trip error:", error);
+    res.status(500).json({ error: "Failed to update trip and regenerate packing list." });
+  }
+});
+
+// POST /api/trips/:id/weather - Refresh weather and regenerate the dependent packing list.
+router.post("/:id/weather", async (req, res) => {
+  try {
+    const trip = await Trip.findOne({ where: { id: req.params.id, userId: req.user.id } });
+    if (!trip) return res.status(404).json({ error: "Trip not found." });
+
+    const weatherInfo = await weatherService.getForecast(trip.destination, trip.startDate, trip.endDate);
+    const days = Math.ceil(
+      (new Date(trip.endDate) - new Date(trip.startDate)) / (1000 * 60 * 60 * 24)
+    ) + 1;
+    const airlineInfo = airlines[trip.airline] || {
+      cabin: { weightKg: 8, dimensionsCm: "Unknown", count: 1 },
+      checked: { weightKg: 23, dimensionsCm: "Unknown", count: 1 },
+      isEstimated: true,
+    };
+    const aiResult = await geminiService.generatePackingList({
+      destination: trip.destination,
+      days,
+      numPeople: trip.numPeople,
+      ...(trip.passengerComposition ? { passengerComposition: trip.passengerComposition } : {}),
+      vacationType: trip.vacationType,
+      airline: trip.airline,
+      weatherSummary: weatherInfo.forecast,
+      baggageAllowance: airlineInfo,
+    });
+
+    await sequelize.transaction(async (transaction) => {
+      await trip.update({
+        weatherData: weatherInfo.forecast,
+        weatherSource: weatherInfo.isSeasonal ? "seasonal" : weatherInfo.isMock ? "mock" : "live",
+        weatherError: weatherInfo.error ? String(weatherInfo.error) : null,
+        aiSource: aiResult.isMock ? "mock" : "live",
+        aiError: aiResult.error ? String(aiResult.error) : null,
+      }, { transaction });
+      await PackingItem.destroy({ where: { tripId: trip.id, isCustom: false }, transaction });
+      await PackingItem.bulkCreate(aiResult.items.map((item) => ({
+        name: item.name,
+        category: item.category,
+        quantity: item.quantity,
+        targetBag: item.targetBag || "Suitcase",
+        isPacked: false,
+        isCustom: false,
+        tripId: trip.id,
+      })), { transaction });
+    });
+
+    res.json(await Trip.findByPk(trip.id, { include: [PackingItem] }));
+  } catch (error) {
+    console.error("Refresh weather error:", error);
+    res.status(500).json({ error: "Failed to refresh weather and regenerate packing list." });
   }
 });
 

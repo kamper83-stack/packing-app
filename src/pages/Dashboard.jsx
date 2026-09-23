@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ShieldCheck, LogOut, Calendar, Plane, Users, MapPin, ArrowRight, Sparkles } from "lucide-react";
+import { ShieldCheck, LogOut, Calendar, Plane, Users, MapPin, ArrowRight, Sparkles, Trash2, Pencil } from "lucide-react";
 import { api } from "../services/api";
 import {
   PASSENGER_CATEGORIES,
@@ -11,7 +11,6 @@ import {
   totalPassengers,
 } from "../utils/passengers";
 import DestinationPicker from "../components/DestinationPicker";
-import FlightSearch from "../components/FlightSearch";
 import Logo from "../components/Logo";
 import useDocumentTitle from "../utils/useDocumentTitle";
 
@@ -21,7 +20,8 @@ import useDocumentTitle from "../utils/useDocumentTitle";
 // match backend/routes/trips.js's YEAR_WINDOW_YEARS_AHEAD.
 const DATE_INPUT_YEAR_WINDOW_AHEAD = 2;
 const currentYearNow = new Date().getFullYear();
-const DATE_INPUT_MIN = `${currentYearNow}-01-01`;
+const currentDateNow = new Date().toISOString().split("T")[0];
+const DATE_INPUT_MIN = currentDateNow;
 const DATE_INPUT_MAX = `${currentYearNow + DATE_INPUT_YEAR_WINDOW_AHEAD}-12-31`;
 
 export default function Dashboard() {
@@ -38,9 +38,8 @@ export default function Dashboard() {
   const [destination, setDestination] = useState(""); // the selected city
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  // Ref to the end (landing) date input so choosing a departure date can send
-  // the user straight to picking the return date, without hunting for it.
   const endDateRef = useRef(null);
+  const skipEndDateAutoOpenRef = useRef(false);
   const [airline, setAirline] = useState("EL AL");
   const [passengers, setPassengers] = useState(emptyComposition());
   const [vacationType, setVacationType] = useState("City Trip");
@@ -126,6 +125,16 @@ export default function Dashboard() {
     }
   };
 
+  const handleDeleteTrip = async (tripId) => {
+    if (!window.confirm("Are you sure you want to delete this trip?")) return;
+    try {
+      await api.deleteTrip(tripId);
+      setTrips((current) => current.filter((trip) => trip.id !== tripId));
+    } catch (err) {
+      setError(err.message || "Failed to delete trip.");
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem("token");
     navigate("/login");
@@ -199,30 +208,37 @@ export default function Dashboard() {
                     max={DATE_INPUT_MAX}
                     className="input"
                     value={startDate}
+                    onKeyDown={(e) => {
+                      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown"].includes(e.key)) {
+                        skipEndDateAutoOpenRef.current = true;
+                      }
+                    }}
+                    onKeyUp={() => {
+                      // If navigation changed only the calendar's visible month
+                      // (and therefore emitted no change event), do not let this
+                      // flag suppress a later pointer-based date selection.
+                      skipEndDateAutoOpenRef.current = false;
+                    }}
                     onChange={(e) => {
                       const nextStart = e.target.value;
                       setStartDate(nextStart);
-                      // Keep the return date on/after departure so the form
-                      // can't hold an end-before-start range.
-                      if (endDate && nextStart && endDate < nextStart) {
+                      // Start the return-date picker at the selected departure
+                      // date, while preserving a later return date if one exists.
+                      if (!endDate || (nextStart && endDate < nextStart)) {
                         setEndDate(nextStart);
                       }
-                      // Once a departure date is chosen, advance the user
-                      // straight to picking the landing date.
-                      if (nextStart) {
-                        const el = endDateRef.current;
-                        if (el) {
-                          el.focus();
-                          // showPicker() opens the native calendar where the
-                          // browser supports it; guard it since it can be
-                          // unsupported (older browsers, jsdom) or blocked.
+                      if (nextStart && !skipEndDateAutoOpenRef.current) {
+                        const endInput = endDateRef.current;
+                        if (endInput) {
+                          endInput.focus();
                           try {
-                            el.showPicker?.();
+                            endInput.showPicker?.();
                           } catch {
-                            /* fall back to the plain focus above */
+                            // Browsers may block showPicker outside a direct user gesture.
                           }
                         }
                       }
+                      skipEndDateAutoOpenRef.current = false;
                     }}
                   />
                 </div>
@@ -240,18 +256,6 @@ export default function Dashboard() {
                   />
                 </div>
               </div>
-
-              {/* Real round-trip flight search: pick an offer to auto-fill the
-                  trip's start (departure) and end (return) dates. */}
-              <FlightSearch
-                destination={destination}
-                departDate={startDate}
-                returnDate={endDate}
-                onSelectDates={({ departDate, returnDate }) => {
-                  if (departDate) setStartDate(departDate);
-                  if (returnDate) setEndDate(returnDate);
-                }}
-              />
 
               <div>
                 <label className="label">Airline</label>
@@ -350,17 +354,32 @@ export default function Dashboard() {
                             <Plane size={14} /> {trip.airline}
                           </span>
                           <span className="inline-flex items-center gap-1.5">
-                            <Users size={14} /> {travellers}
+                            <Users size={14} />
+                            <span
+                              dir={summary ? "rtl" : undefined}
+                              style={summary ? { unicodeBidi: "isolate" } : undefined}
+                            >
+                              {travellers}
+                            </span>
                           </span>
                         </div>
                         <span className="badge mt-3 border-brand-100 bg-brand-50 text-brand-700">
                           {trip.vacationType}
                         </span>
                       </div>
-                      <Link to={`/trip/${trip.id}`} className="btn-secondary shrink-0 self-start sm:self-auto">
-                        View checklist
-                        <ArrowRight size={16} />
-                      </Link>
+                      <div className="flex flex-wrap gap-2 shrink-0 self-start sm:self-auto">
+                        <Link to={`/trip/${trip.id}`} className="btn-secondary">
+                          <Pencil size={16} /> Edit trip
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteTrip(trip.id)}
+                          className="btn-ghost text-danger-600 hover:text-danger-700 hover:bg-danger-50"
+                          aria-label={`Delete trip to ${trip.destination}`}
+                        >
+                          <Trash2 size={16} /> Delete
+                        </button>
+                      </div>
                     </div>
                   );
                 })}

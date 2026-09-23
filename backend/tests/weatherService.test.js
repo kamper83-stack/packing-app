@@ -157,7 +157,7 @@ describe("weatherService.getForecast - real API path (mocked axios)", () => {
     await getForecast("Barcelona", "2026-09-01", "2026-09-30");
 
     const [, config] = axios.get.mock.calls[0];
-    expect(config.params.days).toBe(14);
+    expect(config.params.days).toBe(3);
   });
 
   it("delegates to a seasonal estimate for a trip beyond the live window (Issue #65)", async () => {
@@ -214,22 +214,22 @@ describe("weatherService.getForecast - future trip date alignment (Issue #63)", 
   });
 
   it("returns the trip's dates, not today's, for a trip inside the forecast window", async () => {
-    const start = daysFromNow(5);
-    const end = daysFromNow(7); // 3-day trip, 5 days out
-    // Provider serves today .. today+7 (8 days).
+    const start = daysFromNow(1);
+    const end = daysFromNow(2); // 2-day trip, inside the portable provider window
+    // Provider serves today .. today+2 (3 days).
     axios.get.mockResolvedValue({
       data: { forecast: { forecastday: forecastdayFromToday(8) } },
     });
 
     const result = await getForecast("Rome", start, end);
 
-    // Requests enough days to reach the trip end: offset(5) + tripDays(3) = 8.
+    // Requests only the provider-safe three-day window.
     const [, config] = axios.get.mock.calls[0];
-    expect(config.params.days).toBe(8);
+    expect(config.params.days).toBe(3);
 
     // Only the trip's own dates are returned, in order.
     expect(result.isMock).toBe(false);
-    expect(result.forecast.map((d) => d.date)).toEqual([start, daysFromNow(6), end]);
+    expect(result.forecast.map((d) => d.date)).toEqual([start, end]);
     // And they are genuinely the trip dates, never "today".
     expect(result.forecast.map((d) => d.date)).not.toContain(daysFromNow(0));
   });

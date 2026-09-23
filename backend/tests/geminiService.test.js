@@ -78,6 +78,34 @@ describe("geminiService.generatePackingList - mock mode", () => {
     expect(byName.Toothpaste.quantity).toBe(1); // fixed, independent of people
   });
 
+  it("does not pack overnight-only clothing or toiletries for a one-day trip", async () => {
+    const result = await generatePackingList({
+      ...baseArgs,
+      days: 1,
+      numPeople: 4,
+      passengerComposition: { infants: 0, children: 2, women: 0, men: 2 },
+      vacationType: "City Trip",
+    });
+    const names = result.items.map((item) => item.name);
+
+    expect(names).not.toEqual(
+      expect.arrayContaining(["Underwear", "Socks", "Shirts", "Pants", "Toothbrush", "Toothpaste"])
+    );
+    expect(names).toEqual(expect.arrayContaining(["Phone Charger", "Passport", "Flight Tickets"]));
+  });
+
+  it("caps one-day clothing quantities at one item per traveler", async () => {
+    const result = await generatePackingList({
+      ...baseArgs,
+      days: 1,
+      numPeople: 4,
+      vacationType: "Beach Vacation",
+    });
+    const swimsuit = result.items.find((item) => item.name === "Swimsuit");
+
+    expect(swimsuit.quantity).toBe(4);
+  });
+
   it("adds beach-specific gear for a beach vacation (case-insensitive)", async () => {
     const result = await generatePackingList({ ...baseArgs, vacationType: "BEACH Getaway" });
     const names = result.items.map((i) => i.name);
@@ -148,8 +176,36 @@ describe("geminiService.generatePackingList - real API path (mocked SDK)", () =>
 
     expect(mockGetGenerativeModel).toHaveBeenCalledWith({ model: "gemini-3.5-flash" });
     expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+    const prompt = mockGenerateContent.mock.calls[0][0].contents[0].parts[0].text;
+    expect(prompt).toContain("Duration: 5 days (4 overnight stays)");
+    expect(prompt).toMatch(/one-day trip.*do not include overnight-only/i);
+    expect(prompt).toMatch(/shared items.*once.*per-person gear/i);
+    expect(prompt).toMatch(/combined weight and size.*allowed baggage/i);
     expect(result.isMock).toBe(false);
     expect(result.items).toEqual(aiItems);
+  });
+
+  it("enforces one-day duration rules on otherwise valid live model output", async () => {
+    enableRealPath();
+    const aiItems = [
+      { name: "Underwear", category: "Clothing", quantity: 4, targetBag: "Suitcase" },
+      { name: "Thick Wool Ski Socks", category: "Clothing", quantity: 8, targetBag: "Suitcase" },
+      { name: "Change of Casual Clothes", category: "Clothing", quantity: 8, targetBag: "Suitcase" },
+      { name: "Hand and Foot Warmers", category: "Specialized Gear", quantity: 8, targetBag: "Suitcase" },
+      { name: "Passports", category: "Documents", quantity: 4, targetBag: "Backpack" },
+    ];
+    mockGenerateContent.mockResolvedValue({
+      response: { text: () => JSON.stringify(aiItems) },
+    });
+
+    const result = await generatePackingList({ ...baseArgs, days: 1, numPeople: 4 });
+    const byName = Object.fromEntries(result.items.map((item) => [item.name, item]));
+
+    expect(byName.Underwear).toBeUndefined();
+    expect(byName["Thick Wool Ski Socks"].quantity).toBe(4);
+    expect(byName["Change of Casual Clothes"].quantity).toBe(4);
+    expect(byName["Hand and Foot Warmers"].quantity).toBe(8);
+    expect(byName.Passports.quantity).toBe(4);
   });
 
   it("falls back to the mock list when the Gemini API call throws", async () => {

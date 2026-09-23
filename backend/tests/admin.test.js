@@ -222,5 +222,26 @@ describe("Admin API (Issue #49)", () => {
         expect(row).toHaveProperty("isActive");
       });
     });
+  describe("DELETE /api/admin/users/:id", () => {
+    it("prevents self-deletion", async () => {
+      const me = await request(app).get("/api/auth/me").set("Authorization", `Bearer ${adminToken}`);
+      const res = await request(app)
+        .delete(`/api/admin/users/${me.body.id}`)
+        .set("Authorization", `Bearer ${adminToken}`);
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/cannot delete your own account/i);
+    });
+
+    it("permanently deletes another user", async () => {
+      const target = await register("permanent-delete@example.com");
+      const targetId = target.body.user.id;
+      const res = await request(app)
+        .delete(`/api/admin/users/${targetId}`)
+        .set("Authorization", `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(res.body.id).toBe(targetId);
+      expect(await User.findByPk(targetId)).toBeNull();
+    });
   });
+});
 });

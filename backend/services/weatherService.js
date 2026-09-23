@@ -12,6 +12,25 @@ const PLACEHOLDER_KEYS = new Set(["your_weather_api_key_here"]);
 // estimation (Issue #65). Within the window we align the returned days to the
 // actual trip dates instead of "today" (Issue #63).
 const LIVE_FORECAST_MAX_DAYS = 14;
+// WeatherAPI's free plan accepts at most three forecast days. Requesting 4–14
+// days is a common cause of the provider's HTTP 400 response, so keep the
+// provider request within the documented portable limit. Trips outside that
+// response window use the existing dated fallback/seasonal path.
+//
+// Trade-off (confirmed intended, PR #124 review): WeatherAPI's free
+// forecast.json always counts days from *today*, not from the trip's start,
+// so this cap of 3 also bounds live coverage to near-term trips:
+//   - a trip starting more than ~2 days out has no day left in the 3-day
+//     request window that lands inside the trip, so `aligned` is empty and
+//     we fall back to the seasonal/mock estimate for the whole trip;
+//   - a trip starting soon but longer than 3 days only gets the first 1-3
+//     days live, and the rest of the packing-list weather summary is based
+//     on that truncated data.
+// This is a real reduction from the old 14-day live window, accepted as the
+// cost of avoiding the provider's 400 on the free plan. Upgrading the
+// WeatherAPI plan (or switching to a paid endpoint that accepts a `dt`
+// offset) would be required to widen this again.
+const WEATHER_API_REQUEST_MAX_DAYS = 3;
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
@@ -93,7 +112,7 @@ async function getForecast(destination, startDate, endDate) {
   // through the trip's end, then keep only the days inside the trip window
   // (Issue #63). A past or same-day start clamps the offset to 0.
   const offset = Math.max(0, dayOffset(new Date(), start));
-  const days = Math.min(offset + tripDays, LIVE_FORECAST_MAX_DAYS);
+  const days = Math.min(offset + tripDays, WEATHER_API_REQUEST_MAX_DAYS);
 
   const tripStartIso = isoDate(start);
   const tripEndIso = isoDate(end);

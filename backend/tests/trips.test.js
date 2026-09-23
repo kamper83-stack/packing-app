@@ -4,9 +4,11 @@ process.env.USE_MOCKS = "true";
 
 const request = require("supertest");
 const app = require("../server");
-const { sequelize } = require("../models");
+const { sequelize, PackingItem } = require("../models");
 const weatherService = require("../services/weatherService");
 const geminiService = require("../services/geminiService");
+
+jest.useFakeTimers().setSystemTime(new Date("2026-08-31T12:00:00Z"));
 
 // Helper: register a user and return a valid Bearer token.
 async function registerAndGetToken(email) {
@@ -44,6 +46,8 @@ describe("Trips API Endpoints (Issue #6)", () => {
   };
 
   let createdTripId = "";
+  let editableTripId = "";
+  let editableCustomItemId = "";
   let firstItemId = "";
 
   describe("POST /api/trips", () => {
@@ -145,10 +149,20 @@ describe("Trips API Endpoints (Issue #6)", () => {
       const res = await request(app)
         .post("/api/trips")
         .set("Authorization", `Bearer ${tokenA}`)
-        .send({ ...validTrip, startDate: "2026-01-01", endDate: "2026-06-01" });
+        .send({ ...validTrip, startDate: "2026-09-01", endDate: "2026-12-01" });
 
       expect(res.status).toBe(400);
       expect(res.body.error).toMatch(/duration cannot exceed/i);
+    });
+
+    it("rejects a trip whose start date has already passed", async () => {
+      const res = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({ ...validTrip, startDate: "2026-07-31", endDate: "2026-08-02" });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/startDate cannot be in the past/i);
     });
 
     // Issue #121: implausible years should be rejected with a dedicated,
@@ -475,6 +489,188 @@ describe("Trips API Endpoints (Issue #6)", () => {
     it("should return 404 when another user requests the trip", async () => {
       const res = await request(app)
         .get(`/api/trips/${createdTripId}`)
+        .set("Authorization", `Bearer ${tokenB}`);
+
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe("PUT /api/trips/:id", () => {
+    const editedTrip = {
+      destination: "Rome",
+      startDate: "2026-10-15",
+      endDate: "2026-10-15",
+      airline: "Wizz Air",
+      passengerComposition: { infants: 0, children: 2, women: 0, men: 2 },
+      vacationType: "City Trip",
+    };
+
+    beforeAll(async () => {
+      const res = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({
+          destination: "Barcelona",
+          startDate: "2026-10-10",
+          endDate: "2026-10-12",
+          airline: "EL AL",
+          passengerComposition: { infants: 0, children: 0, women: 1, men: 0 },
+          vacationType: "City Trip",
+        });
+      editableTripId = res.body.id;
+      const customRes = await request(app)
+        .post(`/api/trips/${editableTripId}/custom-item`)
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({
+          name: "Medication",
+          category: "Health",
+          quantity: 1,
+          targetBag: "Backpack",
+        });
+      editableCustomItemId = customRes.body.id;
+    });
+
+    it("updates the trip and regenerates weather and a duration-aware packing list", async () => {
+      const generationSpy = jest.spyOn(geminiService, "generatePackingList");
+
+      const res = await request(app)
+        .put(`/api/trips/${editableTripId}`)
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send(editedTrip);
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual(
+        expect.objectContaining({
+          id: editableTripId,
+          destination: "Rome",
+          startDate: "2026-10-15",
+          endDate: "2026-10-15",
+          airline: "Wizz Air",
+          numPeople: 4,
+          passengerComposition: editedTrip.passengerComposition,
+          vacationType: "City Trip",
+        })
+      );
+      expect(generationSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          destination: "Rome",
+          days: 1,
+          numPeople: 4,
+          passengerComposition: editedTrip.passengerComposition,
+          vacationType: "City Trip",
+          airline: "Wizz Air",
+          weatherSummary: expect.any(Array),
+          baggageAllowance: expect.objectContaining({ cabin: expect.any(Object) }),
+        })
+      );
+      const itemNames = res.body.PackingItems.map((item) => item.name);
+      expect(itemNames).not.toContain("Underwear");
+      expect(itemNames).toContain("Medication");
+      expect(res.body.PackingItems).toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: editableCustomItemId, isCustom: true })])
+      );
+    });
+
+    it("does not allow another user to edit the trip", async () => {
+      const res = await request(app)
+        .put(`/api/trips/${editableTripId}`)
+        .set("Authorization", `Bearer ${tokenB}`)
+        .send(editedTrip);
+
+      expect(res.status).toBe(404);
+    });
+
+    it("allows editing a trip whose start/end date is already in the past (PR #124 review)", async () => {
+      const created = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({
+          destination: "Lisbon",
+          startDate: "2026-10-20",
+          endDate: "2026-10-22",
+          airline: "EL AL",
+          passengerComposition: { infants: 0, children: 0, women: 1, men: 0 },
+          vacationType: "City Trip",
+        });
+
+      const res = await request(app)
+        .put(`/api/trips/${created.body.id}`)
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({ ...editedTrip, destination: "Lisbon", startDate: "2026-08-01", endDate: "2026-08-03" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.startDate).toBe("2026-08-01");
+      expect(res.body.endDate).toBe("2026-08-03");
+    });
+
+    it("rolls back trip and item changes if regenerated items cannot be persisted", async () => {
+      const before = await request(app)
+        .get(`/api/trips/${editableTripId}`)
+        .set("Authorization", `Bearer ${tokenA}`);
+      jest.spyOn(PackingItem, "bulkCreate").mockRejectedValueOnce(new Error("write failed"));
+
+      const res = await request(app)
+        .put(`/api/trips/${editableTripId}`)
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({ ...editedTrip, destination: "Paris" });
+
+      expect(res.status).toBe(500);
+      const after = await request(app)
+        .get(`/api/trips/${editableTripId}`)
+        .set("Authorization", `Bearer ${tokenA}`);
+      expect(after.body.destination).toBe(before.body.destination);
+      expect(after.body.PackingItems.map((item) => item.id).sort()).toEqual(
+        before.body.PackingItems.map((item) => item.id).sort()
+      );
+    });
+  });
+
+  describe("POST /api/trips/:id/weather", () => {
+    it("refreshes weather and regenerates the packing list from the new forecast", async () => {
+      const forecast = [{ date: "2026-10-15", tempC: 9, condition: "Rain" }];
+      const weatherSpy = jest.spyOn(weatherService, "getForecast").mockResolvedValueOnce({
+        forecast,
+        isMock: false,
+      });
+      const generationSpy = jest.spyOn(geminiService, "generatePackingList").mockResolvedValueOnce({
+        items: [
+          { name: "Rain Jacket", category: "Clothing", quantity: 4, targetBag: "Suitcase" },
+        ],
+        isMock: false,
+      });
+
+      const res = await request(app)
+        .post(`/api/trips/${editableTripId}/weather`)
+        .set("Authorization", `Bearer ${tokenA}`);
+
+      expect(res.status).toBe(200);
+      expect(weatherSpy).toHaveBeenCalledWith("Rome", "2026-10-15", "2026-10-15");
+      expect(generationSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          destination: "Rome",
+          days: 1,
+          numPeople: 4,
+          passengerComposition: { infants: 0, children: 2, women: 0, men: 2 },
+          vacationType: "City Trip",
+          airline: "Wizz Air",
+          weatherSummary: forecast,
+          baggageAllowance: expect.objectContaining({ cabin: expect.any(Object) }),
+        })
+      );
+      expect(res.body.weatherData).toEqual(forecast);
+      expect(res.body.weatherSource).toBe("live");
+      expect(res.body.aiSource).toBe("live");
+      expect(res.body.PackingItems).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: "Rain Jacket", quantity: 4, isCustom: false }),
+          expect.objectContaining({ id: editableCustomItemId, name: "Medication", isCustom: true }),
+        ])
+      );
+    });
+
+    it("does not allow another user to refresh the trip weather", async () => {
+      const res = await request(app)
+        .post(`/api/trips/${editableTripId}/weather`)
         .set("Authorization", `Bearer ${tokenB}`);
 
       expect(res.status).toBe(404);

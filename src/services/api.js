@@ -53,6 +53,17 @@ export const api = {
       body: JSON.stringify(tripData),
     }),
 
+  updateTrip: (id, tripData) =>
+    request(`/trips/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(tripData),
+    }),
+
+  refreshWeather: (id) =>
+    request(`/trips/${id}/weather`, {
+      method: "POST",
+    }),
+
   deleteTrip: (id) =>
     request(`/trips/${id}`, {
       method: "DELETE",
@@ -84,9 +95,8 @@ export const api = {
 
   // Real round-trip flight search (Sky-Scrapper via RapidAPI on the backend).
   // Returns { offers, isMock, error? }; selecting an offer auto-fills the dates.
-  searchFlights: ({ origin, destination, departDate, returnDate }) => {
+  searchFlights: ({ destination, departDate, returnDate }) => {
     const params = new URLSearchParams();
-    if (origin) params.set("origin", origin);
     params.set("destination", destination);
     params.set("departDate", departDate);
     if (returnDate) params.set("returnDate", returnDate);
@@ -97,10 +107,9 @@ export const api = {
 
   getAdminUsers: () => request("/admin/users"),
 
-  setUserActive: (id, isActive) =>
-    request(`/admin/users/${id}/status`, {
-      method: "PATCH",
-      body: JSON.stringify({ isActive }),
+  deleteUser: (id) =>
+    request(`/admin/users/${id}`, {
+      method: "DELETE",
     }),
 
   getAdminLogs: () => request("/admin/logs"),

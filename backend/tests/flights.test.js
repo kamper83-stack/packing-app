@@ -6,6 +6,8 @@ const request = require("supertest");
 const app = require("../server");
 const { sequelize } = require("../models");
 
+jest.useFakeTimers().setSystemTime(new Date("2026-08-01T12:00:00Z"));
+
 async function registerAndGetToken(email) {
   const res = await request(app)
     .post("/api/auth/register")

@@ -18,6 +18,8 @@ jest.mock("../services/api", () => ({
     addCustomItem: jest.fn(),
     deleteItem: jest.fn(),
     deleteTrip: jest.fn(),
+    updateTrip: jest.fn(),
+    refreshWeather: jest.fn(),
   },
 }));
 
@@ -282,6 +284,76 @@ describe("TripView (Issue #10)", () => {
     expect(screen.queryByLabelText(/ai personalized packing list/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/standard template packing list/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/ai personalization was unavailable/i)).not.toBeInTheDocument();
+  });
+
+  it("edits trip inputs and replaces the checklist with the regenerated response", async () => {
+    api.getTrip.mockResolvedValue(sampleTrip);
+    const regenerated = {
+      ...sampleTrip,
+      destination: "Rome",
+      airline: "Wizz Air",
+      passengerComposition: { infants: 0, children: 1, women: 1, men: 1 },
+      numPeople: 3,
+      PackingItems: [
+        { id: "new-1", name: "Rain Jacket", category: "Clothing", quantity: 3, targetBag: "Suitcase", isPacked: false },
+      ],
+    };
+    api.updateTrip.mockResolvedValue(regenerated);
+
+    renderTripView();
+    await screen.findByRole("heading", { name: "Barcelona" });
+    fireEvent.click(screen.getByRole("button", { name: /edit & regenerate/i }));
+    fireEvent.change(screen.getByLabelText(/destination city/i), { target: { value: "Rome" } });
+    fireEvent.change(screen.getByLabelText("ילדים"), { target: { value: "1" } });
+    fireEvent.click(screen.getByRole("button", { name: /save changes & regenerate/i }));
+
+    await waitFor(() =>
+      expect(api.updateTrip).toHaveBeenCalledWith(
+        "t1",
+        expect.objectContaining({
+          destination: "Rome",
+          passengerComposition: { infants: 0, children: 1, women: 1, men: 1 },
+        })
+      )
+    );
+    expect(await screen.findByRole("heading", { name: "Rome" })).toBeInTheDocument();
+    expect(screen.getByText(/Rain Jacket/)).toBeInTheDocument();
+    expect(screen.queryByText(/Shirts/)).not.toBeInTheDocument();
+  });
+
+  it("refreshes the displayed weather and replaces the weather-dependent packing list", async () => {
+    api.getTrip.mockResolvedValue({ ...sampleTrip, weatherSource: "live" });
+    api.refreshWeather.mockResolvedValue({
+      ...sampleTrip,
+      weatherSource: "live",
+      weatherData: [{ date: "2026-09-01", tempC: 9, condition: "Rain" }],
+      PackingItems: [
+        { id: "rain-1", name: "Rain Jacket", category: "Clothing", quantity: 2, targetBag: "Suitcase", isPacked: false },
+      ],
+    });
+
+    renderTripView();
+    await screen.findByText("22°");
+    fireEvent.click(screen.getByRole("button", { name: /refresh weather and packing list/i }));
+
+    await waitFor(() => expect(api.refreshWeather).toHaveBeenCalledWith("t1"));
+    expect(await screen.findByText("9°")).toBeInTheDocument();
+    expect(screen.getByText("Rain")).toBeInTheDocument();
+    expect(screen.getByText(/Rain Jacket/)).toBeInTheDocument();
+    expect(screen.queryByText(/Shirts/)).not.toBeInTheDocument();
+    expect(api.updateTrip).not.toHaveBeenCalled();
+  });
+
+  it("keeps the trip visible when weather refresh fails", async () => {
+    api.getTrip.mockResolvedValue(sampleTrip);
+    api.refreshWeather.mockRejectedValue(new Error("Weather service unavailable"));
+
+    renderTripView();
+    await screen.findByRole("heading", { name: "Barcelona" });
+    fireEvent.click(screen.getByRole("button", { name: /refresh weather and packing list/i }));
+
+    expect(await screen.findByText(/weather service unavailable/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Barcelona" })).toBeInTheDocument();
   });
 
   it("shows an error state when the trip cannot be loaded", async () => {

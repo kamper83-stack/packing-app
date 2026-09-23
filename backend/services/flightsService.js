@@ -18,8 +18,6 @@ const RAPIDAPI_HOST = "skyscanner-api.p.rapidapi.com";
 // "no key" — otherwise we call RapidAPI with a bad key and get a 403.
 const PLACEHOLDER_KEYS = new Set(["your_rapidapi_key_here"]);
 
-const DEFAULT_ORIGIN = "Tel Aviv";
-
 function rapidApiKey() {
   return (process.env.RAPIDAPI_KEY || "").trim();
 }
@@ -141,19 +139,18 @@ async function liveOffers({ origin, destination, departDate, returnDate, adults 
 }
 
 // Search round-trip flight offers. Returns { offers, isMock, error? }.
-async function searchFlights({ origin, destination, departDate, returnDate, adults = 1 } = {}) {
-  const resolvedOrigin = (origin && String(origin).trim()) || DEFAULT_ORIGIN;
-  const query = { origin: resolvedOrigin, destination, departDate, returnDate, adults };
+async function searchFlights({ destination, departDate, returnDate, adults = 1 } = {}) {
+  const query = { origin: "Tel Aviv", destination, departDate, returnDate, adults };
 
   const useMocks = process.env.USE_MOCKS === "true" || !hasRealFlightsKey();
   if (useMocks) {
-    console.log(`[FLIGHTS SERVICE] Using sample flights for ${resolvedOrigin} -> ${destination}`);
+    console.log(`[FLIGHTS SERVICE] Using sample flights for Tel Aviv -> ${destination}`);
     return { offers: mockOffers(query), isMock: true };
   }
 
   try {
     console.log(
-      `[FLIGHTS SERVICE] Searching live flights ${resolvedOrigin} -> ${destination} ` +
+      `[FLIGHTS SERVICE] Searching live flights Tel Aviv -> ${destination} ` +
         `(${isoDate(departDate)}${returnDate ? ".." + isoDate(returnDate) : ""})`
     );
     const offers = await liveOffers(query);
@@ -166,4 +163,4 @@ async function searchFlights({ origin, destination, departDate, returnDate, adul
   }
 }
 
-module.exports = { searchFlights, hasRealFlightsKey, DEFAULT_ORIGIN };
+module.exports = { searchFlights, hasRealFlightsKey };

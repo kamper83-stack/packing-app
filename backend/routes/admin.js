@@ -120,6 +120,31 @@ router.patch("/users/:id/status", async (req, res) => {
   }
 });
 
+// DELETE /api/admin/users/:id — permanently remove a user and their trips.
+// Intentionally irreversible (explicit product decision, PR #124): this is a
+// distinct action from PATCH /users/:id/status above, which stays available
+// for a reversible temporary deactivation (blocks login without losing the
+// account/trips). Delete is for "remove this user for good".
+router.delete("/users/:id", async (req, res) => {
+  try {
+    if (req.params.id === req.adminUser.id) {
+      return res.status(400).json({ error: "You cannot delete your own account." });
+    }
+
+    const user = await User.findByPk(req.params.id);
+    if (!user) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    await Trip.destroy({ where: { userId: user.id } });
+    await user.destroy();
+    res.json({ message: "User deleted successfully.", id: req.params.id });
+  } catch (error) {
+    console.error("Admin user delete error:", error);
+    res.status(500).json({ error: "Internal server error." });
+  }
+});
+
 // GET /api/admin/logs — recent trip provenance / fallback errors.
 router.get("/logs", async (req, res) => {
   try {
