@@ -362,4 +362,87 @@ describe("Dashboard (Issue #9)", () => {
     expect(endInput).toHaveValue("2026-09-10");
   });
 
+  // ---- Airline is no longer a user-chosen field (backend still requires it) ----
+
+  it("does not offer an airline selector in the create form", async () => {
+    api.getTrips.mockResolvedValue([]);
+
+    renderDashboard();
+    await screen.findByText(/plan a new trip/i);
+
+    expect(screen.queryByLabelText(/airline/i)).not.toBeInTheDocument();
+  });
+
+  // ---- Trolley / checked-suitcase count ----\\
+
+  it("sends the default trolleyCount of 1", async () => {
+    api.getTrips.mockResolvedValue([]);
+    api.createTrip.mockResolvedValue({ id: "t1" });
+
+    const { container } = renderDashboard();
+    await screen.findByText(/no trips planned yet/i);
+
+    await fillTripForm(container);
+    fireEvent.click(screen.getByRole("button", { name: /create trip/i }));
+
+    await waitFor(() => expect(api.createTrip).toHaveBeenCalled());
+    expect(api.createTrip.mock.calls[0][0].trolleyCount).toBe(1);
+  });
+
+  it("sends a non-default trolleyCount when the user changes it", async () => {
+    api.getTrips.mockResolvedValue([]);
+    api.createTrip.mockResolvedValue({ id: "t1" });
+
+    const { container } = renderDashboard();
+    await screen.findByText(/no trips planned yet/i);
+
+    await fillTripForm(container);
+    fireEvent.change(screen.getByLabelText(/trolley/i), { target: { value: "3" } });
+    fireEvent.click(screen.getByRole("button", { name: /create trip/i }));
+
+    await waitFor(() => expect(api.createTrip).toHaveBeenCalled());
+    expect(api.createTrip.mock.calls[0][0].trolleyCount).toBe(3);
+  });
+
+  it("allows and sends a trolleyCount of zero", async () => {
+    api.getTrips.mockResolvedValue([]);
+    api.createTrip.mockResolvedValue({ id: "t1" });
+
+    const { container } = renderDashboard();
+    await screen.findByText(/no trips planned yet/i);
+
+    await fillTripForm(container);
+    fireEvent.change(screen.getByLabelText(/trolley/i), { target: { value: "0" } });
+    fireEvent.click(screen.getByRole("button", { name: /create trip/i }));
+
+    await waitFor(() => expect(api.createTrip).toHaveBeenCalled());
+    expect(api.createTrip.mock.calls[0][0].trolleyCount).toBe(0);
+  });
+
+  it("rejects a fractional trolleyCount instead of silently truncating it", async () => {
+    api.getTrips.mockResolvedValue([]);
+    api.createTrip.mockResolvedValue({ id: "t1" });
+
+    const { container } = renderDashboard();
+    await screen.findByText(/no trips planned yet/i);
+
+    await fillTripForm(container);
+    fireEvent.change(screen.getByLabelText(/trolley/i), { target: { value: "3.7" } });
+    fireEvent.click(screen.getByRole("button", { name: /create trip/i }));
+
+    expect(await screen.findByText(/whole number/i)).toBeInTheDocument();
+    expect(api.createTrip).not.toHaveBeenCalled();
+    expect(mockNavigate).not.toHaveBeenCalledWith(expect.stringContaining("/trip/"));
+  });
+
+  it("shows the automatic cabin-backpack count based on the chosen passengers", async () => {
+    api.getTrips.mockResolvedValue([]);
+
+    const { container } = renderDashboard();
+    await screen.findByText(/no trips planned yet/i);
+
+    await fillTripForm(container, { women: 2, men: 1 });
+    expect(screen.getByText(/3 cabin backpacks per traveler/i)).toBeInTheDocument();
+  });
+
 });

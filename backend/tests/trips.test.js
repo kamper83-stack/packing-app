@@ -66,6 +66,28 @@ describe("Trips API Endpoints (Issue #6)", () => {
       expect(res.body.error).toMatch(/required/i);
     });
 
+    // Regression lock (frontend airline-removal work): the backend still
+    // REQUIRES airline — the client must always send DEFAULT_AIRLINE. Even
+    // though the UI no longer collects airline as a user-chosen field, the
+    // payload must carry a value or this endpoint returns 400. This documents
+    // why removing airline from the frontend payload would break trip creation.
+    it("should still require airline in the payload even though the UI no longer collects it", async () => {
+      const res = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({
+          destination: "Rome",
+          startDate: "2026-10-01",
+          endDate: "2026-10-05",
+          numPeople: 2,
+          vacationType: "Beach",
+          passengerComposition: { infants: 0, children: 0, women: 1, men: 1 },
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/required/i);
+    });
+
     // Audit finding C3: a non-string value for destination/airline/
     // vacationType previously passed the truthy check above and then hit an
     // unguarded `.trim()`, hanging the request instead of returning an error.

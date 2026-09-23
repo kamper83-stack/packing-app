@@ -6,7 +6,6 @@ import {
   Trash2,
   ChevronLeft,
   Calendar,
-  Plane,
   Users,
   Briefcase,
   Backpack,
@@ -20,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { PASSENGER_CATEGORIES, buildComposition, emptyComposition, invalidPassengerCategories, totalPassengers, summarizePassengers } from "../utils/passengers";
+import { DEFAULT_AIRLINE, MAX_TROLLEY_COUNT } from "../utils/luggage";
 import useDocumentTitle from "../utils/useDocumentTitle";
 
 // Issue #36 / #65: compact indicator of where the weather forecast came from.
@@ -115,7 +115,7 @@ export default function TripView() {
     destination: "",
     startDate: "",
     endDate: "",
-    airline: "EL AL",
+    airline: DEFAULT_AIRLINE,
     passengerComposition: emptyComposition(),
     vacationType: "City Trip",
     trolleyCount: 1,
@@ -130,7 +130,10 @@ export default function TripView() {
         destination: data.destination || "",
         startDate: data.startDate || "",
         endDate: data.endDate || "",
-        airline: data.airline || "EL AL",
+        // Preserve the trip's original airline so PUT re-sends it unchanged —
+        // the backend requires it even though the edit form no longer lets the
+        // user change it (never overwrite with the DEFAULT_AIRLINE constant).
+        airline: data.airline || DEFAULT_AIRLINE,
         passengerComposition: data.passengerComposition || { ...emptyComposition(), men: data.numPeople || 1 },
         vacationType: data.vacationType || "City Trip",
         trolleyCount: typeof data.trolleyCount === "number" ? data.trolleyCount : 1,
@@ -215,10 +218,24 @@ export default function TripView() {
       setError("Please complete the destination, dates, and passenger details.");
       return;
     }
+
+    // A trolley count must be a non-negative whole number — reject fractional
+    // values up front instead of silently truncating with parseInt.
+    const trolleyValue = String(editForm.trolleyCount).trim();
+    if (trolleyValue === "" || !/^\d+$/.test(trolleyValue)) {
+      setError("Trolley suitcase count must be a whole number (no decimals).");
+      return;
+    }
+    const cleanTrolleyCount = Math.min(MAX_TROLLEY_COUNT, Number(trolleyValue));
+
     setSavingEdit(true);
     setError("");
     try {
-      const updated = await api.updateTrip(id, { ...editForm, passengerComposition: composition });
+      const updated = await api.updateTrip(id, {
+        ...editForm,
+        passengerComposition: composition,
+        trolleyCount: cleanTrolleyCount,
+      });
       setTrip(updated);
       setItems(updated.PackingItems || []);
       setEditing(false);
@@ -288,9 +305,6 @@ export default function TripView() {
                 <Calendar size={15} /> {trip.startDate} – {trip.endDate}
               </span>
               <span className="inline-flex items-center gap-1.5">
-                <Plane size={15} /> {trip.airline}
-              </span>
-              <span className="inline-flex items-center gap-1.5">
                 <Users size={15} />
                 {passengerSummary ? (
                   <span dir="rtl" style={{ unicodeBidi: "isolate" }}>{passengerSummary}</span>
@@ -324,13 +338,8 @@ export default function TripView() {
           <form onSubmit={handleSaveEdit} className="card p-6 space-y-4">
             <h2 className="text-lg font-bold text-ink">Edit trip and regenerate list</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <label className="block"><span className="label">Destination city</span>
+              <label className="block sm:col-span-2"><span className="label">Destination city</span>
                 <input className="input" value={editForm.destination} onChange={(e) => updateEditField("destination", e.target.value)} required />
-              </label>
-              <label className="block"><span className="label">Airline</span>
-                <select className="input" value={editForm.airline} onChange={(e) => updateEditField("airline", e.target.value)}>
-                  <option>EL AL</option><option>Ryanair</option><option>Wizz Air</option><option>EasyJet</option><option>Delta</option><option>United</option><option>Other</option>
-                </select>
               </label>
               <label className="block"><span className="label">Start date</span>
                 <input type="date" className="input" min={new Date().toISOString().split("T")[0]} value={editForm.startDate} onChange={(e) => updateEditField("startDate", e.target.value)} required />
@@ -349,17 +358,22 @@ export default function TripView() {
                 ))}
               </div>
             </fieldset>
-            <label className="block"><span className="label">Trolley suitcases</span>
+            <label className="block"><span className="label">Trolley / checked suitcases</span>
               <input
                 type="number"
                 min="0"
-                max="10"
+                max={MAX_TROLLEY_COUNT}
                 step="1"
                 className="input"
                 value={editForm.trolleyCount}
-                onChange={(e) => updateEditField("trolleyCount", Math.min(10, Math.max(0, parseInt(e.target.value, 10) || 0)))}
+                // Keep the raw string so a fractional entry (e.g. "3.7") is
+                // rejected with a clear message on save instead of silently
+                // truncated by parseInt.
+                onChange={(e) => updateEditField("trolleyCount", e.target.value)}
               />
-              <span className="block mt-1 text-xs text-muted">Plus one cabin backpack per traveler, assumed automatically.</span>
+              <span className="block mt-1 text-xs text-muted">
+                Plus {totalPassengers(editForm.passengerComposition)} cabin backpack{totalPassengers(editForm.passengerComposition) === 1 ? "" : "s"} per traveler, added automatically.
+              </span>
             </label>
             <label className="block"><span className="label">Vacation type</span>
               <select className="input" value={editForm.vacationType} onChange={(e) => updateEditField("vacationType", e.target.value)}>
@@ -433,7 +447,6 @@ export default function TripView() {
           {/* Baggage Limits Warning */}
           <div className={`${forecastDayCount <= 1 ? "md:col-span-2" : "md:col-span-1"} card p-6`}>
             <h2 className="text-lg font-bold text-ink mb-4">Luggage constraints</h2>
-            <p className="text-sm font-semibold text-brand-700 mb-3">{trip.airline}</p>
             <div className="space-y-3 text-sm text-muted">
               <div className="p-3 bg-brand-50 border border-brand-100 rounded-xl">
                 <span className="flex items-center gap-2 font-bold text-ink">

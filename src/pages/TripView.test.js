@@ -380,4 +380,98 @@ describe("TripView (Issue #10)", () => {
 
     confirmSpy.mockRestore();
   });
+
+  // ---- Airline is no longer a user-chosen field (backend still requires it) ----
+
+  it("does not offer an airline selector in the edit form", async () => {
+    api.getTrip.mockResolvedValue(sampleTrip);
+
+    renderTripView();
+    await screen.findByRole("heading", { name: "Barcelona" });
+    fireEvent.click(screen.getByRole("button", { name: /edit & regenerate/i }));
+
+    expect(screen.queryByLabelText(/airline/i)).not.toBeInTheDocument();
+  });
+
+  it("preserves the trip's original airline even though the edit form no longer shows it", async () => {
+    api.getTrip.mockResolvedValue({ ...sampleTrip, airline: "Wizz Air" });
+    api.updateTrip.mockResolvedValue({ ...sampleTrip, airline: "Wizz Air" });
+
+    const { container } = renderTripView();
+    await screen.findByRole("heading", { name: "Barcelona" });
+    fireEvent.click(screen.getByRole("button", { name: /edit & regenerate/i }));
+
+    // Change a different field (the start date) and save.
+    const dateInputs = container.querySelectorAll('input[type="date"]');
+    fireEvent.change(dateInputs[0], { target: { value: "2026-09-02" } });
+    fireEvent.click(screen.getByRole("button", { name: /save changes & regenerate/i }));
+
+    await waitFor(() =>
+      expect(api.updateTrip).toHaveBeenCalledWith(
+        "t1",
+        expect.objectContaining({ airline: "Wizz Air" })
+      )
+    );
+  });
+
+  it("loads the trip's stored trolley count into the edit form and sends changes", async () => {
+    api.getTrip.mockResolvedValue({ ...sampleTrip, trolleyCount: 3 });
+    api.updateTrip.mockResolvedValue({ ...sampleTrip, trolleyCount: 3 });
+
+    renderTripView();
+    await screen.findByRole("heading", { name: "Barcelona" });
+    fireEvent.click(screen.getByRole("button", { name: /edit & regenerate/i }));
+
+    expect(screen.getByLabelText(/trolley/i)).toHaveValue(3);
+    fireEvent.change(screen.getByLabelText(/trolley/i), { target: { value: "5" } });
+    fireEvent.click(screen.getByRole("button", { name: /save changes & regenerate/i }));
+
+    await waitFor(() =>
+      expect(api.updateTrip).toHaveBeenCalledWith(
+        "t1",
+        expect.objectContaining({ trolleyCount: 5 })
+      )
+    );
+  });
+
+  it("allows and sends a trolley count of zero on save", async () => {
+    api.getTrip.mockResolvedValue({ ...sampleTrip, trolleyCount: 0 });
+    api.updateTrip.mockResolvedValue({ ...sampleTrip, trolleyCount: 0 });
+
+    renderTripView();
+    await screen.findByRole("heading", { name: "Barcelona" });
+    fireEvent.click(screen.getByRole("button", { name: /edit & regenerate/i }));
+    fireEvent.click(screen.getByRole("button", { name: /save changes & regenerate/i }));
+
+    await waitFor(() =>
+      expect(api.updateTrip).toHaveBeenCalledWith(
+        "t1",
+        expect.objectContaining({ trolleyCount: 0 })
+      )
+    );
+  });
+
+  it("rejects a fractional trolley count instead of silently truncating it", async () => {
+    api.getTrip.mockResolvedValue(sampleTrip);
+
+    renderTripView();
+    await screen.findByRole("heading", { name: "Barcelona" });
+    fireEvent.click(screen.getByRole("button", { name: /edit & regenerate/i }));
+
+    fireEvent.change(screen.getByLabelText(/trolley/i), { target: { value: "3.7" } });
+    fireEvent.click(screen.getByRole("button", { name: /save changes & regenerate/i }));
+
+    expect(await screen.findByText(/whole number/i)).toBeInTheDocument();
+    expect(api.updateTrip).not.toHaveBeenCalled();
+  });
+
+  it("shows the automatic cabin-backpack count based on the trip's passengers in the edit form", async () => {
+    api.getTrip.mockResolvedValue(sampleTrip); // 2 passengers (1 woman, 1 man)
+
+    renderTripView();
+    await screen.findByRole("heading", { name: "Barcelona" });
+    fireEvent.click(screen.getByRole("button", { name: /edit & regenerate/i }));
+
+    expect(screen.getByText(/2 cabin backpacks per traveler/i)).toBeInTheDocument();
+  });
 });
