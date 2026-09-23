@@ -372,7 +372,7 @@ export default function TripView() {
         )}
 
         {/* Weather Forecast and Baggage Constraints */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
           {/* Weather Widget */}
           <div className="md:col-span-2 card p-6">
             <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
@@ -409,9 +409,12 @@ export default function TripView() {
               </div>
             )}
             {trip.weatherData && trip.weatherData.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="flex flex-wrap gap-3">
                 {trip.weatherData.slice(0, 4).map((day, idx) => (
-                  <div key={idx} className="p-3 bg-paper border border-line rounded-xl text-center">
+                  <div
+                    key={idx}
+                    className="w-[calc(50%-0.375rem)] sm:w-28 p-3 bg-paper border border-line rounded-xl text-center"
+                  >
                     <span className="block text-xs font-semibold text-muted">{day.date}</span>
                     <span className="block text-2xl font-extrabold text-ink mt-1">{day.tempC}°</span>
                     <span className="block text-xs text-muted mt-1">{day.condition}</span>

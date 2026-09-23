@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ShieldCheck, LogOut, Calendar, Plane, Users, MapPin, ArrowRight, Sparkles, Trash2, Pencil, Luggage } from "lucide-react";
+import { ShieldCheck, LogOut, Calendar, Plane, Users, MapPin, ArrowRight, Sparkles, Trash2, Luggage } from "lucide-react";
 import { api } from "../services/api";
 import {
   PASSENGER_CATEGORIES,
@@ -359,7 +359,16 @@ export default function Dashboard() {
                   return (
                     <div
                       key={trip.id}
-                      className="card p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all hover:shadow-lift hover:-translate-y-0.5"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => navigate(`/trip/${trip.id}`)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          navigate(`/trip/${trip.id}`);
+                        }
+                      }}
+                      className="card p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all hover:shadow-lift hover:-translate-y-0.5 cursor-pointer"
                     >
                       <div className="min-w-0">
                         <h3 className="flex items-center gap-2 font-bold text-ink text-base truncate">
@@ -394,12 +403,12 @@ export default function Dashboard() {
                         </span>
                       </div>
                       <div className="flex flex-wrap gap-2 shrink-0 self-start sm:self-auto">
-                        <Link to={`/trip/${trip.id}`} className="btn-secondary">
-                          <Pencil size={16} /> Edit trip
-                        </Link>
                         <button
                           type="button"
-                          onClick={() => handleDeleteTrip(trip.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteTrip(trip.id);
+                          }}
                           className="btn-ghost text-danger-600 hover:text-danger-700 hover:bg-danger-50"
                           aria-label={`Delete trip to ${trip.destination}`}
                         >
