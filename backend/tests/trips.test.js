@@ -598,6 +598,7 @@ describe("Trips API Endpoints (Issue #6)", () => {
       airline: "Wizz Air",
       passengerComposition: { infants: 0, children: 2, women: 0, men: 2 },
       vacationType: "City Trip",
+      checkedSuitcaseCount: 4,
     };
 
     beforeAll(async () => {
@@ -644,6 +645,7 @@ describe("Trips API Endpoints (Issue #6)", () => {
           numPeople: 4,
           passengerComposition: editedTrip.passengerComposition,
           vacationType: "City Trip",
+          checkedSuitcaseCount: 4,
           trolleyCount: 1, // omitted in editedTrip -> keeps the trip's existing value
         })
       );
@@ -658,6 +660,7 @@ describe("Trips API Endpoints (Issue #6)", () => {
           weatherSummary: expect.any(Array),
           baggageAllowance: expect.objectContaining({ cabin: expect.any(Object) }),
           trolleyCount: 1,
+          checkedSuitcaseCount: 4,
         })
       );
       const itemNames = res.body.PackingItems.map((item) => item.name);
@@ -772,6 +775,8 @@ describe("Trips API Endpoints (Issue #6)", () => {
           airline: "Wizz Air",
           weatherSummary: forecast,
           baggageAllowance: expect.objectContaining({ cabin: expect.any(Object) }),
+          trolleyCount: 4,
+          checkedSuitcaseCount: 4,
         })
       );
       expect(res.body.weatherData).toEqual(forecast);

@@ -608,6 +608,7 @@ router.post("/:id/weather", async (req, res) => {
       weatherSummary: weatherInfo.forecast,
       baggageAllowance: airlineInfo,
       trolleyCount: trip.trolleyCount,
+      checkedSuitcaseCount: trip.checkedSuitcaseCount,
     });
 
     await sequelize.transaction(async (transaction) => {

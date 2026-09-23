@@ -221,7 +221,7 @@ async function generatePackingList({
     const parsed = JSON.parse(text);
     const validatedItems = validatePackingItems(parsed);
     return {
-      items: applyLuggageRules(applyDurationRules(validatedItems, days, numPeople), trolleyCount, numPeople),
+      items: applyLuggageRules(applyDurationRules(validatedItems, days, numPeople), effectiveCheckedSuitcaseCount, numPeople),
       isMock: false,
     };
   } catch (error) {
