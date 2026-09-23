@@ -361,8 +361,17 @@ export default function Dashboard() {
                       key={trip.id}
                       role="button"
                       tabIndex={0}
-                      onClick={() => navigate(`/trip/${trip.id}`)}
+                      onClick={(e) => {
+                        // Ignore clicks that originate from a nested control (e.g. Delete)
+                        // so the card doesn't also navigate when a child handles the click.
+                        if (e.target.closest("button, a")) return;
+                        navigate(`/trip/${trip.id}`);
+                      }}
                       onKeyDown={(e) => {
+                        // Only react to keydowns on the card itself — otherwise Enter/Space
+                        // on the nested Delete button also bubbles up and navigates, which
+                        // swallows the delete keypress entirely (PR #127 review).
+                        if (e.target !== e.currentTarget) return;
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
                           navigate(`/trip/${trip.id}`);

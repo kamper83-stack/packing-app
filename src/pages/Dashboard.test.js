@@ -115,6 +115,28 @@ describe("Dashboard (Issue #9)", () => {
     confirmSpy.mockRestore();
   });
 
+  it("does not navigate when Enter is pressed while the delete button is focused (PR #127 review)", async () => {
+    api.getTrips.mockResolvedValue([
+      {
+        id: "t1",
+        destination: "Barcelona",
+        startDate: "2026-09-01",
+        endDate: "2026-09-05",
+        airline: "EL AL",
+        numPeople: 2,
+        vacationType: "Beach Vacation",
+      },
+    ]);
+
+    renderDashboard();
+    expect(await screen.findByText("Barcelona")).toBeInTheDocument();
+    const deleteButton = screen.getByRole("button", { name: /delete trip to Barcelona/i });
+
+    fireEvent.keyDown(deleteButton, { key: "Enter" });
+
+    expect(mockNavigate).not.toHaveBeenCalledWith("/trip/t1");
+  });
+
   it("deletes a trip from the dashboard after confirmation", async () => {
     api.getTrips.mockResolvedValue([
       {
