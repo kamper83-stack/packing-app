@@ -373,13 +373,11 @@ export default function TripView() {
         )}
 
         {/* Weather Forecast and Baggage Constraints.
-            The weather card only claims the wide 2/3 layout once there are
-            enough forecast days to fill it (3+); shorter trips render it at
-            the same width as the luggage card instead of leaving a big
-            disproportionate empty area to the right/below a single square. */}
-        <div className={`grid grid-cols-1 ${forecastDayCount >= 3 ? "md:grid-cols-3" : "md:grid-cols-2"} gap-6 items-start`}>
+            Keep a one-day forecast compact instead of giving it a wide empty
+            column; longer forecasts expand proportionally to use the space. */}
+        <div className="flex flex-col md:flex-row gap-6 items-start">
           {/* Weather Widget */}
-          <div className={`${forecastDayCount >= 3 ? "md:col-span-2" : ""} card p-6`}>
+          <div className={`${forecastDayCount <= 1 ? "md:w-fit md:min-w-[18rem] md:max-w-md" : "md:flex-[2]"} card p-6 self-start`}>
             <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-bold text-ink">Weather forecast</h2>
@@ -432,7 +430,7 @@ export default function TripView() {
           </div>
 
           {/* Baggage Limits Warning */}
-          <div className="card p-6">
+          <div className="md:flex-1 card p-6">
             <h2 className="text-lg font-bold text-ink mb-4">Luggage constraints</h2>
             <p className="text-sm font-semibold text-brand-700 mb-3">{trip.airline}</p>
             <div className="space-y-3 text-sm text-muted">
