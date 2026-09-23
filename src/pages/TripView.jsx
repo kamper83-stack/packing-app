@@ -285,7 +285,6 @@ export default function TripView() {
   // Group the visible items by category.
   const categories = [...new Set(visibleItems.map((i) => i.category))];
   const passengerSummary = summarizePassengers(trip.passengerComposition);
-  const forecastDayCount = trip.weatherData ? Math.min(trip.weatherData.length, 4) : 0;
 
   return (
     <div className="min-h-screen bg-paper bg-paper-glow py-8 px-4 sm:px-6 lg:px-8">
@@ -386,13 +385,14 @@ export default function TripView() {
           </form>
         )}
 
-        {/* Weather Forecast and Baggage Constraints.
-            Use explicit grid columns so both cards fill the row without a
-            flex sizing gap; short forecasts give the luggage card the extra
-            space, while longer forecasts give it to the forecast strip. */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+        {/* Weather Forecast and Baggage Constraints — stacked full-width so the
+            two cards never compete for height. Side by side they had different
+            natural heights (the narrow luggage column wrapped its text into more
+            lines), which left a ragged empty gap beside the shorter card. Full
+            width, each card sizes to its own content and the gap is gone. */}
+        <div className="space-y-6">
           {/* Weather Widget */}
-          <div className={`${forecastDayCount <= 1 ? "md:col-span-1" : "md:col-span-2"} card p-6 self-start`}>
+          <div className="card p-6">
             <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-bold text-ink">Weather forecast</h2>
@@ -445,9 +445,9 @@ export default function TripView() {
           </div>
 
           {/* Baggage Limits Warning */}
-          <div className={`${forecastDayCount <= 1 ? "md:col-span-2" : "md:col-span-1"} card p-6`}>
+          <div className="card p-6">
             <h2 className="text-lg font-bold text-ink mb-4">Luggage constraints</h2>
-            <div className="space-y-3 text-sm text-muted">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-muted">
               <div className="p-3 bg-brand-50 border border-brand-100 rounded-xl">
                 <span className="flex items-center gap-2 font-bold text-ink">
                   <Briefcase size={16} /> Cabin backpack
