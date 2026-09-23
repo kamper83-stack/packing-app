@@ -373,11 +373,12 @@ export default function TripView() {
         )}
 
         {/* Weather Forecast and Baggage Constraints.
-            Keep a one-day forecast compact instead of giving it a wide empty
-            column; longer forecasts expand proportionally to use the space. */}
-        <div className="flex flex-col md:flex-row gap-6 items-start">
+            Use explicit grid columns so both cards fill the row without a
+            flex sizing gap; short forecasts give the luggage card the extra
+            space, while longer forecasts give it to the forecast strip. */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
           {/* Weather Widget */}
-          <div className={`${forecastDayCount <= 1 ? "md:w-fit md:min-w-[18rem] md:max-w-md" : "md:flex-[2]"} card p-6 self-start`}>
+          <div className={`${forecastDayCount <= 1 ? "md:col-span-1" : "md:col-span-2"} card p-6 self-start`}>
             <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-bold text-ink">Weather forecast</h2>
@@ -416,7 +417,7 @@ export default function TripView() {
                 {trip.weatherData.slice(0, 4).map((day, idx) => (
                   <div
                     key={idx}
-                    className="w-[calc(50%-0.375rem)] sm:w-28 p-3 bg-paper border border-line rounded-xl text-center"
+                    className="flex-1 min-w-0 sm:min-w-[7rem] p-3 bg-paper border border-line rounded-xl text-center"
                   >
                     <span className="block text-xs font-semibold text-muted">{day.date}</span>
                     <span className="block text-2xl font-extrabold text-ink mt-1">{day.tempC}°</span>
