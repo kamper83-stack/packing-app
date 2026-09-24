@@ -107,6 +107,15 @@ function shouldUseGoogleWeather() {
 }
 
 async function getForecast(destination, startDate, endDate, country) {
+  if (shouldUseGoogleWeather()) {
+    // Google's ten-day response includes today, so a trip starting ten or more
+    // days from now is outside its live window. Prefer seasonal data to mock.
+    if (googleWeatherService.isBeyondGoogleForecastHorizon(startDate)) {
+      return climateService.getSeasonalEstimate(destination, startDate, endDate);
+    }
+    return googleWeatherService.getForecast(destination, startDate, endDate, country);
+  }
+
   // Trips beyond the live-forecast window can't get a daily forecast, so use a
   // seasonal climate estimate instead (Issue #65). Done here so the single
   // getForecast entry point still governs weather sourcing.
@@ -118,9 +127,6 @@ async function getForecast(destination, startDate, endDate, country) {
     return climateService.getSeasonalEstimate(destination, startDate, endDate);
   }
 
-  if (shouldUseGoogleWeather()) {
-    return googleWeatherService.getForecast(destination, startDate, endDate, country);
-  }
 
   const start = new Date(startDate);
   const end = new Date(endDate);

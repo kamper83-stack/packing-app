@@ -3,6 +3,7 @@ const coordinates = require("../config/destinationCoordinates.json").destination
 
 const PLACEHOLDER_KEYS = new Set(["your_google_weather_api_key_here"]);
 const GOOGLE_FORECAST_MAX_DAYS = 10;
+const GOOGLE_REQUEST_TIMEOUT_MS = 8000;
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
 function googleWeatherApiKey() {
@@ -22,6 +23,13 @@ function dayOffset(from, to) {
   const a = new Date(isoDate(from));
   const b = new Date(isoDate(to));
   return Math.round((b - a) / MS_PER_DAY);
+}
+
+// Google's ten-day response window includes the current day. A trip that
+// starts ten or more days from now needs the seasonal fallback rather than a
+// flat mock forecast that can never be backed by the provider response.
+function isBeyondGoogleForecastHorizon(startDate, now = new Date()) {
+  return dayOffset(now, startDate) >= GOOGLE_FORECAST_MAX_DAYS;
 }
 
 function tripDates(startDate, endDate) {
@@ -58,7 +66,10 @@ function mapForecastDay(day) {
   return {
     date,
     tempC,
-    condition: day.daytimeForecast?.weatherCondition?.description?.text || "Unknown",
+    condition:
+      day.daytimeForecast?.weatherCondition?.description?.text ||
+      day.nighttimeForecast?.weatherCondition?.description?.text ||
+      "Unknown",
   };
 }
 
@@ -82,7 +93,9 @@ async function getForecast(destination, startDate, endDate) {
         "location.longitude": location.longitude,
         days,
         pageSize: days,
+        unitsSystem: "METRIC",
       },
+      timeout: GOOGLE_REQUEST_TIMEOUT_MS,
     });
 
     const aligned = (response.data?.forecastDays || [])
@@ -104,5 +117,7 @@ async function getForecast(destination, startDate, endDate) {
 module.exports = {
   getForecast,
   GOOGLE_FORECAST_MAX_DAYS,
+  GOOGLE_REQUEST_TIMEOUT_MS,
   displayDateToIso,
+  isBeyondGoogleForecastHorizon,
 };

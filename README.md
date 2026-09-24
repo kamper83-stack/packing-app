@@ -15,7 +15,7 @@ PackPlanner is a full-stack travel packing assistant. Users create a trip, provi
 - Airline baggage configuration and a baggage-constraints display.
 - Responsive React UI with Tailwind CSS.
 
-> **Demo scope:** the team decision is to present a maximum 3-day daily weather forecast. The weather service enforces this window (requests are capped at 3 days) so an out-of-range request can never be silently presented as valid data.
+> **Weather forecast scope:** Google Weather provides a current-day-inclusive window of up to 10 daily forecasts. The backend requests at most 10 days, uses a seasonal estimate for trips starting outside that window, and never presents a mock fallback as live data.
 
 ## Architecture
 
@@ -77,11 +77,11 @@ The backend listens on `http://localhost:5001` by default. Set `USE_MOCKS=true` 
 > `aiSource: "mock"`, and `aiError` describing the failure. Live successes record
 > `aiSource: "live"`. Legacy trips remain readable (`aiSource` / `aiError` are null).
 
-After installing dependencies, you can confirm a real key works (prints `isMock: false` on success):
+After installing dependencies, you can confirm a real key works. The command uses `London` from the checked-in coordinate catalog and a current date; it exits non-zero unless the Google provider returns live data (`isMock: false`):
 
 ```bash
 cd backend
-node -e "require('dotenv').config(); require('./services/weatherService').getForecast('Tel Aviv','2026-08-21','2026-08-23').then(r=>console.log('isMock:',r.isMock, r.error||''))"
+node -e "require('dotenv').config(); const today = new Date().toISOString().slice(0,10); require('./services/weatherService').getForecast('London', today, today, 'United Kingdom').then(r => { console.log('isMock:', r.isMock, r.error || ''); if (r.isMock) process.exitCode = 1; }).catch(error => { console.error(error); process.exitCode = 1; });"
 ```
 
 ### Frontend

@@ -51,7 +51,9 @@ describe("googleWeatherService.getForecast", () => {
           "location.longitude": expect.any(Number),
           days: 2,
           pageSize: 2,
+          unitsSystem: "METRIC",
         }),
+        timeout: 8000,
       })
     );
     expect(result).toEqual({
@@ -87,5 +89,29 @@ describe("googleWeatherService.getForecast", () => {
 
     expect(result.isMock).toBe(true);
     expect(result.forecast.map((entry) => entry.date)).toEqual(["2026-09-23", "2026-09-24"]);
+  });
+
+  it("uses the nighttime condition when Google has no daytime forecast", async () => {
+    axios.get.mockResolvedValue({
+      data: {
+        forecastDays: [
+          {
+            displayDate: { year: 2026, month: 9, day: 23 },
+            nighttimeForecast: {
+              weatherCondition: { description: { text: "Clear night" } },
+            },
+            minTemperature: { degrees: 10 },
+            maxTemperature: { degrees: 16 },
+          },
+        ],
+      },
+    });
+
+    const result = await getForecast("London", "2026-09-23", "2026-09-23");
+
+    expect(result).toEqual({
+      forecast: [{ date: "2026-09-23", tempC: 13, condition: "Clear night" }],
+      isMock: false,
+    });
   });
 });
