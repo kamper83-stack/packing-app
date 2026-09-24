@@ -2,32 +2,39 @@
 
 Read this before committing, pushing, or merging anything in this repository.
 
-## Merge approval is mandatory (learned the hard way — 2026-09-22)
+## Merge approval is mandatory
 
-Every pull request into `main` requires an explicit, PR-level **APPROVED**
-review from **shirikyky** (GitHub login) before it is merged — regardless of
-CI status. A green CI run (`lint-and-test`, `docker-build-test`) is
-necessary but **not sufficient** on its own.
+Every pull request into `main` requires:
 
-`main` currently has no GitHub branch protection rule enforcing this (see
-`gh api repos/<owner>/packing-app/branches/main/protection` → 404), so
-nothing on the platform blocks a merge on CI-green alone. This is a team
-process convention, and an agent must self-check it before every merge:
+1. Passing CI (`lint-and-test` and `docker-build-test`), and
+2. An explicit **APPROVE** from the independent `expert` review of the exact
+   PR and commit being merged.
+
+The `expert` approval replaces the previous `shirikyky` approval requirement.
+A green CI run is necessary but **not sufficient** on its own.
+
+Before merging, run a one-shot review that names the exact PR and commit:
 
 ```bash
-gh pr view <number> --json reviews \
-  --jq '[.reviews[] | select(.author.login == "shirikyky" and .state == "APPROVED")] | length'
+hermes -p expert chat -q \
+  "Review PR #<number> in kamper83-stack/packing-app for correctness, security, tests, architecture, and merge readiness. Explicitly name the exact PR and commit reviewed. Return APPROVE or REQUEST_CHANGES."
 ```
 
-If that returns `0`, **do not run `gh pr merge`**. Either wait for the
-review, or explicitly ask the requester for a one-off exception — never
-default to merging on CI alone.
+Verify that the commit named in the `APPROVE` response matches the current PR
+head:
 
-Note: shirikyky cannot approve her own PRs (GitHub self-review
-restriction) — on PRs she authors, her sign-off lands as a `COMMENTED`
-review saying the change looks ready, not `APPROVED`. Treat that as
-equivalent for her own PRs; the `APPROVED`-only check above applies to PRs
-authored by someone else.
+```bash
+gh pr view <number> --json headRefOid,url \
+  --jq '"PR: \(.url) commit: \(.headRefOid)"'
+```
+
+If the expert response is missing, says `REQUEST_CHANGES`, or names a
+different commit, **do not run `gh pr merge`**. Re-run the review after the
+PR changes and require a fresh approval for the new commit.
+
+The repository has no GitHub branch protection rule enforcing this process, so
+nothing on the platform blocks a merge on CI-green alone. This is a team
+process convention and must be self-checked before every merge.
 
 ## Deploying is separate from merging
 
