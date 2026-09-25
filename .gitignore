@@ -20,6 +20,11 @@ backend/.env.*
 # runtime data (SQLite database is generated at runtime and volume-backed)
 backend/data/
 
+# python
+scripts/__pycache__/
+__pycache__/
+*.pyc
+
 # misc
 .DS_Store
 .env.local
