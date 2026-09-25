@@ -38,12 +38,16 @@ function tripDates(startDate, endDate) {
   return { start, tripDays, startIso: isoDate(start), endIso: isoDate(endDate) };
 }
 
-function mockForecast(start, tripDays) {
-  return Array.from({ length: tripDays }).map((_, index) => {
+function tripDateList(start, tripDays) {
+  return Array.from({ length: tripDays }, (_, index) => {
     const date = new Date(start);
     date.setDate(start.getDate() + index);
-    return { date: isoDate(date), tempC: 20, condition: "Mild" };
+    return isoDate(date);
   });
+}
+
+function mockForecast(start, tripDays) {
+  return tripDateList(start, tripDays).map((date) => ({ date, tempC: 20, condition: "Mild" }));
 }
 
 function displayDateToIso(displayDate) {
@@ -75,11 +79,21 @@ function mapForecastDay(day) {
 
 async function getForecast(destination, startDate, endDate) {
   const { start, tripDays, startIso, endIso } = tripDates(startDate, endDate);
-  const useMocks = process.env.USE_MOCKS === "true" || !hasRealGoogleWeatherKey();
+  const useMocks = process.env.USE_MOCKS === "true";
   const location = coordinates[destination];
 
-  if (useMocks || !location) {
-    return { forecast: mockForecast(start, tripDays), isMock: true };
+  if (useMocks) {
+    return { forecast: mockForecast(start, tripDays), isMock: true, errorCode: "mock_mode" };
+  }
+  if (!hasRealGoogleWeatherKey()) {
+    return { forecast: mockForecast(start, tripDays), isMock: true, errorCode: "google_key_missing" };
+  }
+  if (!location) {
+    return {
+      forecast: mockForecast(start, tripDays),
+      isMock: true,
+      errorCode: "destination_coordinates_missing",
+    };
   }
 
   const offset = Math.max(0, dayOffset(new Date(), start));
@@ -98,17 +112,34 @@ async function getForecast(destination, startDate, endDate) {
       timeout: GOOGLE_REQUEST_TIMEOUT_MS,
     });
 
-    const aligned = (response.data?.forecastDays || [])
-      .map(mapForecastDay)
-      .filter((day) => day.date && day.date >= startIso && day.date <= endIso)
-      .slice(0, tripDays);
+    // Index by date instead of trusting response order/length: Google can
+    // return duplicate, out-of-range, or gapped days. Only treat the trip as
+    // "live" when every single trip date has a matching forecast day -- a
+    // response covering 1 of 2 requested days must NOT be presented as a
+    // complete live forecast (it would silently misrepresent provenance).
+    const byDate = new Map();
+    (response.data?.forecastDays || []).forEach((day) => {
+      const mapped = mapForecastDay(day);
+      if (mapped.date && mapped.date >= startIso && mapped.date <= endIso) {
+        byDate.set(mapped.date, mapped);
+      }
+    });
 
-    if (aligned.length > 0) return { forecast: aligned, isMock: false };
-    return { forecast: mockForecast(start, tripDays), isMock: true };
+    const expectedDates = tripDateList(start, tripDays);
+    const aligned = expectedDates.map((date) => byDate.get(date)).filter(Boolean);
+    const hasCompleteCoverage = aligned.length === tripDays;
+
+    if (hasCompleteCoverage) return { forecast: aligned, isMock: false };
+    return {
+      forecast: mockForecast(start, tripDays),
+      isMock: true,
+      errorCode: "google_no_coverage",
+    };
   } catch (error) {
     return {
       forecast: mockForecast(start, tripDays),
       isMock: true,
+      errorCode: "google_request_failed",
       error: error.message,
     };
   }

@@ -213,7 +213,7 @@ describe("TripView (Issue #10)", () => {
     expect(container.textContent).toContain("1 of 2 items");
   });
 
-  it("shows a live weather badge when the forecast came from WeatherAPI (Issue #36)", async () => {
+  it("shows a live weather badge when the forecast came from Google Weather (Issue #36)", async () => {
     api.getTrip.mockResolvedValue({ ...sampleTrip, weatherSource: "live" });
 
     renderTripView();
@@ -228,7 +228,7 @@ describe("TripView (Issue #10)", () => {
     api.getTrip.mockResolvedValue({
       ...sampleTrip,
       weatherSource: "mock",
-      weatherError: "WeatherAPI request failed (503)",
+      weatherError: "Google Weather request failed (503)",
     });
 
     renderTripView();

@@ -159,7 +159,7 @@ export default function Admin() {
         ) : (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <ProviderCard title="WeatherAPI" status={status && status.weather} />
+              <ProviderCard title="Google Weather" status={status && status.weather} />
               <ProviderCard title="Gemini" status={status && status.gemini} />
             </div>
             {status && (

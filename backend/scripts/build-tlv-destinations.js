@@ -28,9 +28,9 @@
  *
  * tlv-destinations-source.json documents its own research method and date
  * in its _meta block — read that before trusting or extending this list.
- * Every city in it was verified against WeatherAPI.com's geocoding search
- * endpoint (the provider weatherService.js actually calls), so a listed
- * destination is guaranteed to have a weather source.
+ * Every city in it was verified against the former provider's geocoding search
+ * endpoint used before the Google Weather migration, so a listed destination
+ * was expected to have a weather source.
  *
  * Maintenance: edit tlv-destinations-source.json (not this script) and
  * re-run `node backend/scripts/build-tlv-destinations.js`. Airline route

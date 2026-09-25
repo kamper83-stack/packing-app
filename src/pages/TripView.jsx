@@ -23,7 +23,7 @@ import { DEFAULT_AIRLINE, MAX_TROLLEY_COUNT } from "../utils/luggage";
 import useDocumentTitle from "../utils/useDocumentTitle";
 
 // Issue #36 / #65: compact indicator of where the weather forecast came from.
-// "live" -> real WeatherAPI data; "seasonal" -> historical climate estimate for
+// "live" -> real Google Weather data; "seasonal" -> historical climate estimate for
 // a distant-future trip; "mock" -> offline/sample fallback. Any other value
 // (including null on pre-#32 trips) renders nothing.
 const WEATHER_SOURCE_BADGES = {
@@ -449,7 +449,7 @@ export default function TripView() {
             )}
             {trip.weatherData && trip.weatherData.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                {trip.weatherData.slice(0, 4).map((day, idx) => (
+                {trip.weatherData.map((day, idx) => (
                   <div
                     key={idx}
                     className="w-full min-w-0 p-3 bg-paper border border-line rounded-xl text-center"

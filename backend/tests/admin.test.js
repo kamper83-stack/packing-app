@@ -1,6 +1,6 @@
 process.env.USE_MOCKS = "true";
 process.env.ADMIN_EMAIL = "admin@example.com";
-process.env.WEATHER_API_KEY = "your_weather_api_key_here";
+process.env.GOOGLE_WEATHER_API_KEY = "your_google_weather_api_key_here";
 process.env.GEMINI_API_KEY = "";
 
 const request = require("supertest");

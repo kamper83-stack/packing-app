@@ -45,6 +45,22 @@ describe("ensureSchema (Issue #22 / #32 migration)", () => {
     expect(described.weatherError).toBeDefined();
   });
 
+  it("adds weatherProvider and weatherFetchedAt to a legacy Trips table", async () => {
+    const queryInterface = sequelize.getQueryInterface();
+
+    await queryInterface.removeColumn("Trips", "weatherProvider");
+    await queryInterface.removeColumn("Trips", "weatherFetchedAt");
+    let described = await queryInterface.describeTable("Trips");
+    expect(described.weatherProvider).toBeUndefined();
+    expect(described.weatherFetchedAt).toBeUndefined();
+
+    await ensureSchema();
+
+    described = await queryInterface.describeTable("Trips");
+    expect(described.weatherProvider).toBeDefined();
+    expect(described.weatherFetchedAt).toBeDefined();
+  });
+
   it("adds aiSource and aiError to a legacy Trips table (Issue #30)", async () => {
     const queryInterface = sequelize.getQueryInterface();
 

@@ -86,7 +86,7 @@ describe("Admin panel (Issue #49)", () => {
         email: "admin@example.com",
         createdAt: "2026-08-20T00:00:00.000Z",
         weatherSource: "mock",
-        weatherError: "WeatherAPI request failed (503)",
+        weatherError: "Google Weather request failed (503)",
         aiSource: "mock",
         aiError: null,
       },
@@ -94,13 +94,13 @@ describe("Admin panel (Issue #49)", () => {
 
     renderAdmin();
 
-    expect(await screen.findByText("WeatherAPI")).toBeInTheDocument();
+    expect(await screen.findByText("Google Weather")).toBeInTheDocument();
     expect(screen.getByText("Gemini")).toBeInTheDocument();
     // Email appears in the users table and again in the trip log.
     expect(screen.getAllByText("admin@example.com").length).toBeGreaterThanOrEqual(2);
     expect(screen.getByRole("cell", { name: "admin@example.com" })).toBeInTheDocument();
     expect(screen.getByText("Barcelona")).toBeInTheDocument();
-    expect(screen.getByText(/weatherapi request failed/i)).toBeInTheDocument();
+    expect(screen.getByText(/google weather request failed/i)).toBeInTheDocument();
     expect(screen.queryByText(/ghp_/i)).not.toBeInTheDocument();
   });
 

@@ -413,6 +413,8 @@ describe("Trips API Endpoints (Issue #6)", () => {
       expect(res.body.PackingItems.length).toBeGreaterThan(0);
       // Explicit mock mode (USE_MOCKS=true) persists mock provenance (Issue #32).
       expect(res.body.weatherSource).toBe("mock");
+      expect(res.body.weatherProvider).toBe("mock");
+      expect(res.body.weatherFetchedAt).toEqual(expect.any(String));
       expect(res.body.weatherError).toBeNull();
       expect(Array.isArray(res.body.weatherData)).toBe(true);
       expect(res.body.weatherData.length).toBeGreaterThan(0);
@@ -425,6 +427,7 @@ describe("Trips API Endpoints (Issue #6)", () => {
       jest.spyOn(weatherService, "getForecast").mockResolvedValueOnce({
         forecast: [{ date: "2026-09-01", tempC: 20, condition: "Mild" }],
         isMock: true,
+        errorCode: "google_request_failed",
         error: "Request failed with status code 401",
       });
 
@@ -442,13 +445,13 @@ describe("Trips API Endpoints (Issue #6)", () => {
 
       expect(res.status).toBe(201);
       expect(res.body.weatherSource).toBe("mock");
-      expect(res.body.weatherError).toMatch(/401/);
+      expect(res.body.weatherError).toBe("google_request_failed");
       expect(res.body.weatherData).toEqual([
         { date: "2026-09-01", tempC: 20, condition: "Mild" },
       ]);
     });
 
-    it("persists live provenance when WeatherAPI succeeds (Issue #32)", async () => {
+    it("persists live provenance when Google Weather succeeds (v2)", async () => {
       jest.spyOn(weatherService, "getForecast").mockResolvedValueOnce({
         forecast: [{ date: "2026-09-01", tempC: 18, condition: "Sunny" }],
         isMock: false,
@@ -468,6 +471,8 @@ describe("Trips API Endpoints (Issue #6)", () => {
 
       expect(res.status).toBe(201);
       expect(res.body.weatherSource).toBe("live");
+      expect(res.body.weatherProvider).toBe("google");
+      expect(res.body.weatherFetchedAt).toEqual(expect.any(String));
       expect(res.body.weatherError).toBeNull();
       expect(res.body.weatherData).toEqual([
         { date: "2026-09-01", tempC: 18, condition: "Sunny" },

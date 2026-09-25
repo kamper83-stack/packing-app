@@ -91,6 +91,30 @@ describe("googleWeatherService.getForecast", () => {
     expect(result.forecast.map((entry) => entry.date)).toEqual(["2026-09-23", "2026-09-24"]);
   });
 
+  it("falls back to a full seasonal-style mock instead of a partial live forecast when Google covers only some trip days", async () => {
+    // Regression: a 2-day trip where Google returns only day 1 must NOT be
+    // reported as isMock: false with a 1-day forecast (expert review finding).
+    axios.get.mockResolvedValue({
+      data: {
+        forecastDays: [
+          {
+            displayDate: { year: 2026, month: 9, day: 23 },
+            daytimeForecast: { weatherCondition: { description: { text: "Sunny" } } },
+            minTemperature: { degrees: 14 },
+            maxTemperature: { degrees: 20 },
+          },
+        ],
+      },
+    });
+
+    const result = await getForecast("London", "2026-09-23", "2026-09-24", "United Kingdom");
+
+    expect(result.isMock).toBe(true);
+    expect(result.errorCode).toBe("google_no_coverage");
+    expect(result.forecast).toHaveLength(2);
+    expect(result.forecast.map((entry) => entry.date)).toEqual(["2026-09-23", "2026-09-24"]);
+  });
+
   it("uses the nighttime condition when Google has no daytime forecast", async () => {
     axios.get.mockResolvedValue({
       data: {
