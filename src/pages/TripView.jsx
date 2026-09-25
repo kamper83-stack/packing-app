@@ -578,9 +578,9 @@ export default function TripView() {
                       .map((item) => (
                         <div
                           key={item.id}
-                          className="flex justify-between items-center p-2 rounded-lg hover:bg-paper transition-colors"
+                          className="flex items-start justify-between p-2 rounded-lg hover:bg-paper transition-colors"
                         >
-                          <div className="flex items-center gap-3 min-w-0">
+                          <div className="flex min-w-0 flex-1 items-start gap-3">
                             <input
                               type="checkbox"
                               checked={item.isPacked}
@@ -588,7 +588,7 @@ export default function TripView() {
                               className="h-5 w-5 shrink-0 accent-brand-600 rounded"
                             />
                             <span
-                              className={`text-sm truncate ${
+                              className={`min-w-0 flex-1 whitespace-normal break-words text-sm ${
                                 item.isPacked ? "line-through text-ink/40" : "text-ink"
                               }`}
                             >

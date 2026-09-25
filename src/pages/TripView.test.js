@@ -122,6 +122,21 @@ describe("TripView (Issue #10)", () => {
     expect(await screen.findByText(/Rain Jacket/)).toBeInTheDocument();
   });
 
+  it("wraps a long checklist item name instead of truncating it on mobile", async () => {
+    const longName = "T-shirts and light layers for warm evenings";
+    api.getTrip.mockResolvedValue({
+      ...sampleTrip,
+      PackingItems: [{ ...sampleTrip.PackingItems[0], name: longName }],
+    });
+
+    renderTripView();
+
+    const itemName = await screen.findByText(longName);
+    expect(itemName).not.toHaveClass("truncate");
+    expect(itemName).toHaveClass("whitespace-normal", "break-words");
+    expect(screen.getByRole("button", { name: `Remove ${longName}` })).toBeInTheDocument();
+  });
+
   it("filters the checklist by target bag (Issue #43)", async () => {
     api.getTrip.mockResolvedValue(sampleTrip);
 
