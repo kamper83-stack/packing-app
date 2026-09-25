@@ -250,6 +250,28 @@ describe("TripView (Issue #10)", () => {
     expect(screen.queryByLabelText(/live weather data/i)).not.toBeInTheDocument();
   });
 
+  it("shows a mixed live+seasonal badge and per-day labels for a trip split across Google's window", async () => {
+    api.getTrip.mockResolvedValue({
+      ...sampleTrip,
+      weatherSource: "mixed",
+      weatherData: [
+        { date: "2026-09-01", tempC: 22, condition: "Sunny", provider: "google" },
+        { date: "2026-09-02", tempC: 19, condition: "Cloudy", provider: "seasonal" },
+      ],
+    });
+
+    renderTripView();
+    await screen.findByRole("heading", { name: "Barcelona" });
+
+    expect(screen.getByLabelText(/live weather for the covered days/i)).toBeInTheDocument();
+    expect(screen.getByText(/runs past the 10-day live forecast window/i)).toBeInTheDocument();
+    expect(screen.getByText("Live")).toBeInTheDocument();
+    expect(screen.getByText("Seasonal")).toBeInTheDocument();
+    // Not confused with the pure-live or pure-seasonal badges.
+    expect(screen.queryByLabelText(/^live weather data$/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^seasonal climate estimate$/i)).not.toBeInTheDocument();
+  });
+
   it("renders no weather source badge for legacy trips without provenance (Issue #36)", async () => {
     // sampleTrip has no weatherSource -> pre-#32 row must stay readable.
     api.getTrip.mockResolvedValue(sampleTrip);
