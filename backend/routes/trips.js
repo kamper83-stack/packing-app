@@ -20,11 +20,7 @@ router.use(authMiddleware);
 // destination and to store a consistent spelling. First occurrence wins for the
 // rare case of the same city name appearing in more than one country.
 const canonicalCityByKey = new Map();
-// lowercased city -> country, so a bare stored/submitted city name (e.g.
-// "Patras") can be disambiguated for WeatherAPI as "Patras, Greece" instead
-// of colliding with a same-named place elsewhere (Issue: Jev-verified
-// weather-coverage audit found Patras/Sitia/Delhi/Krakow/Porto resolve to the
-// wrong country by city name alone).
+// lowercased city -> country, retained for legacy trip metadata and airport lookup.
 const countryByCityKey = new Map();
 for (const country of Object.keys(airportCities)) {
   for (const cityName of airportCities[country]) {
@@ -447,10 +443,11 @@ router.post("/", async (req, res) => {
       ...(composition ? { passengerComposition: composition } : {}),
       vacationType: cleanVacationType,
       weatherData: weatherInfo.forecast,
-      // Issue #32 / #65: persist weather provenance. A distant-future trip is
-      // a seasonal climate estimate rather than a live forecast or mock.
+      // v2: retain legacy source while storing the actual provider and fetch time.
       weatherSource: weatherInfo.isSeasonal ? "seasonal" : weatherInfo.isMock ? "mock" : "live",
-      weatherError: weatherInfo.error ? String(weatherInfo.error) : null,
+      weatherProvider: weatherInfo.isSeasonal ? "seasonal" : weatherInfo.isMock ? "mock" : "google",
+      weatherFetchedAt: new Date(),
+      weatherError: weatherInfo.errorCode === "google_request_failed" ? "google_request_failed" : null,
       // Issue #30: persist AI generation provenance
       aiSource: aiResult.isMock ? "mock" : "live",
       aiError: aiResult.error ? String(aiResult.error) : null,
@@ -561,7 +558,9 @@ router.put("/:id", async (req, res) => {
         vacationType: cleanVacationType,
         weatherData: weatherInfo.forecast,
         weatherSource: weatherInfo.isSeasonal ? "seasonal" : weatherInfo.isMock ? "mock" : "live",
-        weatherError: weatherInfo.error ? String(weatherInfo.error) : null,
+        weatherProvider: weatherInfo.isSeasonal ? "seasonal" : weatherInfo.isMock ? "mock" : "google",
+        weatherFetchedAt: new Date(),
+        weatherError: weatherInfo.errorCode === "google_request_failed" ? "google_request_failed" : null,
         aiSource: aiResult.isMock ? "mock" : "live",
         aiError: aiResult.error ? String(aiResult.error) : null,
       }, { transaction });
@@ -615,7 +614,9 @@ router.post("/:id/weather", async (req, res) => {
       await trip.update({
         weatherData: weatherInfo.forecast,
         weatherSource: weatherInfo.isSeasonal ? "seasonal" : weatherInfo.isMock ? "mock" : "live",
-        weatherError: weatherInfo.error ? String(weatherInfo.error) : null,
+        weatherProvider: weatherInfo.isSeasonal ? "seasonal" : weatherInfo.isMock ? "mock" : "google",
+        weatherFetchedAt: new Date(),
+        weatherError: weatherInfo.errorCode === "google_request_failed" ? "google_request_failed" : null,
         aiSource: aiResult.isMock ? "mock" : "live",
         aiError: aiResult.error ? String(aiResult.error) : null,
       }, { transaction });

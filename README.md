@@ -6,7 +6,7 @@ PackPlanner is a full-stack travel packing assistant. Users create a trip, provi
 
 - JWT-based registration and login.
 - Trip creation and per-user trip listing.
-- Weather-aware packing inputs from Google Weather API through the backend, with legacy WeatherAPI compatibility.
+- Weather-aware packing inputs from Google Weather API through the backend.
 - Gemini-powered packing-list generation with a JSON item contract.
 - Current live model: `gemini-3.5-flash` (configurable via `GEMINI_MODEL`).
 - Offline Mock mode for development and tests when live credentials are unavailable.
@@ -26,7 +26,7 @@ packing-app/
 │   ├── middleware/          # Authentication middleware
 │   ├── models/              # Sequelize models for users, trips, and items
 │   ├── routes/              # Auth, trips, checklist, and item endpoints
-│   ├── services/            # Google Weather, legacy WeatherAPI, and Gemini integrations
+│   ├── services/            # Google Weather, seasonal climate, and Gemini integrations
 │   └── tests/               # Jest + Supertest backend tests
 ├── src/
 │   ├── pages/               # Login, Signup, Dashboard, and TripView
@@ -38,7 +38,7 @@ packing-app/
 └── .github/workflows/       # CI and deployment workflows
 ```
 
-The browser talks to the PackPlanner backend. The backend owns authentication, SQLite persistence, Google Weather API calls, legacy WeatherAPI compatibility, Gemini calls, and Mock fallback behavior. Provider keys must remain server-side.
+The browser talks to the PackPlanner backend. The backend owns authentication, SQLite persistence, Google Weather API calls, seasonal fallback, Gemini calls, and Mock fallback behavior. Provider keys must remain server-side.
 
 ## Requirements
 
@@ -46,7 +46,6 @@ The browser talks to the PackPlanner backend. The backend owns authentication, S
 - npm
 - Docker and Docker Compose for the containerized stack
 - A Google Weather API key for live weather
-- A WeatherAPI.com key only if the legacy provider is needed
 - A Gemini API key and available model quota for live packing-list generation
 
 ## Local development
@@ -62,16 +61,14 @@ npm run dev
 
 The backend listens on `http://localhost:5001` by default. Set `USE_MOCKS=true` for fully offline weather and Gemini development, or provide real keys and set `USE_MOCKS=false`.
 
-> **Google Weather:** set `GOOGLE_WEATHER_API_KEY` and `WEATHER_PROVIDER=google`. Google Weather returns up to 10 daily forecast days and the backend uses a checked-in coordinate catalog, so no geocoding request is made at runtime.
+> **Google Weather:** set `GOOGLE_WEATHER_API_KEY`. Google Weather returns up to 10 daily forecasts including today; a trip outside that full-coverage window uses a seasonal estimate. The backend uses a checked-in coordinate catalog, so no geocoding request is made at runtime.
 >
 > The Google Maps Geocoding API can resolve city names to coordinates, but it requires billing for this project; the coordinate catalog was generated offline and is validated by tests.
->
-> The legacy `WEATHER_API_KEY` remains supported for compatibility when `WEATHER_PROVIDER=weatherapi`.
 
 > Live weather failures do **not** block trip creation. The trip is saved with a
-> mock forecast, `weatherSource: "mock"`, and `weatherError` describing the
-> failure so the UI can show fallback state. Legacy trips without these fields
-> remain readable (`weatherSource` / `weatherError` are null).
+> mock forecast, `weatherSource: "mock"`, `weatherProvider: "mock"`, and a
+> safe `weatherError` code. Trips beyond Google's full live window are saved as
+> `weatherSource: "seasonal"`. Legacy trips without these fields remain readable.
 >
 > Similarly, live Gemini AI generation failures save the trip with fallback items,
 > `aiSource: "mock"`, and `aiError` describing the failure. Live successes record
@@ -102,7 +99,6 @@ Docker Compose reads environment interpolation from the project-root `.env`. For
 ```env
 JWT_SECRET=replace-with-a-long-random-secret
 GOOGLE_WEATHER_API_KEY=replace-with-a-google-weather-key
-WEATHER_PROVIDER=google
 GEMINI_API_KEY=replace-with-a-real-gemini-key
 USE_MOCKS=false
 ```
@@ -167,7 +163,7 @@ The backend reads:
 
 - `PORT` — server port, default `5001`.
 - `JWT_SECRET` — JWT signing secret.
-- `WEATHER_API_KEY` — WeatherAPI.com key.
+- `GOOGLE_WEATHER_API_KEY` — Google Weather API key for live forecasts.
 - `GEMINI_API_KEY` — Gemini API key.
 - `USE_MOCKS` — set to `true` for deterministic offline provider paths.
 

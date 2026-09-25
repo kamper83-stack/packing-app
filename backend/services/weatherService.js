@@ -1,209 +1,42 @@
-const axios = require("axios");
 const climateService = require("./climateService");
 const googleWeatherService = require("./googleWeatherService");
 
-// Values that look like a key but aren't one. The docker-compose / .env.example
-// default is a placeholder, so it must behave like "no key" — otherwise we call
-// WeatherAPI with a bad key, get a 401, and silently fall back to mock, which
-// looks exactly like a real key that "doesn't work".
-const PLACEHOLDER_KEYS = new Set(["your_weather_api_key_here"]);
-const GOOGLE_PLACEHOLDER_KEYS = new Set(["your_google_weather_api_key_here"]);
-
-// WeatherAPI's /forecast.json horizon is up to 14 days. Trips scheduled beyond
-// this window can't get a daily forecast and are handled by seasonal climate
-// estimation (Issue #65). Within the window we align the returned days to the
-// actual trip dates instead of "today" (Issue #63).
-const LIVE_FORECAST_MAX_DAYS = 14;
-// WeatherAPI's free plan accepts at most three forecast days. Requesting 4–14
-// days is a common cause of the provider's HTTP 400 response, so keep the
-// provider request within the documented portable limit. Trips outside that
-// response window use the existing dated fallback/seasonal path.
-//
-// Trade-off (confirmed intended, PR #124 review): WeatherAPI's free
-// forecast.json always counts days from *today*, not from the trip's start,
-// so this cap of 3 also bounds live coverage to near-term trips:
-//   - a trip starting more than ~2 days out has no day left in the 3-day
-//     request window that lands inside the trip, so `aligned` is empty and
-//     we fall back to the seasonal/mock estimate for the whole trip;
-//   - a trip starting soon but longer than 3 days only gets the first 1-3
-//     days live, and the rest of the packing-list weather summary is based
-//     on that truncated data.
-// This is a real reduction from the old 14-day live window, accepted as the
-// cost of avoiding the provider's 400 on the free plan. Upgrading the
-// WeatherAPI plan (or switching to a paid endpoint that accepts a `dt`
-// offset) would be required to widen this again.
-const WEATHER_API_REQUEST_MAX_DAYS = 3;
-
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
-// The configured WeatherAPI key, normalized (trimmed) so a padded value in the
-// environment is validated and sent consistently.
-function weatherApiKey() {
-  return (process.env.WEATHER_API_KEY || "").trim();
-}
-
-// True only when a usable WeatherAPI key is configured.
-function hasRealWeatherKey() {
-  const key = weatherApiKey();
-  return key.length > 0 && !PLACEHOLDER_KEYS.has(key);
-}
-
-// YYYY-MM-DD for a date, matching the format WeatherAPI uses for forecastday.
 function isoDate(value) {
   return new Date(value).toISOString().split("T")[0];
 }
 
-// Whole calendar days from `from` to `to`, comparing date-only (time-of-day is
-// ignored) so an afternoon "now" and a midnight startDate don't skew the count.
 function dayOffset(from, to) {
   const a = new Date(isoDate(from));
   const b = new Date(isoDate(to));
   return Math.round((b - a) / MS_PER_DAY);
 }
 
-// One synthetic forecast entry per trip day, always dated from the trip start
-// (never from "today"), so the offline/fallback path still shows trip dates.
-function mockForecast(start, tripDays, { mild = false } = {}) {
-  return Array.from({ length: tripDays }).map((_, index) => {
-    const date = new Date(start);
-    date.setDate(start.getDate() + index);
-    return {
-      date: isoDate(date),
-      tempC: mild ? 20 : 22 + Math.floor(Math.random() * 6) - 3, // 19..24
-      condition: mild
-        ? "Mild"
-        : index % 3 === 0
-        ? "Sunny"
-        : index % 3 === 1
-        ? "Partly Cloudy"
-        : "Rainy",
-    };
-  });
-}
+// Google Weather is the only live forecast provider in v2. A live response is
+// used only when Google can cover the entire trip within its ten-day window;
+// otherwise a single seasonal estimate avoids presenting mixed provenance as
+// one forecast.
+async function getForecast(destination, startDate, endDate) {
+  const tripDays = Math.max(dayOffset(startDate, endDate) + 1, 1);
+  const startOffset = Math.max(0, dayOffset(new Date(), startDate));
 
-// Some airport-city names collide with a differently-located place sharing
-// the same name (e.g. "Patras" also matches a town in West Bengal, India;
-// "Porto" also matches Porto Alegre, Brazil). WeatherAPI's search/forecast
-// geocoding picks its own "best" match for a bare city name, which is not
-// always the airport city we mean. When the caller knows the country, send
-// "City, Country" so WeatherAPI resolves the right place (verified against
-// WeatherAPI's own geocoding via a Jev batch check across all 82 packing-app
-// destinations — Patras, Sitia, Delhi, Krakow and Porto were confirmed
-// mis-resolved by city name alone).
-function weatherApiQuery(destination, country) {
-  return country ? `${destination}, ${country}` : destination;
-}
-
-function hasRealGoogleWeatherKey() {
-  const key = (process.env.GOOGLE_WEATHER_API_KEY || "").trim();
-  return key.length > 0 && !GOOGLE_PLACEHOLDER_KEYS.has(key);
-}
-
-// Use Google Weather when its key is configured. The legacy WeatherAPI path is
-// retained as a compatibility fallback for existing deployments during rollout.
-function shouldUseGoogleWeather() {
-  return process.env.WEATHER_PROVIDER === "google" ||
-    (!process.env.WEATHER_PROVIDER && hasRealGoogleWeatherKey());
-}
-
-async function getForecast(destination, startDate, endDate, country) {
-  if (shouldUseGoogleWeather()) {
-    // Google's ten-day response includes today, so a trip starting ten or more
-    // days from now is outside its live window. Prefer seasonal data to mock.
-    if (googleWeatherService.isBeyondGoogleForecastHorizon(startDate)) {
-      return climateService.getSeasonalEstimate(destination, startDate, endDate);
-    }
-    return googleWeatherService.getForecast(destination, startDate, endDate, country);
-  }
-
-  // Trips beyond the live-forecast window can't get a daily forecast, so use a
-  // seasonal climate estimate instead (Issue #65). Done here so the single
-  // getForecast entry point still governs weather sourcing.
-  if (climateService.isBeyondLiveForecast(startDate)) {
-    console.log(
-      `[WEATHER SERVICE] ${destination} trip starts beyond the live window; ` +
-        "using seasonal climate estimate."
-    );
+  if (
+    googleWeatherService.isBeyondGoogleForecastHorizon(startDate) ||
+    startOffset + tripDays > googleWeatherService.GOOGLE_FORECAST_MAX_DAYS
+  ) {
     return climateService.getSeasonalEstimate(destination, startDate, endDate);
   }
 
-
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-
-  // Inclusive trip length, capped at the live-forecast horizon.
-  const tripDays = Math.min(
-    Math.max(dayOffset(start, end) + 1, 1),
-    LIVE_FORECAST_MAX_DAYS
-  );
-
-  const useMocks = process.env.USE_MOCKS === "true" || !hasRealWeatherKey();
-
-  if (useMocks) {
-    console.log(`[WEATHER SERVICE] Using mock weather for ${destination}`);
-    return { forecast: mockForecast(start, tripDays), isMock: true };
+  const weather = await googleWeatherService.getForecast(destination, startDate, endDate);
+  if (weather.errorCode === "google_no_coverage") {
+    return climateService.getSeasonalEstimate(destination, startDate, endDate);
   }
 
-  // WeatherAPI numbers forecast days from *today*, not from an arbitrary start
-  // date, so to reach a future trip we request enough days to span from today
-  // through the trip's end, then keep only the days inside the trip window
-  // (Issue #63). A past or same-day start clamps the offset to 0.
-  const offset = Math.max(0, dayOffset(new Date(), start));
-  const days = Math.min(offset + tripDays, WEATHER_API_REQUEST_MAX_DAYS);
-
-  const tripStartIso = isoDate(start);
-  const tripEndIso = isoDate(end);
-
-  try {
-    const apiKey = weatherApiKey();
-    console.log(
-      `[WEATHER SERVICE] Fetching live forecast for ${destination} ` +
-        `(${days} days, trip ${tripStartIso}..${tripEndIso})`
-    );
-    const response = await axios.get(`https://api.weatherapi.com/v1/forecast.json`, {
-      params: {
-        key: apiKey,
-        q: weatherApiQuery(destination, country),
-        days: days,
-      },
-    });
-
-    const forecastDays = response.data?.forecast?.forecastday || [];
-    // Align to the trip: drop the leading "today..startDate-1" days WeatherAPI
-    // returns so the displayed dates are the scheduled trip's, not today's.
-    const aligned = forecastDays
-      .filter((day) => day.date >= tripStartIso && day.date <= tripEndIso)
-      .map((day) => ({
-        date: day.date,
-        tempC: day.day.avgtemp_c,
-        condition: day.day.condition.text,
-      }));
-
-    if (aligned.length > 0) {
-      return { forecast: aligned, isMock: false };
-    }
-
-    // The provider answered, but nothing covered the trip window — e.g. a
-    // free-plan key that only serves the next few days for a trip a week out.
-    // Show a trip-dated mock rather than a misleading "today" forecast.
-    console.warn(
-      `[WEATHER SERVICE] Live forecast did not cover trip window ` +
-        `${tripStartIso}..${tripEndIso}; using trip-dated mock.`
-    );
-    return { forecast: mockForecast(start, tripDays, { mild: true }), isMock: true };
-  } catch (error) {
-    // Make a misconfigured/failing live call loud instead of silently mocking,
-    // so a bad key or network issue is obvious during API testing.
-    console.warn(
-      `[WEATHER SERVICE] Live WeatherAPI call failed (${error.response?.status || error.message}); ` +
-        "falling back to mock data. Check WEATHER_API_KEY and network."
-    );
-    return {
-      forecast: mockForecast(start, tripDays, { mild: true }),
-      isMock: true,
-      error: error.message,
-    };
-  }
+  return weather;
 }
 
-module.exports = { getForecast, LIVE_FORECAST_MAX_DAYS };
+module.exports = {
+  getForecast,
+  LIVE_FORECAST_MAX_DAYS: googleWeatherService.GOOGLE_FORECAST_MAX_DAYS,
+};

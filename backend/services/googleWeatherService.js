@@ -75,11 +75,21 @@ function mapForecastDay(day) {
 
 async function getForecast(destination, startDate, endDate) {
   const { start, tripDays, startIso, endIso } = tripDates(startDate, endDate);
-  const useMocks = process.env.USE_MOCKS === "true" || !hasRealGoogleWeatherKey();
+  const useMocks = process.env.USE_MOCKS === "true";
   const location = coordinates[destination];
 
-  if (useMocks || !location) {
-    return { forecast: mockForecast(start, tripDays), isMock: true };
+  if (useMocks) {
+    return { forecast: mockForecast(start, tripDays), isMock: true, errorCode: "mock_mode" };
+  }
+  if (!hasRealGoogleWeatherKey()) {
+    return { forecast: mockForecast(start, tripDays), isMock: true, errorCode: "google_key_missing" };
+  }
+  if (!location) {
+    return {
+      forecast: mockForecast(start, tripDays),
+      isMock: true,
+      errorCode: "destination_coordinates_missing",
+    };
   }
 
   const offset = Math.max(0, dayOffset(new Date(), start));
@@ -104,11 +114,16 @@ async function getForecast(destination, startDate, endDate) {
       .slice(0, tripDays);
 
     if (aligned.length > 0) return { forecast: aligned, isMock: false };
-    return { forecast: mockForecast(start, tripDays), isMock: true };
+    return {
+      forecast: mockForecast(start, tripDays),
+      isMock: true,
+      errorCode: "google_no_coverage",
+    };
   } catch (error) {
     return {
       forecast: mockForecast(start, tripDays),
       isMock: true,
+      errorCode: "google_request_failed",
       error: error.message,
     };
   }

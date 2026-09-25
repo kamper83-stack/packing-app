@@ -28,6 +28,16 @@ const COLUMNS_TO_ENSURE = [
   },
   {
     table: "Trips",
+    column: "weatherProvider",
+    definition: { type: DataTypes.STRING, allowNull: true },
+  },
+  {
+    table: "Trips",
+    column: "weatherFetchedAt",
+    definition: { type: DataTypes.DATE, allowNull: true },
+  },
+  {
+    table: "Trips",
     column: "aiSource",
     definition: { type: DataTypes.STRING, allowNull: true }, // Issue #30
   },

@@ -9,7 +9,7 @@ const router = express.Router();
 router.use(authMiddleware);
 router.use(adminMiddleware);
 
-const WEATHER_PLACEHOLDERS = new Set(["your_weather_api_key_here"]);
+const GOOGLE_WEATHER_PLACEHOLDERS = new Set(["your_google_weather_api_key_here"]);
 const GEMINI_PLACEHOLDERS = new Set(["your_gemini_api_key_here"]);
 
 function keyStatus(raw, placeholders) {
@@ -24,7 +24,7 @@ function keyStatus(raw, placeholders) {
 router.get("/status", async (req, res) => {
   try {
     const useMocks = process.env.USE_MOCKS === "true";
-    const weather = keyStatus(process.env.WEATHER_API_KEY, WEATHER_PLACEHOLDERS);
+    const weather = keyStatus(process.env.GOOGLE_WEATHER_API_KEY, GOOGLE_WEATHER_PLACEHOLDERS);
     const gemini = keyStatus(process.env.GEMINI_API_KEY, GEMINI_PLACEHOLDERS);
 
     const recent = await Trip.findAll({
