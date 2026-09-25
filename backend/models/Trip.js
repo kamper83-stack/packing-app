@@ -56,7 +56,7 @@ const Trip = sequelize.define("Trip", {
   // Distinguish live Google Weather, seasonal estimates, and mock/fallback
   // without changing the weatherData array shape (legacy trips stay readable).
   weatherSource: {
-    type: DataTypes.STRING, // "live" | "mock" | null (pre-#32 rows)
+    type: DataTypes.STRING, // "live" | "seasonal" | "mixed" | "mock" | null (pre-#32 rows)
     allowNull: true,
   },
   weatherError: {
@@ -64,7 +64,7 @@ const Trip = sequelize.define("Trip", {
     allowNull: true,
   },
   weatherProvider: {
-    type: DataTypes.STRING, // "google" | "seasonal" | "mock" | null for legacy rows
+    type: DataTypes.STRING, // "google" | "seasonal" | "mixed" | "mock" | null for legacy rows
     allowNull: true,
   },
   weatherFetchedAt: {

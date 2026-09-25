@@ -82,4 +82,20 @@ describe("getSeasonalEstimate", () => {
     expect(byDate["2027-06-01"]).toBe(17);
     expect(byDate["2027-06-02"]).toBe(17);
   });
+
+  it("covers a full 60-day trip without truncating (MAX_TRIP_DAYS alignment)", () => {
+    // Trips can be up to MAX_TRIP_DAYS = 60 days (routes/trips.js); a
+    // seasonal estimate must cover every day of a trip that long, not just
+    // the first 30 (this cap previously didn't match MAX_TRIP_DAYS and
+    // silently dropped the tail of any 31-60 day trip).
+    const result = getSeasonalEstimate("Rome", "2027-01-01", "2027-03-01"); // 60 days inclusive
+    expect(result.forecast).toHaveLength(60);
+    expect(result.forecast[0].date).toBe("2027-01-01");
+    expect(result.forecast[59].date).toBe("2027-03-01");
+  });
+
+  it("still bounds an absurdly long range so the array can't grow unbounded", () => {
+    const result = getSeasonalEstimate("Rome", "2027-01-01", "2029-01-01"); // ~2 years
+    expect(result.forecast.length).toBeLessThanOrEqual(60);
+  });
 });

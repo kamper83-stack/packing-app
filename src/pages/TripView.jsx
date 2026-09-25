@@ -24,13 +24,21 @@ import useDocumentTitle from "../utils/useDocumentTitle";
 
 // Issue #36 / #65: compact indicator of where the weather forecast came from.
 // "live" -> real Google Weather data; "seasonal" -> historical climate estimate for
-// a distant-future trip; "mock" -> offline/sample fallback. Any other value
-// (including null on pre-#32 trips) renders nothing.
+// a distant-future trip; "mixed" -> trip split across Google's 10-day window
+// (leading days live, trailing days seasonal — see each day's own badge
+// below); "mock" -> offline/sample fallback. Any other value (including null
+// on pre-#32 trips) renders nothing.
 const WEATHER_SOURCE_BADGES = {
   live: {
     classes: "bg-brand-50 text-brand-700 border-brand-200",
     label: "Live data",
     aria: "Live weather data",
+    Icon: Sun,
+  },
+  mixed: {
+    classes: "bg-amber-50 text-amber-700 border-amber-200",
+    label: "Live + seasonal",
+    aria: "Live weather for the covered days, seasonal estimate for the rest",
     Icon: Sun,
   },
   seasonal: {
@@ -45,6 +53,13 @@ const WEATHER_SOURCE_BADGES = {
     aria: "Sample weather data",
     Icon: FileText,
   },
+};
+
+// Per-day provenance shown only on a "mixed" trip's forecast tiles, so it's
+// clear which specific days are real Google data vs. a seasonal estimate.
+const DAY_PROVIDER_LABELS = {
+  google: "Live",
+  seasonal: "Seasonal",
 };
 
 function WeatherSourceBadge({ source }) {
@@ -447,6 +462,19 @@ export default function TripView() {
                 </span>
               </div>
             )}
+            {trip.weatherSource === "mixed" && (
+              <div
+                role="status"
+                className="mb-4 flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800"
+              >
+                <Sun size={16} className="shrink-0 mt-px" aria-hidden="true" />
+                <span>
+                  This trip runs past the 10-day live forecast window, so the early
+                  days show real Google Weather data and the later days show a
+                  seasonal climate estimate — each day below is labeled.
+                </span>
+              </div>
+            )}
             {trip.weatherData && trip.weatherData.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                 {trip.weatherData.map((day, idx) => (
@@ -457,6 +485,11 @@ export default function TripView() {
                     <span className="block text-xs font-semibold text-muted">{day.date}</span>
                     <span className="block text-2xl font-extrabold text-ink mt-1">{day.tempC}°</span>
                     <span className="block text-xs text-muted mt-1">{day.condition}</span>
+                    {trip.weatherSource === "mixed" && DAY_PROVIDER_LABELS[day.provider] && (
+                      <span className="block text-[10px] font-semibold uppercase tracking-wide text-amber-700 mt-1">
+                        {DAY_PROVIDER_LABELS[day.provider]}
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>

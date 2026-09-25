@@ -15,7 +15,7 @@ PackPlanner is a full-stack travel packing assistant. Users create a trip, provi
 - Airline baggage configuration and a baggage-constraints display.
 - Responsive React UI with Tailwind CSS.
 
-> **Weather forecast scope:** Google Weather provides a current-day-inclusive window of up to 10 daily forecasts. The backend requests at most 10 days, uses a seasonal estimate for trips starting outside that window, and never presents a mock fallback as live data.
+> **Weather forecast scope:** Google Weather provides a current-day-inclusive window of up to 10 daily forecasts. A trip that starts inside that window but runs past it is split at the boundary: the leading days get a real Google forecast and the trailing days get a seasonal estimate (`weatherSource: "mixed"`, each forecast day tagged with its own `provider`). A trip that starts entirely outside the window uses a full seasonal estimate. A mock fallback is never presented as live data.
 
 ## Architecture
 
@@ -61,14 +61,17 @@ npm run dev
 
 The backend listens on `http://localhost:5001` by default. Set `USE_MOCKS=true` for fully offline weather and Gemini development, or provide real keys and set `USE_MOCKS=false`.
 
-> **Google Weather:** set `GOOGLE_WEATHER_API_KEY`. Google Weather returns up to 10 daily forecasts including today; a trip outside that full-coverage window uses a seasonal estimate. The backend uses a checked-in coordinate catalog, so no geocoding request is made at runtime.
+> **Google Weather:** set `GOOGLE_WEATHER_API_KEY`. Google Weather returns up to 10 daily forecasts including today; a trip that only partially overlaps that window gets a mixed forecast (live for the covered days, seasonal for the rest), and a trip entirely outside the window uses a full seasonal estimate. The backend uses a checked-in coordinate catalog, so no geocoding request is made at runtime.
 >
 > The Google Maps Geocoding API can resolve city names to coordinates, but it requires billing for this project; the coordinate catalog was generated offline and is validated by tests.
 
 > Live weather failures do **not** block trip creation. The trip is saved with a
 > mock forecast, `weatherSource: "mock"`, `weatherProvider: "mock"`, and a
-> safe `weatherError` code. Trips beyond Google's full live window are saved as
-> `weatherSource: "seasonal"`. Legacy trips without these fields remain readable.
+> safe `weatherError` code. Trips entirely beyond Google's live window are saved as
+> `weatherSource: "seasonal"`. Trips that only partially overlap the window are
+> saved as `weatherSource: "mixed"` / `weatherProvider: "mixed"`, with each day in
+> `weatherData` tagged `provider: "google"` or `provider: "seasonal"`. Legacy trips
+> without these fields remain readable.
 >
 > Similarly, live Gemini AI generation failures save the trip with fallback items,
 > `aiSource: "mock"`, and `aiError` describing the failure. Live successes record

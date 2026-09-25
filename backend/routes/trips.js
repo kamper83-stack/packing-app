@@ -444,8 +444,10 @@ router.post("/", async (req, res) => {
       vacationType: cleanVacationType,
       weatherData: weatherInfo.forecast,
       // v2: retain legacy source while storing the actual provider and fetch time.
-      weatherSource: weatherInfo.isSeasonal ? "seasonal" : weatherInfo.isMock ? "mock" : "live",
-      weatherProvider: weatherInfo.isSeasonal ? "seasonal" : weatherInfo.isMock ? "mock" : "google",
+      // "mixed" = trip split across Google's 10-day window: leading days are
+      // live, trailing days are a seasonal estimate (see weatherService.js).
+      weatherSource: weatherInfo.isMixed ? "mixed" : weatherInfo.isSeasonal ? "seasonal" : weatherInfo.isMock ? "mock" : "live",
+      weatherProvider: weatherInfo.isMixed ? "mixed" : weatherInfo.isSeasonal ? "seasonal" : weatherInfo.isMock ? "mock" : "google",
       weatherFetchedAt: new Date(),
       weatherError: weatherInfo.errorCode === "google_request_failed" ? "google_request_failed" : null,
       // Issue #30: persist AI generation provenance
@@ -557,8 +559,8 @@ router.put("/:id", async (req, res) => {
         passengerComposition: composition,
         vacationType: cleanVacationType,
         weatherData: weatherInfo.forecast,
-        weatherSource: weatherInfo.isSeasonal ? "seasonal" : weatherInfo.isMock ? "mock" : "live",
-        weatherProvider: weatherInfo.isSeasonal ? "seasonal" : weatherInfo.isMock ? "mock" : "google",
+        weatherSource: weatherInfo.isMixed ? "mixed" : weatherInfo.isSeasonal ? "seasonal" : weatherInfo.isMock ? "mock" : "live",
+        weatherProvider: weatherInfo.isMixed ? "mixed" : weatherInfo.isSeasonal ? "seasonal" : weatherInfo.isMock ? "mock" : "google",
         weatherFetchedAt: new Date(),
         weatherError: weatherInfo.errorCode === "google_request_failed" ? "google_request_failed" : null,
         aiSource: aiResult.isMock ? "mock" : "live",
@@ -613,8 +615,8 @@ router.post("/:id/weather", async (req, res) => {
     await sequelize.transaction(async (transaction) => {
       await trip.update({
         weatherData: weatherInfo.forecast,
-        weatherSource: weatherInfo.isSeasonal ? "seasonal" : weatherInfo.isMock ? "mock" : "live",
-        weatherProvider: weatherInfo.isSeasonal ? "seasonal" : weatherInfo.isMock ? "mock" : "google",
+        weatherSource: weatherInfo.isMixed ? "mixed" : weatherInfo.isSeasonal ? "seasonal" : weatherInfo.isMock ? "mock" : "live",
+        weatherProvider: weatherInfo.isMixed ? "mixed" : weatherInfo.isSeasonal ? "seasonal" : weatherInfo.isMock ? "mock" : "google",
         weatherFetchedAt: new Date(),
         weatherError: weatherInfo.errorCode === "google_request_failed" ? "google_request_failed" : null,
         aiSource: aiResult.isMock ? "mock" : "live",
