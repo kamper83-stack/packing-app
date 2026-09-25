@@ -37,6 +37,11 @@ key is a local secret: export it from the approved Hermes secret store or
 another secure secret manager; **never** put `TYPESAFE_API_KEY` in this repo,
 a PR body, an issue, or a log.
 
+> **Privacy note:** the script POSTs the full PR diff to `api.typesafe.ai`
+> (a third party). Only run it on PRs you're willing to transmit outside the
+> repository. This is by design (Jev evaluates content server-side), but the
+> owner should decide what is acceptable to send.
+
 ```bash
 PR=<number>
 HEAD=$(gh pr view "$PR" --repo kamper83-stack/packing-app --json headRefOid --jq .headRefOid)

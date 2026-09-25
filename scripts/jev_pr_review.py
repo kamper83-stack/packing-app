@@ -43,18 +43,55 @@ def gh(*args):
 
 
 def load_pr_context(pr_number, repo):
-    metadata = json.loads(
-        gh(
-            "pr",
-            "view",
-            str(pr_number),
-            "--repo",
-            repo,
-            "--json",
-            "number,title,url,headRefOid,baseRefName,headRefName",
+    try:
+        metadata = json.loads(
+            gh(
+                "pr",
+                "view",
+                str(pr_number),
+                "--repo",
+                repo,
+                "--json",
+                "number,title,url,headRefOid,baseRefName,headRefName",
+            )
         )
-    )
+    except (ValueError, KeyError) as error:
+        raise RuntimeError(
+            f"Could not parse `gh pr view` output for PR #{pr_number}: {error}"
+        )
+
     diff = gh("pr", "diff", str(pr_number), "--repo", repo)
+
+    # TOCTOU guard: the head and the diff are fetched in two separate `gh`
+    # calls. If a push lands in between, the recorded head_commit would name a
+    # different revision than the diff we actually sent to Jev - which would
+    # defeat the exact-head integrity the whole gate is built on. Re-read the
+    # head after the diff and abort rather than emit a mismatched artifact.
+    try:
+        head_after = (
+            gh(
+                "pr",
+                "view",
+                str(pr_number),
+                "--repo",
+                repo,
+                "--json",
+                "headRefOid",
+                "--jq",
+                ".headRefOid",
+            )
+            .strip()
+            .lower()
+        )
+    except (ValueError, KeyError) as error:
+        raise RuntimeError(
+            f"Could not re-read head for PR #{pr_number}: {error}"
+        )
+    if head_after != str(metadata.get("headRefOid", "")).lower():
+        raise RuntimeError(
+            f"PR #{pr_number} head changed while fetching the diff; re-run the review."
+        )
+
     if len(diff) > MAX_DIFF_CHARS:
         raise RuntimeError(
             f"PR diff is {len(diff):,} characters; the advisory review limit is "
