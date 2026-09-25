@@ -8,6 +8,12 @@ const SEASONAL_THRESHOLD_DAYS = 14;
 
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
+// Kept in sync with MAX_TRIP_DAYS in routes/trips.js (the longest trip a user
+// can create). A seasonal estimate is computed locally (no API call), so
+// there's no cost reason to cap it lower than that - but an explicit bound
+// still guards against an unbounded array if that invariant ever breaks.
+const MAX_FORECAST_DAYS = 60;
+
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
@@ -58,9 +64,12 @@ function getSeasonalEstimate(destination, startDate, endDate) {
   const temps = monthlyTempsFor(destination);
 
   // Inclusive trip length, bounded so a very long range can't produce a huge
-  // array.
+  // array. Must cover every day up to MAX_TRIP_DAYS so a full-length trip's
+  // forecast array is never silently shorter than the trip itself (this also
+  // matters for the "mixed" live+seasonal path in weatherService.js, which
+  // relies on this array covering its full requested sub-range).
   const rawDays = dayOffset(start, end) + 1;
-  const tripDays = Math.min(Math.max(rawDays, 1), 30);
+  const tripDays = Math.min(Math.max(rawDays, 1), MAX_FORECAST_DAYS);
 
   const forecast = Array.from({ length: tripDays }).map((_, index) => {
     const date = new Date(start);

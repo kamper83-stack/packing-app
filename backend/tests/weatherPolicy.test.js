@@ -61,14 +61,17 @@ describe("Google Weather v2 coverage policy", () => {
   });
 
   it("splits a trip that starts within the window but ends past it", async () => {
-    const start = new Date(Date.now() + 5 * DAY_MS); // offset 5
+    const today = new Date();
+    const start = new Date(today.getTime() + 5 * DAY_MS); // offset 5
     const end = new Date(start.getTime() + 5 * DAY_MS); // 6-day trip, offsets 5..10
 
     axios.get.mockResolvedValue({
       data: {
-        // Google can only cover offsets 5..9 (5 days) before day 10 is exceeded.
-        forecastDays: Array.from({ length: 5 }, (_, index) =>
-          googleForecastDay(new Date(start.getTime() + index * DAY_MS))
+        // Realistic payload: Google always returns days counted from TODAY
+        // (offsets 0..9), not from the trip start - offsets 0..4 are here
+        // too and must be filtered out since they're before the trip.
+        forecastDays: Array.from({ length: 10 }, (_, index) =>
+          googleForecastDay(new Date(today.getTime() + index * DAY_MS))
         ),
       },
     });
