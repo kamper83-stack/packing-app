@@ -93,78 +93,217 @@ process convention and must be self-checked before every merge.
 
 ## Deploying is separate from merging
 
-Merging to `main` does not by itself deploy anything. The CD GitHub Action
-(`.github/workflows/deploy.yml`) attempts an automatic deploy over SSH on
-CI success but is currently broken (Tailscale/SSH connectivity — see #114);
-the working path today is a manual deploy on the VPS. Whatever deploy-gate
-process your operating profile requires (independent review naming the
-exact commit, etc.) applies on top of this — merging is not a substitute
-for it.
+Merging to `main` does not by itself deploy anything. Every staging or
+production deployment also needs a current independent `expert` **APPROVE**
+that names the exact commit/artifact being deployed; a PR approval for its
+pre-squash head does not automatically approve the squash-merge commit.
 
-## Manual VPS deploy — verified procedure (2026-09-23)
+The CD GitHub Action is intentionally disabled until it has a safe
+SHA-pinned implementation. It must never be re-enabled merely because an SSH
+secret or network route was repaired: a successful connection is not evidence
+that the required deploy gates are present. The required production path is the
+manual, SHA-pinned procedure below.
 
-The VPS *is* `ai_admin`'s own host (not a separate remote machine an agent
-SSHes into) — production runs directly on it. Verified live on this host:
-containers up, weather smoke check returned `isMock=false`, and
-`https://packing.erankam.dev/` returned `200` at the time this was written.
+## Manual production deploy — controlled procedure (2026-09-26)
 
-**Production checkout**: `/home/ai_admin/apps/packing-app` — a real,
-independent git clone of this repo (own `.git`, own working tree). It is
-**not** the same checkout an agent does its dev/PR work in (e.g. a scratch
-clone) — never edit or `git reset`/`git clean` this directory casually,
-other things (backups, the running stack) depend on its state.
+The VPS is `ai_admin`'s own host; production runs directly on it. The
+production checkout is `/home/ai_admin/apps/packing-app`, a real independent
+clone with its own `.git` and working tree. It is not the development checkout.
+Never casually edit it or use `git reset`/`git clean` there.
+
+The initial SHA-pinned deployment was verified on 2026-09-26. The procedure
+below additionally uses a pristine temporary Git worktree so Docker cannot
+consume tracked edits or untracked files from the long-lived production
+checkout. Treat this clean-worktree rule as mandatory for every subsequent
+deploy and rollback.
+
+### Preconditions
+
+1. Confirm the approved target is an immutable full SHA, and confirm it is
+   still the intended `origin/main` tip (if `main` is the target).
+2. Obtain a current `expert` deploy APPROVE that names that exact full SHA.
+3. Take a fresh database backup. The script currently lacks execute permission,
+   so invoke it through `bash`; do **not** chmod it merely for a deploy:
+
+   ```bash
+   set -euo pipefail
+   MARKER=$(mktemp)
+   bash /home/ai_admin/scripts/backup-packing-app-db.sh
+   LATEST_BACKUP=$(find /home/ai_admin/backups/packing-app-db/ -type f -newer "$MARKER" | head -n 1)
+   [ -n "$LATEST_BACKUP" ] \
+     || { echo "FATAL: this run produced no fresh backup archive in /home/ai_admin/backups/packing-app-db/" >&2; exit 1; }
+   echo "fresh backup archive: $LATEST_BACKUP"
+   rm -f "$MARKER"
+   ```
+
+   Verify the archive contains `database.sqlite` before replacing containers.
+   The block fails closed unless this run itself produced an archive
+   (`find -newer` against the pre-run marker); the archive-content check
+   remains intentional manual verification.
+4. Have the previous production SHA and the fresh backup archive recorded for
+   rollback. The SQLite schema migration introduced by #139 is additive
+   (`weatherProvider`, `weatherFetchedAt`, both nullable), and rollback to
+   `2fa1df7` was empirically tested against migrated data on 2026-09-26:
+   old code ignores the extra columns, and `mixed` forecasts degrade only by
+   hiding the old UI badge. Still, rollback is a production operation and
+   requires its own current approval.
+
+### Deploy an exact SHA
 
 ```bash
-cd /home/ai_admin/apps/packing-app
+set -euo pipefail
 
-# Deploy the reviewed/approved ref - do NOT assume it's always "main".
-# (At the time of writing, production is intentionally running a feature
-# branch, fix/trip-card-click-and-weather-grid, not main - confirm the
-# exact ref/commit from the deploy-gate review before checking anything out.)
-git fetch origin
-git checkout <reviewed-branch-or-main>
-git pull origin <reviewed-branch-or-main>
+# Long-lived checkout containing production .env and the existing Compose
+# project/volume. Never build directly from it.
+PROD_DIR=/home/ai_admin/apps/packing-app
+DEPLOY_SHA=<full SHA named by the expert deploy APPROVE>
+BUILD_DIR=$(mktemp -d /home/ai_admin/apps/packing-app-build.XXXXXX)
+# Cleanup on ANY exit path (guards use `exit 1`, which does not fire ERR).
+# The trap is explicitly disarmed after `up` succeeds: post-deploy
+# verification still needs $BUILD_DIR for diagnosis.
+cleanup() { git -C "$PROD_DIR" worktree remove --force "$BUILD_DIR" 2>/dev/null || true; rm -rf "$BUILD_DIR"; }
+trap cleanup EXIT
 
-# .env already exists at the repo root (chmod 600) with real
-# JWT_SECRET / GEMINI_API_KEY / WEATHER_API_KEY / ADMIN_EMAIL - docker
-# compose reads it automatically. Don't regenerate/overwrite it blindly;
-# only touch it if a secret actually changed.
+# A detached, clean worktree has no local edits or untracked build inputs.
+# Every guard below is fail-closed: with `set -euo pipefail` any failed check
+# aborts the block before docker touches production.
+git -C "$PROD_DIR" fetch origin
+DEPLOY_TARGET=main   # set to any other value when deploying a non-tip approved SHA
+if [ "$DEPLOY_TARGET" = "main" ]; then
+  [ "$(git -C "$PROD_DIR" rev-parse origin/main)" = "$DEPLOY_SHA" ] \
+    || { echo "FATAL: origin/main != $DEPLOY_SHA (deploying main requires the approved SHA to be the tip)" >&2; exit 1; }
+fi
+git -C "$PROD_DIR" worktree add --detach "$BUILD_DIR" "$DEPLOY_SHA"
+[ "$(git -C "$BUILD_DIR" rev-parse HEAD)" = "$DEPLOY_SHA" ] \
+  || { echo "FATAL: worktree HEAD != $DEPLOY_SHA" >&2; exit 1; }
+[ -z "$(git -C "$BUILD_DIR" status --porcelain --untracked-files=all)" ] \
+  || { echo "FATAL: build worktree is not clean" >&2; exit 1; }
 
-docker compose build
-docker compose up -d --remove-orphans
-docker image prune -f
+# Preserve the production .env and the existing named SQLite volume. Explicit
+# project name ensures this clean source tree targets `packing-app_sqlite-data`,
+# not a new empty project/volume.
+docker compose --project-directory "$BUILD_DIR" --project-name packing-app \
+  --env-file "$PROD_DIR/.env" -f "$BUILD_DIR/docker-compose.yml" build
+docker compose --project-directory "$BUILD_DIR" --project-name packing-app \
+  --env-file "$PROD_DIR/.env" -f "$BUILD_DIR/docker-compose.yml" up -d --remove-orphans
+
+# Build and stack are up: disarm the cleanup trap. $BUILD_DIR is kept from
+# here on — post-deploy verification and any failure diagnosis need it.
+trap - EXIT
+
+# Bind the verification block to THIS deploy (it refuses to run without these).
+SRC_DIR=$BUILD_DIR
+TARGET_SHA=$DEPLOY_SHA
 ```
 
-**Post-deploy smoke checks** (same ones `.github/workflows/deploy.yml`
-already runs — confirmed working when re-run manually against the live
-containers):
+Do **not** use `git checkout main && git pull`, build from the long-lived
+checkout, or run `git pull` after selecting the SHA: each defeats exact-artifact
+integrity. Do not regenerate/change the production `.env` unless the deployment
+specifically includes a separately reviewed secret change. `docker image prune
+-f` is optional housekeeping, not a deployment correctness step.
+
+Keep `$BUILD_DIR` until post-deploy verification succeeds; the teardown step
+lives **after** the verification section for that reason.
+
+### Required post-deploy verification
 
 ```bash
-docker compose exec -T backend node -e \
-  "require('./services/weatherService').getForecast('London', new Date().toISOString().split('T')[0], new Date().toISOString().split('T')[0]).then(r => console.log('[POST-DEPLOY] Weather check finished. isMock=' + r.isMock + (r.error ? ' (error: ' + r.error + ')' : '')))"
+set -euo pipefail
 
-curl -o /dev/null -s -w "%{http_code}\n" https://packing.erankam.dev/   # expect 200
+# This block must run in the same shell as the deploy or rollback block that
+# preceded it: that block defines $PROD_DIR, $SRC_DIR and $TARGET_SHA (and
+# has already disarmed its cleanup trap). Fail closed if they are missing —
+# silently verifying the wrong tree or SHA is exactly what this prevents.
+: "${PROD_DIR:?must run in the same shell as the deploy/rollback block that defines PROD_DIR}"
+: "${SRC_DIR:?must run in the same shell as the deploy/rollback block that defines SRC_DIR}"
+: "${TARGET_SHA:?must run in the same shell as the deploy/rollback block that defines TARGET_SHA}"
+
+# The temporary worktree that supplied the Docker build must still exist here.
+[ "$(git -C "$SRC_DIR" rev-parse HEAD)" = "$TARGET_SHA" ] \
+  || { echo "FATAL: worktree HEAD != $TARGET_SHA" >&2; exit 1; }
+
+docker compose --project-directory "$SRC_DIR" --project-name packing-app \
+  --env-file "$PROD_DIR/.env" -f "$SRC_DIR/docker-compose.yml" ps
+
+# Today's date is inside Google's live window. Both values must be false:
+# seasonal here indicates Google live retrieval failed and silently fell back.
+docker compose --project-directory "$SRC_DIR" --project-name packing-app \
+  --env-file "$PROD_DIR/.env" -f "$SRC_DIR/docker-compose.yml" exec -T backend node -e \
+  "const today=new Date().toISOString().split('T')[0]; require('./services/weatherService').getForecast('London', today, today).then(r => { console.log(JSON.stringify({isMock:r.isMock,isSeasonal:Boolean(r.isSeasonal),isMixed:Boolean(r.isMixed),days:(r.forecast||[]).length,error:r.error||null})); process.exit(r.isMock || r.isSeasonal ? 1 : 0); }).catch(error => { console.error(error.stack || error.message); process.exit(1); })"
+
+curl -sS -o /dev/null -w "https_status=%{http_code}\n" https://packing.erankam.dev/
+# Expected: 200
 ```
 
-**How the port is actually opened to the internet** (provisioned once,
-outside this repo — do not try to redo this per deploy; a deploy only
-needs the `docker compose` steps above, since the port mapping doesn't
-change):
+Do not call the deployment successful unless the SHA matches, both services
+are up, the weather check has `isMock=false` and `isSeasonal=false`, and the
+public HTTPS check returns 200.
 
-- `docker-compose.yml` binds both containers to `127.0.0.1` only
-  (`127.0.0.1:3025:80` frontend, `127.0.0.1:3026:5001` backend) — never
-  reachable from outside the host directly, by design.
-- The host's nginx (`/etc/nginx/sites-available/packing`, symlinked into
-  `sites-enabled/`) is the only public entry point: it terminates TLS for
-  `packing.erankam.dev` on the host's public IP, port 443 (cert via
-  Certbot, `/etc/letsencrypt/live/wildcard-erankam.dev/`), and
-  reverse-proxies to `127.0.0.1:3025`. The frontend container's own nginx
-  then proxies `/api` through to the backend container internally.
-  `nginx -t && systemctl reload nginx` after editing that vhost file — not
-  needed for a routine code deploy.
+### Teardown (only after verification succeeds)
 
-**Known gap found while verifying this (not yet fixed)**: the production
-DB backup script (`/home/ai_admin/scripts/backup-packing-app-db.sh`) exists
-and works, but is **not** installed in `crontab -l` on this host — only
-`appy-backup-nightly.sh` is scheduled. Flag this to Eran before relying on
-automated packing-app DB backups.
+```bash
+git -C "$PROD_DIR" worktree remove "$BUILD_DIR"
+rm -rf "$BUILD_DIR"
+```
+
+Once the temporary worktree is gone, run steady-state ops commands
+(`ps`/`logs`/`exec`) against the long-lived checkout — the running
+containers are matched by the project name, not by the build directory:
+
+```bash
+docker compose --project-directory "$PROD_DIR" --project-name packing-app \
+  --env-file "$PROD_DIR/.env" -f "$PROD_DIR/docker-compose.yml" ps
+```
+
+### Rollback
+
+A rollback is not automatic. It requires a current approval, then uses the
+same controlled procedure with the recorded previous SHA:
+
+```bash
+set -euo pipefail
+PROD_DIR=/home/ai_admin/apps/packing-app
+ROLLBACK_SHA=<previous-approved-SHA>
+ROLLBACK_DIR=$(mktemp -d /home/ai_admin/apps/packing-app-rollback.XXXXXX)
+# Same cleanup pattern as the deploy block: fires on any exit path, and is
+# disarmed after `up` succeeds so post-rollback verification keeps $ROLLBACK_DIR.
+rollback_cleanup() { git -C "$PROD_DIR" worktree remove --force "$ROLLBACK_DIR" 2>/dev/null || true; rm -rf "$ROLLBACK_DIR"; }
+trap rollback_cleanup EXIT
+
+# Fail-closed: any mismatch aborts before docker touches production.
+git -C "$PROD_DIR" fetch origin
+git -C "$PROD_DIR" worktree add --detach "$ROLLBACK_DIR" "$ROLLBACK_SHA"
+[ "$(git -C "$ROLLBACK_DIR" rev-parse HEAD)" = "$ROLLBACK_SHA" ] \
+  || { echo "FATAL: rollback worktree HEAD != $ROLLBACK_SHA" >&2; exit 1; }
+[ -z "$(git -C "$ROLLBACK_DIR" status --porcelain --untracked-files=all)" ] \
+  || { echo "FATAL: rollback worktree is not clean" >&2; exit 1; }
+docker compose --project-directory "$ROLLBACK_DIR" --project-name packing-app \
+  --env-file "$PROD_DIR/.env" -f "$ROLLBACK_DIR/docker-compose.yml" build
+docker compose --project-directory "$ROLLBACK_DIR" --project-name packing-app \
+  --env-file "$PROD_DIR/.env" -f "$ROLLBACK_DIR/docker-compose.yml" up -d --remove-orphans
+
+# Stack is rolled back: disarm the cleanup trap; verification needs $ROLLBACK_DIR.
+trap - EXIT
+
+# Bind the verification block to THIS rollback (it refuses to run without these).
+SRC_DIR=$ROLLBACK_DIR
+TARGET_SHA=$ROLLBACK_SHA
+```
+
+Keep the SQLite volume intact unless an independently approved database restore
+is needed; code rollback alone preserves new rows and added nullable columns.
+The rollback block above binds `SRC_DIR`/`TARGET_SHA` to the rollback values,
+so run the post-deploy verification block **in the same shell** — it verifies
+the rolled-back tree and SHA, including the smoke checks and the public
+HTTPS check.
+
+### Network topology
+
+- `docker-compose.yml` binds frontend to `127.0.0.1:3025` and backend to
+  `127.0.0.1:3026`; neither is public directly.
+- Host nginx at `/etc/nginx/sites-available/packing` terminates TLS for
+  `packing.erankam.dev` on port 443 and proxies to the frontend. Do not edit
+  nginx for a routine application deploy.
+- The DB backup script works but is not in crontab (only Appy backup is
+  scheduled). Treat each deploy as requiring the explicit fresh backup until
+  scheduled backups are installed and verified.

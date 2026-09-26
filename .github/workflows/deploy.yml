@@ -1,132 +1,24 @@
-name: CD Deployment (Docker Compose via SSH)
+name: CD Deployment (disabled pending safe SHA-pinned implementation)
 
-# Issue #87: previously triggered on every push to main independent of
-# whether CI passed, so a merge or direct push could deploy to production
-# before tests had ever run against the merged result. Now gated on the "CI
-# Pipeline" workflow (ci.yml) completing successfully on main.
+# Production deployment is deliberately NOT automatic. The former workflow_run
+# trigger could deploy whatever main happened to point at after CI, before an
+# independent expert had approved that exact post-squash artifact. It also
+# performed a mutable `git pull` and rewrote production .env. See AGENTS.md for
+# the currently verified, manually approved SHA-pinned procedure.
+#
+# Keep workflow_dispatch only as a visible, auditable guardrail: it must fail
+# rather than accidentally exercise the legacy production-deploy path. A future
+# workflow may replace this only after implementing the same exact-SHA,
+# fresh-backup, clean-build-context, env-preservation, and post-deploy gates.
 on:
-  workflow_run:
-    workflows: [ "CI Pipeline" ]
-    branches: [ main ]
-    types: [ completed ]
   workflow_dispatch:
 
 jobs:
-  deploy:
+  deployment-disabled:
     runs-on: ubuntu-latest
-    # Only deploy when triggered manually, or when the CI run that triggered
-    # this actually succeeded (workflow_run fires on failure/cancellation too).
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      # Fail fast with an actionable message when a required deploy secret is
-      # missing, instead of surfacing only an opaque "dial tcp ***:22: i/o
-      # timeout" further down (issue #114). Only presence is checked; values
-      # are never printed (and would be masked by Actions regardless).
-      - name: Preflight — verify required deploy secrets are set
-        env:
-          VPS_SSH_HOST: ${{ secrets.VPS_SSH_HOST }}
-          VPS_SSH_USERNAME: ${{ secrets.VPS_SSH_USERNAME }}
-          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
-          GOOGLE_WEATHER_API_KEY: ${{ secrets.GOOGLE_WEATHER_API_KEY }}
+      - name: Refuse unsafe GitHub Actions production deployment
         run: |
-          missing=""
-          [ -z "$VPS_SSH_HOST" ] && missing="$missing VPS_SSH_HOST"
-          [ -z "$VPS_SSH_USERNAME" ] && missing="$missing VPS_SSH_USERNAME"
-          [ -z "$VPS_SSH_KEY" ] && missing="$missing VPS_SSH_KEY"
-          [ -z "$GOOGLE_WEATHER_API_KEY" ] && missing="$missing GOOGLE_WEATHER_API_KEY"
-          if [ -n "$missing" ]; then
-            echo "::error::Missing required deploy secret(s):$missing — set them in Settings → Secrets and variables → Actions, then re-run."
-            exit 1
-          fi
-          echo "All required SSH secrets are present."
-
-      # Optional: Connect to your Tailscale network if your VPS is not publicly
-      # reachable. Requires TS_OAUTH_CLIENT_ID / TS_OAUTH_SECRET secrets and an
-      # OAuth client tagged tag:ci. If your SSH host is publicly reachable you
-      # can remove this step. Kept as continue-on-error so a public-VPS setup
-      # still deploys, but its outcome is surfaced by the next step (issue #114).
-      - name: Connect to Tailscale
-        id: tailscale
-        uses: tailscale/github-action@v2
-        with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: tag:ci
-        continue-on-error: true # Allow deployment to proceed if Tailscale is not fully configured
-
-      # Surface the Tailscale result instead of swallowing it: if it failed and
-      # the VPS is only reachable over Tailscale, that is the real cause of an
-      # SSH timeout below (issue #114).
-      - name: Report Tailscale connection result
-        if: always()
-        run: |
-          if [ "${{ steps.tailscale.outcome }}" = "failure" ]; then
-            echo "::warning::Tailscale did not connect. If the VPS is only reachable over Tailscale, the SSH step will time out — check TS_OAUTH_CLIENT_ID / TS_OAUTH_SECRET and that the OAuth client has the tag:ci tag. If the VPS is publicly reachable, this warning can be ignored."
-          else
-            echo "Tailscale connected."
-          fi
-
-      - name: Deploy to VPS via SSH
-        uses: appleboy/ssh-action@v1.0.3
-        env:
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GOOGLE_WEATHER_API_KEY: ${{ secrets.GOOGLE_WEATHER_API_KEY }}
-          RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
-          USE_MOCKS: ${{ secrets.USE_MOCKS }}
-          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
-        with:
-          host: ${{ secrets.VPS_SSH_HOST }}
-          username: ${{ secrets.VPS_SSH_USERNAME }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: 22
-          # Fail the connection fast with context rather than hanging (issue
-          # #114); allow enough time for the docker build in the script body.
-          timeout: 60s
-          command_timeout: 20m
-          envs: JWT_SECRET,GEMINI_API_KEY,GOOGLE_WEATHER_API_KEY,RAPIDAPI_KEY,USE_MOCKS,ADMIN_EMAIL
-          script: |
-            echo "Starting Deployment..."
-            # Adjust the path to your project folder on the VPS
-            cd /home/ai_admin/apps/packing-app || cd ~/apps/packing-app || cd ~/packing_app || cd /var/www/packing_app || (echo "Project folder not found!" && exit 1)
-
-            # Refuse to deploy with an unset or placeholder JWT secret.
-            if [ -z "$JWT_SECRET" ] || [ "$JWT_SECRET" = "dev_insecure_jwt_secret_change_me" ]; then
-              echo "JWT_SECRET is missing or still the dev placeholder. Add it to repo secrets and retry."
-              exit 1
-            fi
-
-            # Ensure we are on main and pull latest changes
-            git checkout main
-            git pull origin main
-
-            # Write production secrets consumed by docker-compose interpolation.
-            printf "JWT_SECRET=%s\nGEMINI_API_KEY=%s\nGOOGLE_WEATHER_API_KEY=%s\nRAPIDAPI_KEY=%s\nUSE_MOCKS=%s\nADMIN_EMAIL=%s\n" \
-              "$JWT_SECRET" \
-              "$GEMINI_API_KEY" \
-              "${GOOGLE_WEATHER_API_KEY:-your_google_weather_api_key_here}" \
-              "${RAPIDAPI_KEY:-your_rapidapi_key_here}" \
-              "${USE_MOCKS:-false}" \
-              "${ADMIN_EMAIL:-}" > .env
-            chmod 600 .env
-
-            # Build and launch Docker Compose stack
-            echo "Rebuilding and restarting docker containers..."
-            docker compose build
-            docker compose up -d --remove-orphans
-
-            # Clean up old unused Docker images
-            docker image prune -f
-
-            # Post-deployment check: verify backend environment & weather readiness
-            echo "Verifying backend and weather service..."
-            docker compose exec -T backend node -e "const today=new Date().toISOString().split('T')[0]; require('./services/weatherService').getForecast('London', today, today).then(r => { console.log('[POST-DEPLOY] Weather check finished. isMock=' + r.isMock + ' isSeasonal=' + Boolean(r.isSeasonal) + ' days=' + (r.forecast || []).length); process.exit(r.isMock || r.isSeasonal ? 1 : 0); }).catch(error => { console.error('[POST-DEPLOY] Weather check failed:', error.message); process.exit(1); })"
-
-            # Post-deployment check: verify flight search (live vs sample) is reachable.
-            echo "Verifying flight search service..."
-            docker compose exec -T backend node -e "const d=new Date(Date.now()+30*864e5).toISOString().split('T')[0]; require('./services/flightsService').searchFlights({destination:'London', departDate:d}).then(r => console.log('[POST-DEPLOY] Flight check finished. offers=' + r.offers.length + ' isMock=' + r.isMock + (r.error ? ' (error: ' + r.error + ')' : '')))"
-
-            echo "Deployment Completed Successfully!"
+          echo "::error::GitHub Actions production deployment is intentionally disabled pending a safe SHA-pinned implementation."
+          echo "Use the manual SHA-pinned procedure in AGENTS.md only after a current expert deploy APPROVE for the exact artifact and a fresh database backup."
+          exit 1

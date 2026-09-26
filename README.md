@@ -175,14 +175,19 @@ Keep secrets in local/VPS environment files. The application backend calls exter
 ## Deployment
 
 The repository contains one Compose file: `docker-compose.yml`. It is used for
-local runs and by `.github/workflows/deploy.yml` for the VPS deployment:
+local runs and for production deployments on the VPS:
 
-- Frontend: `80:80`
-- Backend: `5001:5001`
+- Frontend: `127.0.0.1:3025:80` (host nginx terminates TLS and proxies to it)
+- Backend: `127.0.0.1:3026:5001`
 - SQLite: named `sqlite-data` volume
 
-The workflow connects to the VPS over SSH after a push to `main`, pulls the
-repository, writes the deployment environment, and runs the same Compose stack.
+Production deployment is **manual, not automatic**. The former GitHub Actions
+CD workflow (SSH into the VPS after a push to `main`, `git pull`, rewrite the
+deploy environment) is disabled — see `.github/workflows/deploy.yml`, which now
+refuses to run. Deployments follow the SHA-pinned manual procedure in
+`AGENTS.md` ("Manual production deploy — controlled procedure"): a current
+independent `expert` APPROVE naming the exact full SHA, a fresh database
+backup, a clean detached build worktree, and post-deploy smoke checks.
 Any host-level reverse proxy, firewall, or additional port mapping on the VPS
 is operational state outside this repository and must be documented only after
 checking the live VPS.
