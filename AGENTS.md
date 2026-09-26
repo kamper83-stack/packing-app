@@ -126,12 +126,19 @@ deploy and rollback.
    so invoke it through `bash`; do **not** chmod it merely for a deploy:
 
    ```bash
+   set -euo pipefail
    bash /home/ai_admin/scripts/backup-packing-app-db.sh
+   LATEST_BACKUP=$(ls -t /home/ai_admin/backups/packing-app-db/ 2>/dev/null | head -n 1)
+   [ -n "$LATEST_BACKUP" ] \
+     || { echo "FATAL: no backup archive found in /home/ai_admin/backups/packing-app-db/" >&2; exit 1; }
+   echo "latest backup archive: $LATEST_BACKUP"
    ```
 
    Verify it emitted a new archive under
    `/home/ai_admin/backups/packing-app-db/` and that the archive contains
-   `database.sqlite` before replacing containers.
+   `database.sqlite` before replacing containers. The block fails closed if no
+   archive was produced; the archive-content check remains intentional manual
+   verification.
 4. Have the previous production SHA and the fresh backup archive recorded for
    rollback. The SQLite schema migration introduced by #139 is additive
    (`weatherProvider`, `weatherFetchedAt`, both nullable), and rollback to
@@ -143,6 +150,8 @@ deploy and rollback.
 ### Deploy an exact SHA
 
 ```bash
+set -euo pipefail
+
 # Long-lived checkout containing production .env and the existing Compose
 # project/volume. Never build directly from it.
 PROD_DIR=/home/ai_admin/apps/packing-app
@@ -150,11 +159,16 @@ DEPLOY_SHA=<full SHA named by the expert deploy APPROVE>
 BUILD_DIR=$(mktemp -d /home/ai_admin/apps/packing-app-build.XXXXXX)
 
 # A detached, clean worktree has no local edits or untracked build inputs.
+# Every guard below is fail-closed: with `set -euo pipefail` any failed check
+# aborts the block before docker touches production.
 git -C "$PROD_DIR" fetch origin main
-test "$(git -C "$PROD_DIR" rev-parse origin/main)" = "$DEPLOY_SHA"  # when deploying main
+[ "$(git -C "$PROD_DIR" rev-parse origin/main)" = "$DEPLOY_SHA" ] \
+  || { echo "FATAL: origin/main != $DEPLOY_SHA (deploying main requires the approved SHA to be the tip)" >&2; exit 1; }
 git -C "$PROD_DIR" worktree add --detach "$BUILD_DIR" "$DEPLOY_SHA"
-test "$(git -C "$BUILD_DIR" rev-parse HEAD)" = "$DEPLOY_SHA"
-test -z "$(git -C "$BUILD_DIR" status --porcelain --untracked-files=all)"
+[ "$(git -C "$BUILD_DIR" rev-parse HEAD)" = "$DEPLOY_SHA" ] \
+  || { echo "FATAL: worktree HEAD != $DEPLOY_SHA" >&2; exit 1; }
+[ -z "$(git -C "$BUILD_DIR" status --porcelain --untracked-files=all)" ] \
+  || { echo "FATAL: build worktree is not clean" >&2; exit 1; }
 
 # Preserve the production .env and the existing named SQLite volume. Explicit
 # project name ensures this clean source tree targets `packing-app_sqlite-data`,
@@ -181,8 +195,11 @@ git -C "$PROD_DIR" worktree remove "$BUILD_DIR"
 ### Required post-deploy verification
 
 ```bash
+set -euo pipefail
+
 # The temporary worktree that supplied the Docker build must still exist here.
-test "$(git -C "$BUILD_DIR" rev-parse HEAD)" = "$DEPLOY_SHA"
+[ "$(git -C "$BUILD_DIR" rev-parse HEAD)" = "$DEPLOY_SHA" ] \
+  || { echo "FATAL: build worktree HEAD != $DEPLOY_SHA" >&2; exit 1; }
 
 docker compose --project-directory "$BUILD_DIR" --project-name packing-app \
   --env-file "$PROD_DIR/.env" -f "$BUILD_DIR/docker-compose.yml" ps
@@ -207,14 +224,18 @@ A rollback is not automatic. It requires a current approval, then uses the
 same controlled procedure with the recorded previous SHA:
 
 ```bash
+set -euo pipefail
 PROD_DIR=/home/ai_admin/apps/packing-app
 ROLLBACK_SHA=<previous-approved-SHA>
 ROLLBACK_DIR=$(mktemp -d /home/ai_admin/apps/packing-app-rollback.XXXXXX)
 
+# Fail-closed: any mismatch aborts before docker touches production.
 git -C "$PROD_DIR" fetch origin
 git -C "$PROD_DIR" worktree add --detach "$ROLLBACK_DIR" "$ROLLBACK_SHA"
-test "$(git -C "$ROLLBACK_DIR" rev-parse HEAD)" = "$ROLLBACK_SHA"
-test -z "$(git -C "$ROLLBACK_DIR" status --porcelain --untracked-files=all)"
+[ "$(git -C "$ROLLBACK_DIR" rev-parse HEAD)" = "$ROLLBACK_SHA" ] \
+  || { echo "FATAL: rollback worktree HEAD != $ROLLBACK_SHA" >&2; exit 1; }
+[ -z "$(git -C "$ROLLBACK_DIR" status --porcelain --untracked-files=all)" ] \
+  || { echo "FATAL: rollback worktree is not clean" >&2; exit 1; }
 docker compose --project-directory "$ROLLBACK_DIR" --project-name packing-app \
   --env-file "$PROD_DIR/.env" -f "$ROLLBACK_DIR/docker-compose.yml" build
 docker compose --project-directory "$ROLLBACK_DIR" --project-name packing-app \
