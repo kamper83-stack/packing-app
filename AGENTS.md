@@ -157,13 +157,20 @@ set -euo pipefail
 PROD_DIR=/home/ai_admin/apps/packing-app
 DEPLOY_SHA=<full SHA named by the expert deploy APPROVE>
 BUILD_DIR=$(mktemp -d /home/ai_admin/apps/packing-app-build.XXXXXX)
+# If any guard below fails, remove the half-created worktree instead of
+# leaving it orphaned. Disarm it once the build succeeded, because
+# post-deploy verification still needs $BUILD_DIR.
+trap 'git -C "$PROD_DIR" worktree remove --force "$BUILD_DIR" 2>/dev/null || true' ERR
 
 # A detached, clean worktree has no local edits or untracked build inputs.
 # Every guard below is fail-closed: with `set -euo pipefail` any failed check
 # aborts the block before docker touches production.
-git -C "$PROD_DIR" fetch origin main
-[ "$(git -C "$PROD_DIR" rev-parse origin/main)" = "$DEPLOY_SHA" ] \
-  || { echo "FATAL: origin/main != $DEPLOY_SHA (deploying main requires the approved SHA to be the tip)" >&2; exit 1; }
+git -C "$PROD_DIR" fetch origin
+DEPLOY_TARGET=main   # set to any other value when deploying a non-tip approved SHA
+if [ "$DEPLOY_TARGET" = "main" ]; then
+  [ "$(git -C "$PROD_DIR" rev-parse origin/main)" = "$DEPLOY_SHA" ] \
+    || { echo "FATAL: origin/main != $DEPLOY_SHA (deploying main requires the approved SHA to be the tip)" >&2; exit 1; }
+fi
 git -C "$PROD_DIR" worktree add --detach "$BUILD_DIR" "$DEPLOY_SHA"
 [ "$(git -C "$BUILD_DIR" rev-parse HEAD)" = "$DEPLOY_SHA" ] \
   || { echo "FATAL: worktree HEAD != $DEPLOY_SHA" >&2; exit 1; }
