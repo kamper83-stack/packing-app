@@ -1,11 +1,15 @@
 """Unit tests for scripts/jev_pr_review.py (stdlib unittest).
 
-Run with:  python3 -m unittest discover -s scripts -p 'test_*.py'
-or:        python3 -m unittest scripts.test_jev_pr_review -v
+Run from the repository root with:
+  python3 -m unittest discover -s scripts -p 'test_*.py' -v
+
+(The package-style `python3 -m unittest scripts.test_jev_pr_review` form
+does NOT work here - scripts/ has no __init__.py and jev_pr_review.py
+imports urllib/argparse as a plain top-level script, not a package member -
+so don't document it as a supported invocation.)
 """
 
 import json
-import os
 import unittest
 from unittest import mock
 
@@ -13,7 +17,6 @@ import jev_pr_review as jpr
 
 
 SHA = "d3d84a0c86a1843c73f10f0a8b71a83afa35a175"
-SHA3 = "abc" * 13
 
 
 class LoadPrContextTest(unittest.TestCase):

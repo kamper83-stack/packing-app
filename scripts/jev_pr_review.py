@@ -55,7 +55,10 @@ def load_pr_context(pr_number, repo):
                 "number,title,url,headRefOid,baseRefName,headRefName",
             )
         )
-    except (ValueError, KeyError) as error:
+    except ValueError as error:
+        # json.loads() only raises ValueError (JSONDecodeError); no dict key
+        # is accessed in this try block, so KeyError can't occur here - the
+        # real place that can raise it is the output-dict build in main().
         raise RuntimeError(
             f"Could not parse `gh pr view` output for PR #{pr_number}: {error}"
         )
@@ -67,26 +70,24 @@ def load_pr_context(pr_number, repo):
     # different revision than the diff we actually sent to Jev - which would
     # defeat the exact-head integrity the whole gate is built on. Re-read the
     # head after the diff and abort rather than emit a mismatched artifact.
-    try:
-        head_after = (
-            gh(
-                "pr",
-                "view",
-                str(pr_number),
-                "--repo",
-                repo,
-                "--json",
-                "headRefOid",
-                "--jq",
-                ".headRefOid",
-            )
-            .strip()
-            .lower()
+    # gh() already raises RuntimeError on failure, and .strip()/.lower() on
+    # its string result can't raise ValueError/KeyError - no try/except
+    # belongs here; it would only catch things that can't happen.
+    head_after = (
+        gh(
+            "pr",
+            "view",
+            str(pr_number),
+            "--repo",
+            repo,
+            "--json",
+            "headRefOid",
+            "--jq",
+            ".headRefOid",
         )
-    except (ValueError, KeyError) as error:
-        raise RuntimeError(
-            f"Could not re-read head for PR #{pr_number}: {error}"
-        )
+        .strip()
+        .lower()
+    )
     if head_after != str(metadata.get("headRefOid", "")).lower():
         raise RuntimeError(
             f"PR #{pr_number} head changed while fetching the diff; re-run the review."
@@ -213,19 +214,18 @@ def main():
     try:
         metadata, diff = load_pr_context(args.pr, args.repo)
         result = run_review(metadata, diff, api_key)
-    except RuntimeError as error:
+        output = {
+            "advisory": True,
+            "not_a_merge_gate": True,
+            "repository": args.repo,
+            "pull_request": metadata["number"],
+            "url": metadata["url"],
+            "head_commit": metadata["headRefOid"],
+            "diff_characters": len(diff),
+            "result": result,
+        }
+    except (RuntimeError, KeyError) as error:
         raise SystemExit(f"Jev PR review failed: {error}")
-
-    output = {
-        "advisory": True,
-        "not_a_merge_gate": True,
-        "repository": args.repo,
-        "pull_request": metadata["number"],
-        "url": metadata["url"],
-        "head_commit": metadata["headRefOid"],
-        "diff_characters": len(diff),
-        "result": result,
-    }
     serialized = json.dumps(output, indent=2, sort_keys=True) + "\n"
     if args.output:
         args.output.write_text(serialized, encoding="utf-8")
