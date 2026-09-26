@@ -190,6 +190,10 @@ docker compose --project-directory "$BUILD_DIR" --project-name packing-app \
 # Build and stack are up: disarm the cleanup trap. $BUILD_DIR is kept from
 # here on — post-deploy verification and any failure diagnosis need it.
 trap - EXIT
+
+# Bind the verification block to THIS deploy (it refuses to run without these).
+SRC_DIR=$BUILD_DIR
+TARGET_SHA=$DEPLOY_SHA
 ```
 
 Do **not** use `git checkout main && git pull`, build from the long-lived
@@ -206,12 +210,13 @@ lives **after** the verification section for that reason.
 ```bash
 set -euo pipefail
 
-# Parameterized so the same block verifies a deploy (as set here) or a
-# rollback (SRC_DIR=$ROLLBACK_DIR / TARGET_SHA=$ROLLBACK_SHA). It assumes
-# the same shell as the deploy block above, so $PROD_DIR, $BUILD_DIR and
-# $DEPLOY_SHA are already defined and the cleanup trap is already disarmed.
-SRC_DIR=$BUILD_DIR
-TARGET_SHA=$DEPLOY_SHA
+# This block must run in the same shell as the deploy or rollback block that
+# preceded it: that block defines $PROD_DIR, $SRC_DIR and $TARGET_SHA (and
+# has already disarmed its cleanup trap). Fail closed if they are missing —
+# silently verifying the wrong tree or SHA is exactly what this prevents.
+: "${PROD_DIR:?must run in the same shell as the deploy/rollback block that defines PROD_DIR}"
+: "${SRC_DIR:?must run in the same shell as the deploy/rollback block that defines SRC_DIR}"
+: "${TARGET_SHA:?must run in the same shell as the deploy/rollback block that defines TARGET_SHA}"
 
 # The temporary worktree that supplied the Docker build must still exist here.
 [ "$(git -C "$SRC_DIR" rev-parse HEAD)" = "$TARGET_SHA" ] \
@@ -279,14 +284,18 @@ docker compose --project-directory "$ROLLBACK_DIR" --project-name packing-app \
 
 # Stack is rolled back: disarm the cleanup trap; verification needs $ROLLBACK_DIR.
 trap - EXIT
+
+# Bind the verification block to THIS rollback (it refuses to run without these).
+SRC_DIR=$ROLLBACK_DIR
+TARGET_SHA=$ROLLBACK_SHA
 ```
 
 Keep the SQLite volume intact unless an independently approved database restore
 is needed; code rollback alone preserves new rows and added nullable columns.
-Run the post-deploy verification block above with the rollback values —
-`SRC_DIR=$ROLLBACK_DIR` and `TARGET_SHA=$ROLLBACK_SHA` (in the same shell,
-where `$PROD_DIR` is defined) — including the smoke checks and the
-public HTTPS check.
+The rollback block above binds `SRC_DIR`/`TARGET_SHA` to the rollback values,
+so run the post-deploy verification block **in the same shell** — it verifies
+the rolled-back tree and SHA, including the smoke checks and the public
+HTTPS check.
 
 ### Network topology
 
