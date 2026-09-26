@@ -389,7 +389,13 @@ router.post("/", async (req, res) => {
     return res.status(400).json({ error: trolleyCountResult.error });
   }
   const cleanTrolleyCount = trolleyCountResult.value ?? DEFAULT_TROLLEY_COUNT;
-  const checkedSuitcaseCountResult = resolveLuggageCount(checkedSuitcaseCount ?? trolleyCount, "Checked suitcase");
+  // checkedSuitcaseCount is an independent user input; falling back to the
+  // trolley count here would silently invent checked luggage the user did not
+  // declare (this is exactly the "0 checked suitcases" bug). With no explicit
+  // value and no legacy trolley-only payload, 0 (no checked bags) is now the
+  // correct assumption; the legacy ?? trolleyCount branch keeps older clients
+  // working without a separate checked-suitcase field.
+  const checkedSuitcaseCountResult = resolveLuggageCount(checkedSuitcaseCount ?? 0, "Checked suitcase");
   if (checkedSuitcaseCountResult.error) {
     return res.status(400).json({ error: checkedSuitcaseCountResult.error });
   }
@@ -514,7 +520,7 @@ router.put("/:id", async (req, res) => {
   if (trolleyCountResult.error) {
     return res.status(400).json({ error: trolleyCountResult.error });
   }
-  const checkedSuitcaseCountResult = resolveLuggageCount(checkedSuitcaseCount ?? trolleyCount, "Checked suitcase");
+  const checkedSuitcaseCountResult = resolveLuggageCount(checkedSuitcaseCount ?? 0, "Checked suitcase");
   if (checkedSuitcaseCountResult.error) {
     return res.status(400).json({ error: checkedSuitcaseCountResult.error });
   }

@@ -1,7 +1,9 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
-// The only bags the app knows how to place items into.
-const SUPPORTED_TARGET_BAGS = ["Suitcase", "Backpack"];
+// All bag types the app knows how to place items into: the checked/hold
+// suitcase, the user-counted cabin trolley, and the fixed one-per-traveler
+// personal backpack.
+const SUPPORTED_TARGET_BAGS = ["Suitcase", "Trolley", "Backpack"];
 
 // Validate a model-generated packing list before it is persisted (Issue #34).
 // The Gemini output is untrusted: it may not be an array, may miss required
@@ -52,31 +54,59 @@ function applyDurationRules(items, days, numPeople) {
     });
 }
 
-// Feature: user-chosen trolley-suitcase count, plus a fixed working
-// assumption of exactly one cabin backpack per traveler. Fewer suitcases
-// than travelers means less checked-bag room than the "one wardrobe change
-// set per person" quantities the model/mock list otherwise assumes, so
-// Suitcase-targeted Clothing quantities are scaled down proportionally
-// (never below 1 of an item — a partial outfit is still useful, an empty
-// checkedSuitcaseCount >= numPeople is treated as "plenty of room"
-// and left untouched; backpack quantities are never touched here since the
+// Feature: user-chosen trolley-suitcase and checked-suitcase counts, plus a
+// fixed working assumption of exactly one cabin backpack per traveler.
+// Suitcase-targeted Clothing quantities are scaled by the checked-suitcase
+// capacity (checkedSuitcaseCount / numPeople). When there are no checked
+// suitcases at all, there is no checked-bag room, so Suitcase-targeted
+// Clothing items are re-targeted to the cabin trolley and their quantities
+// are scaled by trolleyCount / numPeople instead (0 trolleys = 0 such items;
+// quantities never drop below 1 so no item becomes an unusable partial).
+// checkedSuitcaseCount >= numPeople means "plenty of room" and items are left
+// untouched. Backpack-targeted items are never touched: the
 // one-backpack-per-traveler assumption is fixed, not a capacity to scale by.
-function applyLuggageRules(items, checkedSuitcaseCount, numPeople) {
+function applyLuggageRules(items, checkedSuitcaseCount, trolleyCount, numPeople) {
+  if (!numPeople) return items;
+  // Legacy payloads may omit either count (pre-luggage-feature trips). With
+  // no luggage input at all, behave exactly like the old unconstrained path.
   if (
     checkedSuitcaseCount === undefined ||
     checkedSuitcaseCount === null ||
-    !numPeople ||
-    checkedSuitcaseCount >= numPeople
+    trolleyCount === undefined ||
+    trolleyCount === null
   ) {
     return items;
   }
-  // 0 declared checked suitcases still leaves some checked-bag-equivalent room via
-  // backpack overflow in practice, so floor the scaling factor rather than
-  // letting it collapse straight to (near-)zero.
-  const factor = Math.max(checkedSuitcaseCount, 0.5) / numPeople;
   return items.map((item) => {
-    if (item.category.toLowerCase() !== "clothing" || item.targetBag !== "Suitcase") return item;
-    return { ...item, quantity: Math.max(1, Math.round(item.quantity * factor)) };
+    if (item.category.toLowerCase() !== "clothing") return item;
+
+    if (item.targetBag === "Suitcase") {
+      if (checkedSuitcaseCount >= numPeople) return item;
+      if (checkedSuitcaseCount === 0) {
+        // No checked luggage exists: bulky cabin clothing belongs in the
+        // trolley (or the backpack when even the trolley count is 0).
+        const receiverBag = trolleyCount > 0 ? "Trolley" : "Backpack";
+        const factor = receiverBag === null ? 1 : trolleyCount / numPeople;
+        return {
+          ...item,
+          targetBag: receiverBag,
+          quantity: Math.max(1, Math.round(item.quantity * factor)),
+        };
+      }
+      const factor = checkedSuitcaseCount / numPeople;
+      return { ...item, quantity: Math.max(1, Math.round(item.quantity * factor)) };
+    }
+
+    if (item.targetBag === "Trolley") {
+      if (trolleyCount === 0) {
+        // Same reasoning when a trolley-targeted item exists but no trolley
+        // was declared: it still has to be carried, so it falls to the
+        // personal backpack rather than vanishing.
+        return { ...item, targetBag: "Backpack" };
+      }
+    }
+
+    return item;
   });
 }
 
@@ -139,7 +169,17 @@ async function generatePackingList({
   trolleyCount,
   checkedSuitcaseCount,
 }) {
-  const effectiveCheckedSuitcaseCount = checkedSuitcaseCount ?? trolleyCount;
+  // Legacy payloads (older clients) may omit a field; treat a missing
+  // checked-suitcase count as 0 (none declared) and a missing trolley count
+  // as the create-time default of 1. Explicit user values always win, so
+  // "0 checked suitcases" can never silently become "some checked suitcases"
+  // (that exact ?? trolleyCount fallback was the root cause of the
+  // phantom-checked-luggage bug).
+  const hasExplicitChecked = checkedSuitcaseCount !== undefined && checkedSuitcaseCount !== null;
+  const hasExplicitTrolley = trolleyCount !== undefined && trolleyCount !== null;
+  const effectiveCheckedSuitcaseCount = hasExplicitChecked ? checkedSuitcaseCount : 0;
+  const effectiveTrolleyCount = hasExplicitTrolley ? trolleyCount : 1;
+  const hasLuggageInput = hasExplicitChecked || hasExplicitTrolley;
 
   // Describe the traveler mix in one line for prompt/mock use.
   const travelersLine = passengerComposition
@@ -160,11 +200,14 @@ async function generatePackingList({
   if (useMocks) {
     console.log(`[GEMINI SERVICE] Using mock packing list for ${destination} (${vacationType})`);
     return {
-      items: applyLuggageRules(
-        applyDurationRules(getMockPackingList(vacationType, days, numPeople), days, numPeople),
-        effectiveCheckedSuitcaseCount,
-        numPeople
-      ),
+      items: hasLuggageInput
+        ? applyLuggageRules(
+            applyDurationRules(getMockPackingList(vacationType, days, numPeople), days, numPeople),
+            effectiveCheckedSuitcaseCount,
+            effectiveTrolleyCount,
+            numPeople
+          )
+        : applyDurationRules(getMockPackingList(vacationType, days, numPeople), days, numPeople),
       isMock: true,
     };
   }
@@ -186,6 +229,7 @@ async function generatePackingList({
       - Weather forecast summary: ${JSON.stringify(weatherSummary)}
       - Allowed baggage: ${JSON.stringify(baggageAllowance)}
       ${luggageLine ? `- ${luggageLine}` : ""}
+      - targetBag meaning: "Suitcase" = checked/hold luggage, "Trolley" = cabin trolley counted in the declared luggage, "Backpack" = the fixed one-per-traveler personal cabin backpack. Choose the bag that is physically realistic: documents, chargers, small valuables and day-gear go in the Backpack; bulky shared items go to the Trolley when no checked suitcase is declared, and to the Suitcase when there is checked luggage.
 
       Duration is a hard constraint for both item selection and quantity:
       - For a one-day trip with zero overnight stays, do not include overnight-only items such as spare everyday outfits, underwear, sleepwear, toothbrushes, or toothpaste unless the stated activity specifically requires a change of clothes.
@@ -201,7 +245,7 @@ async function generatePackingList({
         "name": "Item name (e.g. Shirts, Swimsuit, Charger)",
         "category": "Category of the item (e.g. Clothing, Toiletries, Electronics, Documents, Specialized Gear)",
         "quantity": integer value,
-        "targetBag": "Suitcase" or "Backpack"
+        "targetBag": "Suitcase", "Trolley", or "Backpack"
       }
       
       Optimize the packing list using the weather: if it's rainy, suggest raincoats/umbrellas. If it's cold, suggest warm layers. If it's a beach trip, suggest swimwear. Keep quantities realistic for the number of days (${days}) and people (${numPeople}).
@@ -221,7 +265,14 @@ async function generatePackingList({
     const parsed = JSON.parse(text);
     const validatedItems = validatePackingItems(parsed);
     return {
-      items: applyLuggageRules(applyDurationRules(validatedItems, days, numPeople), effectiveCheckedSuitcaseCount, numPeople),
+      items: hasLuggageInput
+        ? applyLuggageRules(
+            applyDurationRules(validatedItems, days, numPeople),
+            effectiveCheckedSuitcaseCount,
+            effectiveTrolleyCount,
+            numPeople
+          )
+        : applyDurationRules(validatedItems, days, numPeople),
       isMock: false,
     };
   } catch (error) {
@@ -230,11 +281,14 @@ async function generatePackingList({
       error.message
     );
     return {
-      items: applyLuggageRules(
-        applyDurationRules(getMockPackingList(vacationType, days, numPeople), days, numPeople),
-        effectiveCheckedSuitcaseCount,
-        numPeople
-      ),
+      items: hasLuggageInput
+        ? applyLuggageRules(
+            applyDurationRules(getMockPackingList(vacationType, days, numPeople), days, numPeople),
+            effectiveCheckedSuitcaseCount,
+            effectiveTrolleyCount,
+            numPeople
+          )
+        : applyDurationRules(getMockPackingList(vacationType, days, numPeople), days, numPeople),
       isMock: true,
       error: error.message,
     };

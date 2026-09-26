@@ -305,10 +305,35 @@ describe("Trips API Endpoints (Issue #6)", () => {
         const res = await request(app)
           .post("/api/trips")
           .set("Authorization", `Bearer ${tokenA}`)
-          .send({ ...validTrip, trolleyCount: 0 });
+          .send({ ...validTrip, trolleyCount: 0, checkedSuitcaseCount: 0 });
 
         expect(res.status).toBe(201);
         expect(res.body.trolleyCount).toBe(0);
+        expect(res.body.checkedSuitcaseCount).toBe(0);
+      });
+
+      it("no longer defaults checkedSuitcaseCount to the trolley count when omitted", async () => {
+        // Regression: the old ?? trolleyCount fallback silently invented
+        // checked luggage the user never declared.
+        const res = await request(app)
+          .post("/api/trips")
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send({ ...validTrip, trolleyCount: 7 });
+
+        expect(res.status).toBe(201);
+        expect(res.body.trolleyCount).toBe(7);
+        expect(res.body.checkedSuitcaseCount).toBe(0);
+      });
+
+      it("accepts an explicit 0 checkedSuitcaseCount with trolleys", async () => {
+        const res = await request(app)
+          .post("/api/trips")
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send({ ...validTrip, trolleyCount: 7, checkedSuitcaseCount: 0 });
+
+        expect(res.status).toBe(201);
+        expect(res.body.trolleyCount).toBe(7);
+        expect(res.body.checkedSuitcaseCount).toBe(0);
       });
 
       it("rejects a negative trolleyCount", async () => {
