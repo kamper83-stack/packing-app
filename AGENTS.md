@@ -98,18 +98,24 @@ production deployment also needs a current independent `expert` **APPROVE**
 that names the exact commit/artifact being deployed; a PR approval for its
 pre-squash head does not automatically approve the squash-merge commit.
 
-The CD GitHub Action (`.github/workflows/deploy.yml`) exists, but its
-connectivity and complete SSH path must be verified by a real successful run
-after any credential/network change. Do not assume that merely setting
-`VPS_SSH_KEY` proves a runner can reach the server. The verified production
-path as of 2026-09-26 is the manual, SHA-pinned procedure below.
+The CD GitHub Action is intentionally disabled until it has a safe
+SHA-pinned implementation. It must never be re-enabled merely because an SSH
+secret or network route was repaired: a successful connection is not evidence
+that the required deploy gates are present. The required production path is the
+manual, SHA-pinned procedure below.
 
-## Manual production deploy — verified procedure (2026-09-26)
+## Manual production deploy — controlled procedure (2026-09-26)
 
 The VPS is `ai_admin`'s own host; production runs directly on it. The
 production checkout is `/home/ai_admin/apps/packing-app`, a real independent
 clone with its own `.git` and working tree. It is not the development checkout.
 Never casually edit it or use `git reset`/`git clean` there.
+
+The initial SHA-pinned deployment was verified on 2026-09-26. The procedure
+below additionally uses a pristine temporary Git worktree so Docker cannot
+consume tracked edits or untracked files from the long-lived production
+checkout. Treat this clean-worktree rule as mandatory for every subsequent
+deploy and rollback.
 
 ### Preconditions
 
@@ -137,41 +143,54 @@ Never casually edit it or use `git reset`/`git clean` there.
 ### Deploy an exact SHA
 
 ```bash
-cd /home/ai_admin/apps/packing-app
+# Long-lived checkout containing production .env and the existing Compose
+# project/volume. Never build directly from it.
+PROD_DIR=/home/ai_admin/apps/packing-app
 DEPLOY_SHA=<full SHA named by the expert deploy APPROVE>
+BUILD_DIR=$(mktemp -d /home/ai_admin/apps/packing-app-build.XXXXXX)
 
-# Do not replace this with `git checkout main && git pull`: that is not
-# immutable and may deploy a newer, unreviewed main commit.
-git fetch origin main
-test "$(git rev-parse origin/main)" = "$DEPLOY_SHA"  # when deploying main
-git checkout --detach "$DEPLOY_SHA"
-test "$(git rev-parse HEAD)" = "$DEPLOY_SHA"
+# A detached, clean worktree has no local edits or untracked build inputs.
+git -C "$PROD_DIR" fetch origin main
+test "$(git -C "$PROD_DIR" rev-parse origin/main)" = "$DEPLOY_SHA"  # when deploying main
+git -C "$PROD_DIR" worktree add --detach "$BUILD_DIR" "$DEPLOY_SHA"
+test "$(git -C "$BUILD_DIR" rev-parse HEAD)" = "$DEPLOY_SHA"
+test -z "$(git -C "$BUILD_DIR" status --porcelain --untracked-files=all)"
 
-# Preserve the existing root .env. Manual deploy does not regenerate it.
-# The current Compose file supplies PORT=5001 itself and reads
-# GOOGLE_WEATHER_API_KEY; do not remove/change secrets unless the deploy
-# specifically includes a reviewed secret change.
-docker compose build
-docker compose up -d --remove-orphans
+# Preserve the production .env and the existing named SQLite volume. Explicit
+# project name ensures this clean source tree targets `packing-app_sqlite-data`,
+# not a new empty project/volume.
+docker compose --project-directory "$BUILD_DIR" --project-name packing-app \
+  --env-file "$PROD_DIR/.env" -f "$BUILD_DIR/docker-compose.yml" build
+docker compose --project-directory "$BUILD_DIR" --project-name packing-app \
+  --env-file "$PROD_DIR/.env" -f "$BUILD_DIR/docker-compose.yml" up -d --remove-orphans
 ```
 
-Do **not** run `git pull` after the detached-SHA checkout; it defeats the
-artifact pin. `docker image prune -f` is optional housekeeping, not a deploy
-correctness step.
+Do **not** use `git checkout main && git pull`, build from the long-lived
+checkout, or run `git pull` after selecting the SHA: each defeats exact-artifact
+integrity. Do not regenerate/change the production `.env` unless the deployment
+specifically includes a separately reviewed secret change. `docker image prune
+-f` is optional housekeeping, not a deployment correctness step.
+
+Keep `$BUILD_DIR` until post-deploy verification succeeds. Then remove only the
+temporary worktree and directory:
+
+```bash
+git -C "$PROD_DIR" worktree remove "$BUILD_DIR"
+```
 
 ### Required post-deploy verification
 
 ```bash
-cd /home/ai_admin/apps/packing-app
+# The temporary worktree that supplied the Docker build must still exist here.
+test "$(git -C "$BUILD_DIR" rev-parse HEAD)" = "$DEPLOY_SHA"
 
-# Prove the source used by the running deployment is the approved artifact.
-git rev-parse HEAD  # must equal $DEPLOY_SHA
-
-docker compose ps
+docker compose --project-directory "$BUILD_DIR" --project-name packing-app \
+  --env-file "$PROD_DIR/.env" -f "$BUILD_DIR/docker-compose.yml" ps
 
 # Today's date is inside Google's live window. Both values must be false:
 # seasonal here indicates Google live retrieval failed and silently fell back.
-docker compose exec -T backend node -e \
+docker compose --project-directory "$BUILD_DIR" --project-name packing-app \
+  --env-file "$PROD_DIR/.env" -f "$BUILD_DIR/docker-compose.yml" exec -T backend node -e \
   "const today=new Date().toISOString().split('T')[0]; require('./services/weatherService').getForecast('London', today, today).then(r => { console.log(JSON.stringify({isMock:r.isMock,isSeasonal:Boolean(r.isSeasonal),isMixed:Boolean(r.isMixed),days:(r.forecast||[]).length,error:r.error||null})); process.exit(r.isMock || r.isSeasonal ? 1 : 0); }).catch(error => { console.error(error.stack || error.message); process.exit(1); })"
 
 curl -sS -o /dev/null -w "https_status=%{http_code}\n" https://packing.erankam.dev/
@@ -188,11 +207,18 @@ A rollback is not automatic. It requires a current approval, then uses the
 same controlled procedure with the recorded previous SHA:
 
 ```bash
-cd /home/ai_admin/apps/packing-app
-git fetch origin
-git checkout --detach <previous-approved-SHA>
-docker compose build
-docker compose up -d --remove-orphans
+PROD_DIR=/home/ai_admin/apps/packing-app
+ROLLBACK_SHA=<previous-approved-SHA>
+ROLLBACK_DIR=$(mktemp -d /home/ai_admin/apps/packing-app-rollback.XXXXXX)
+
+git -C "$PROD_DIR" fetch origin
+git -C "$PROD_DIR" worktree add --detach "$ROLLBACK_DIR" "$ROLLBACK_SHA"
+test "$(git -C "$ROLLBACK_DIR" rev-parse HEAD)" = "$ROLLBACK_SHA"
+test -z "$(git -C "$ROLLBACK_DIR" status --porcelain --untracked-files=all)"
+docker compose --project-directory "$ROLLBACK_DIR" --project-name packing-app \
+  --env-file "$PROD_DIR/.env" -f "$ROLLBACK_DIR/docker-compose.yml" build
+docker compose --project-directory "$ROLLBACK_DIR" --project-name packing-app \
+  --env-file "$PROD_DIR/.env" -f "$ROLLBACK_DIR/docker-compose.yml" up -d --remove-orphans
 ```
 
 Keep the SQLite volume intact unless an independently approved database restore
