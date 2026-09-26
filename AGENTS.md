@@ -127,18 +127,19 @@ deploy and rollback.
 
    ```bash
    set -euo pipefail
+   MARKER=$(mktemp)
    bash /home/ai_admin/scripts/backup-packing-app-db.sh
-   LATEST_BACKUP=$(ls -t /home/ai_admin/backups/packing-app-db/ 2>/dev/null | head -n 1)
+   LATEST_BACKUP=$(find /home/ai_admin/backups/packing-app-db/ -type f -newer "$MARKER" | head -n 1)
    [ -n "$LATEST_BACKUP" ] \
-     || { echo "FATAL: no backup archive found in /home/ai_admin/backups/packing-app-db/" >&2; exit 1; }
-   echo "latest backup archive: $LATEST_BACKUP"
+     || { echo "FATAL: this run produced no fresh backup archive in /home/ai_admin/backups/packing-app-db/" >&2; exit 1; }
+   echo "fresh backup archive: $LATEST_BACKUP"
+   rm -f "$MARKER"
    ```
 
-   Verify it emitted a new archive under
-   `/home/ai_admin/backups/packing-app-db/` and that the archive contains
-   `database.sqlite` before replacing containers. The block fails closed if no
-   archive was produced; the archive-content check remains intentional manual
-   verification.
+   Verify the archive contains `database.sqlite` before replacing containers.
+   The block fails closed unless this run itself produced an archive
+   (`find -newer` against the pre-run marker); the archive-content check
+   remains intentional manual verification.
 4. Have the previous production SHA and the fresh backup archive recorded for
    rollback. The SQLite schema migration introduced by #139 is additive
    (`weatherProvider`, `weatherFetchedAt`, both nullable), and rollback to
@@ -157,10 +158,11 @@ set -euo pipefail
 PROD_DIR=/home/ai_admin/apps/packing-app
 DEPLOY_SHA=<full SHA named by the expert deploy APPROVE>
 BUILD_DIR=$(mktemp -d /home/ai_admin/apps/packing-app-build.XXXXXX)
-# If any guard below fails, remove the half-created worktree instead of
-# leaving it orphaned. Disarm it once the build succeeded, because
-# post-deploy verification still needs $BUILD_DIR.
-trap 'git -C "$PROD_DIR" worktree remove --force "$BUILD_DIR" 2>/dev/null || true' ERR
+# Cleanup on ANY exit path (guards use `exit 1`, which does not fire ERR).
+# The trap is explicitly disarmed after `up` succeeds: post-deploy
+# verification still needs $BUILD_DIR for diagnosis.
+cleanup() { git -C "$PROD_DIR" worktree remove --force "$BUILD_DIR" 2>/dev/null || true; rm -rf "$BUILD_DIR"; }
+trap cleanup EXIT
 
 # A detached, clean worktree has no local edits or untracked build inputs.
 # Every guard below is fail-closed: with `set -euo pipefail` any failed check
@@ -184,6 +186,10 @@ docker compose --project-directory "$BUILD_DIR" --project-name packing-app \
   --env-file "$PROD_DIR/.env" -f "$BUILD_DIR/docker-compose.yml" build
 docker compose --project-directory "$BUILD_DIR" --project-name packing-app \
   --env-file "$PROD_DIR/.env" -f "$BUILD_DIR/docker-compose.yml" up -d --remove-orphans
+
+# Build and stack are up: disarm the cleanup trap. $BUILD_DIR is kept from
+# here on — post-deploy verification and any failure diagnosis need it.
+trap - EXIT
 ```
 
 Do **not** use `git checkout main && git pull`, build from the long-lived
@@ -192,29 +198,32 @@ integrity. Do not regenerate/change the production `.env` unless the deployment
 specifically includes a separately reviewed secret change. `docker image prune
 -f` is optional housekeeping, not a deployment correctness step.
 
-Keep `$BUILD_DIR` until post-deploy verification succeeds. Then remove only the
-temporary worktree and directory:
-
-```bash
-git -C "$PROD_DIR" worktree remove "$BUILD_DIR"
-```
+Keep `$BUILD_DIR` until post-deploy verification succeeds; the teardown step
+lives **after** the verification section for that reason.
 
 ### Required post-deploy verification
 
 ```bash
 set -euo pipefail
 
-# The temporary worktree that supplied the Docker build must still exist here.
-[ "$(git -C "$BUILD_DIR" rev-parse HEAD)" = "$DEPLOY_SHA" ] \
-  || { echo "FATAL: build worktree HEAD != $DEPLOY_SHA" >&2; exit 1; }
+# Parameterized so the same block verifies a deploy (as set here) or a
+# rollback (SRC_DIR=$ROLLBACK_DIR / TARGET_SHA=$ROLLBACK_SHA). It assumes
+# the same shell as the deploy block above, so $PROD_DIR, $BUILD_DIR and
+# $DEPLOY_SHA are already defined and the cleanup trap is already disarmed.
+SRC_DIR=$BUILD_DIR
+TARGET_SHA=$DEPLOY_SHA
 
-docker compose --project-directory "$BUILD_DIR" --project-name packing-app \
-  --env-file "$PROD_DIR/.env" -f "$BUILD_DIR/docker-compose.yml" ps
+# The temporary worktree that supplied the Docker build must still exist here.
+[ "$(git -C "$SRC_DIR" rev-parse HEAD)" = "$TARGET_SHA" ] \
+  || { echo "FATAL: worktree HEAD != $TARGET_SHA" >&2; exit 1; }
+
+docker compose --project-directory "$SRC_DIR" --project-name packing-app \
+  --env-file "$PROD_DIR/.env" -f "$SRC_DIR/docker-compose.yml" ps
 
 # Today's date is inside Google's live window. Both values must be false:
 # seasonal here indicates Google live retrieval failed and silently fell back.
-docker compose --project-directory "$BUILD_DIR" --project-name packing-app \
-  --env-file "$PROD_DIR/.env" -f "$BUILD_DIR/docker-compose.yml" exec -T backend node -e \
+docker compose --project-directory "$SRC_DIR" --project-name packing-app \
+  --env-file "$PROD_DIR/.env" -f "$SRC_DIR/docker-compose.yml" exec -T backend node -e \
   "const today=new Date().toISOString().split('T')[0]; require('./services/weatherService').getForecast('London', today, today).then(r => { console.log(JSON.stringify({isMock:r.isMock,isSeasonal:Boolean(r.isSeasonal),isMixed:Boolean(r.isMixed),days:(r.forecast||[]).length,error:r.error||null})); process.exit(r.isMock || r.isSeasonal ? 1 : 0); }).catch(error => { console.error(error.stack || error.message); process.exit(1); })"
 
 curl -sS -o /dev/null -w "https_status=%{http_code}\n" https://packing.erankam.dev/
@@ -224,6 +233,22 @@ curl -sS -o /dev/null -w "https_status=%{http_code}\n" https://packing.erankam.d
 Do not call the deployment successful unless the SHA matches, both services
 are up, the weather check has `isMock=false` and `isSeasonal=false`, and the
 public HTTPS check returns 200.
+
+### Teardown (only after verification succeeds)
+
+```bash
+git -C "$PROD_DIR" worktree remove "$BUILD_DIR"
+rm -rf "$BUILD_DIR"
+```
+
+Once the temporary worktree is gone, run steady-state ops commands
+(`ps`/`logs`/`exec`) against the long-lived checkout — the running
+containers are matched by the project name, not by the build directory:
+
+```bash
+docker compose --project-directory "$PROD_DIR" --project-name packing-app \
+  --env-file "$PROD_DIR/.env" -f "$PROD_DIR/docker-compose.yml" ps
+```
 
 ### Rollback
 
@@ -235,6 +260,10 @@ set -euo pipefail
 PROD_DIR=/home/ai_admin/apps/packing-app
 ROLLBACK_SHA=<previous-approved-SHA>
 ROLLBACK_DIR=$(mktemp -d /home/ai_admin/apps/packing-app-rollback.XXXXXX)
+# Same cleanup pattern as the deploy block: fires on any exit path, and is
+# disarmed after `up` succeeds so post-rollback verification keeps $ROLLBACK_DIR.
+rollback_cleanup() { git -C "$PROD_DIR" worktree remove --force "$ROLLBACK_DIR" 2>/dev/null || true; rm -rf "$ROLLBACK_DIR"; }
+trap rollback_cleanup EXIT
 
 # Fail-closed: any mismatch aborts before docker touches production.
 git -C "$PROD_DIR" fetch origin
@@ -247,11 +276,17 @@ docker compose --project-directory "$ROLLBACK_DIR" --project-name packing-app \
   --env-file "$PROD_DIR/.env" -f "$ROLLBACK_DIR/docker-compose.yml" build
 docker compose --project-directory "$ROLLBACK_DIR" --project-name packing-app \
   --env-file "$PROD_DIR/.env" -f "$ROLLBACK_DIR/docker-compose.yml" up -d --remove-orphans
+
+# Stack is rolled back: disarm the cleanup trap; verification needs $ROLLBACK_DIR.
+trap - EXIT
 ```
 
 Keep the SQLite volume intact unless an independently approved database restore
 is needed; code rollback alone preserves new rows and added nullable columns.
-Run the same smoke checks afterward.
+Run the post-deploy verification block above with the rollback values —
+`SRC_DIR=$ROLLBACK_DIR` and `TARGET_SHA=$ROLLBACK_SHA` (in the same shell,
+where `$PROD_DIR` is defined) — including the smoke checks and the
+public HTTPS check.
 
 ### Network topology
 
