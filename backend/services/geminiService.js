@@ -84,9 +84,12 @@ function applyLuggageRules(items, checkedSuitcaseCount, trolleyCount, numPeople)
       if (checkedSuitcaseCount >= numPeople) return item;
       if (checkedSuitcaseCount === 0) {
         // No checked luggage exists: bulky cabin clothing belongs in the
-        // trolley (or the backpack when even the trolley count is 0).
+        // trolley (or the backpack when even the trolley count is 0). A
+        // backpack-only re-homing keeps the quantity unscaled (factor 1) —
+        // the personal backpack's 8–10 kg limit applies per traveler, not
+        // proportionally to the (zero) trolley count.
         const receiverBag = trolleyCount > 0 ? "Trolley" : "Backpack";
-        const factor = receiverBag === null ? 1 : trolleyCount / numPeople;
+        const factor = receiverBag === "Backpack" ? 1 : trolleyCount / numPeople;
         return {
           ...item,
           targetBag: receiverBag,

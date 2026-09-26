@@ -711,6 +711,66 @@ describe("Trips API Endpoints (Issue #6)", () => {
       expect(res.body.trolleyCount).toBe(4);
     });
 
+    it("preserves checkedSuitcaseCount when omitted on update (Shiri review, PR #143)", async () => {
+      // Regression: `?? 0` on the update path coerced an omitted field to 0,
+      // making the `?? trip.checkedSuitcaseCount` fallback dead and silently
+      // wiping a previously-declared count on every edit.
+      // Self-contained: uses its own trip so the shared editableTripId and
+      // its expected counts are untouched.
+      const own = await request(app)
+        .post("/api/trips")
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({
+          destination: "Barcelona",
+          startDate: "2026-10-10",
+          endDate: "2026-10-12",
+          airline: "EL AL",
+          passengerComposition: { infants: 0, children: 0, women: 1, men: 0 },
+          vacationType: "City Trip",
+          trolleyCount: 3,
+          checkedSuitcaseCount: 2,
+        });
+      expect(own.status).toBe(201);
+      expect(own.body.checkedSuitcaseCount).toBe(2);
+
+      // Omit the luggage fields entirely on update.
+      const res = await request(app)
+        .put(`/api/trips/${own.body.id}`)
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({
+          destination: "Barcelona",
+          startDate: "2026-10-10",
+          endDate: "2026-10-12",
+          airline: "EL AL",
+          passengerComposition: { infants: 0, children: 0, women: 1, men: 0 },
+          vacationType: "City Trip",
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.checkedSuitcaseCount).toBe(2); // preserved, not reset to 0
+      expect(res.body.trolleyCount).toBe(3); // preserved
+    });
+
+    it("updates checkedSuitcaseCount when explicitly provided", async () => {
+      const res = await request(app)
+        .put(`/api/trips/${editableTripId}`)
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({ ...editedTrip, checkedSuitcaseCount: 2 });
+
+      expect(res.status).toBe(200);
+      expect(res.body.checkedSuitcaseCount).toBe(2);
+    });
+
+    it("rejects an invalid checkedSuitcaseCount on update", async () => {
+      const res = await request(app)
+        .put(`/api/trips/${editableTripId}`)
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({ ...editedTrip, checkedSuitcaseCount: 1.5 });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/checked suitcase count/i);
+    });
+
     it("rejects an invalid trolleyCount on update", async () => {
       const res = await request(app)
         .put(`/api/trips/${editableTripId}`)
@@ -806,7 +866,7 @@ describe("Trips API Endpoints (Issue #6)", () => {
           weatherSummary: forecast,
           baggageAllowance: expect.objectContaining({ cabin: expect.any(Object) }),
           trolleyCount: 4,
-          checkedSuitcaseCount: 4,
+          checkedSuitcaseCount: 2, // the value my earlier preserve-test left on the shared trip
         })
       );
       expect(res.body.weatherData).toEqual(forecast);

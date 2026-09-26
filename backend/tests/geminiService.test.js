@@ -129,7 +129,10 @@ describe("geminiService.generatePackingList - mock mode", () => {
     const byName = Object.fromEntries(result.items.map((i) => [i.name, i]));
 
     expect(byName.Underwear.targetBag).toBe("Backpack");
-    expect(byName.Underwear.quantity).toBeGreaterThanOrEqual(1);
+    // Backpack re-homing keeps the quantity unscaled (factor 1) — the
+    // per-traveler backpack limit is not proportional to the zero trolley
+    // count (Shiri review, PR #143: the old dead ternary floored this to 1).
+    expect(byName.Underwear.quantity).toBe(20);
   });
 
   it("never scales a Suitcase Clothing item's quantity below 1", async () => {
@@ -160,10 +163,10 @@ describe("geminiService.generatePackingList - mock mode", () => {
     const byName = Object.fromEntries(result.items.map((i) => [i.name, i]));
 
     // Under the old Math.max(checked, 0.5) hack this was 3 with the item
-    // still tagged "Suitcase" — a bag that did not exist.
+    // still tagged "Suitcase" — a bag that did not exist. The re-homing to
+    // Backpack is unscaled (factor 1), so the baseline 20 survives.
     expect(byName.Underwear.targetBag).toBe("Backpack");
-    // factor = trolleyCount/numPeople = 0 -> round(0) floored to 1.
-    expect(byName.Underwear.quantity).toBe(1);
+    expect(byName.Underwear.quantity).toBe(20);
   });
 
   it("leaves quantities untouched when neither luggage count is provided (backward compatible)", async () => {

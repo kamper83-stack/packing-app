@@ -520,7 +520,12 @@ router.put("/:id", async (req, res) => {
   if (trolleyCountResult.error) {
     return res.status(400).json({ error: trolleyCountResult.error });
   }
-  const checkedSuitcaseCountResult = resolveLuggageCount(checkedSuitcaseCount ?? 0, "Checked suitcase");
+  // On update, an omitted checkedSuitcaseCount must preserve the trip's
+  // stored value (same semantics as trolleyCount above). Passing the raw
+  // value through keeps `?? trip.checkedSuitcaseCount` alive; only an
+  // explicit value can overwrite it. (The `?? 0` default lives in the POST
+  // handler — applying it here silently wiped stored counts on edit.)
+  const checkedSuitcaseCountResult = resolveLuggageCount(checkedSuitcaseCount, "Checked suitcase");
   if (checkedSuitcaseCountResult.error) {
     return res.status(400).json({ error: checkedSuitcaseCountResult.error });
   }
@@ -531,7 +536,7 @@ router.put("/:id", async (req, res) => {
     // Omitting trolleyCount on an update keeps the trip's existing value
     // instead of silently resetting it to the create-time default.
     const cleanTrolleyCount = trolleyCountResult.value ?? trip.trolleyCount ?? DEFAULT_TROLLEY_COUNT;
-    const cleanCheckedSuitcaseCount = checkedSuitcaseCountResult.value ?? trip.checkedSuitcaseCount ?? DEFAULT_TROLLEY_COUNT;
+    const cleanCheckedSuitcaseCount = checkedSuitcaseCountResult.value ?? trip.checkedSuitcaseCount ?? 0;
     const cleanDestination = cityMatch;
     const cleanAirline = airline.trim();
     const cleanVacationType = vacationType.trim();
