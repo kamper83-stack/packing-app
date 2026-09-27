@@ -61,7 +61,7 @@ describe("geminiService.generatePackingList - mock mode", () => {
       expect(typeof item.name).toBe("string");
       expect(typeof item.category).toBe("string");
       expect(Number.isInteger(item.quantity)).toBe(true);
-      expect(["Suitcase", "Backpack"]).toContain(item.targetBag);
+      expect(["Suitcase", "Trolley", "Backpack"]).toContain(item.targetBag);
     }
     // Mock mode must never touch the real SDK.
     expect(mockGenerateContent).not.toHaveBeenCalled();
@@ -78,33 +78,72 @@ describe("geminiService.generatePackingList - mock mode", () => {
     expect(byName.Toothpaste.quantity).toBe(1); // fixed, independent of people
   });
 
-  it("leaves quantities untouched when trolleyCount covers every traveler (plenty of room)", async () => {
-    const result = await generatePackingList({ ...baseArgs, days: 5, numPeople: 2, trolleyCount: 2 });
+  it("leaves quantities untouched when checked suitcases cover every traveler (plenty of room)", async () => {
+    const result = await generatePackingList({ ...baseArgs, days: 5, numPeople: 2, trolleyCount: 2, checkedSuitcaseCount: 2 });
     const byName = Object.fromEntries(result.items.map((i) => [i.name, i]));
 
-    expect(byName.Underwear.quantity).toBe(10); // unchanged from the no-trolleyCount baseline
+    expect(byName.Underwear.quantity).toBe(10); // unchanged from the baseline
     expect(byName.Shirts.quantity).toBe(12);
   });
 
-  it("scales down Suitcase-targeted Clothing quantities when there are fewer trolleys than travelers", async () => {
-    const result = await generatePackingList({ ...baseArgs, days: 5, numPeople: 4, trolleyCount: 1 });
+  it("scales down Suitcase-targeted Clothing quantities when there are fewer checked suitcases than travelers", async () => {
+    const result = await generatePackingList({ ...baseArgs, days: 5, numPeople: 4, trolleyCount: 1, checkedSuitcaseCount: 1 });
     const byName = Object.fromEntries(result.items.map((i) => [i.name, i]));
 
-    // Baseline (no luggage constraint) would be days * numPeople = 20; factor
-    // is max(1, 0.5) / 4 = 0.25 -> round(20 * 0.25) = 5.
+    // Baseline would be days * numPeople = 20; factor is 1/4 = 0.25 ->
+    // round(20 * 0.25) = 5.
     expect(byName.Underwear.quantity).toBe(5);
     expect(byName.Socks.quantity).toBe(5);
   });
 
+  it("re-targets Suitcase Clothing to the Trolley when checked suitcases are 0", async () => {
+    // The user-declared luggage from the bug report: 7 trolleys, 0 checked.
+    const result = await generatePackingList({ ...baseArgs, days: 5, numPeople: 7, trolleyCount: 7, checkedSuitcaseCount: 0 });
+    const byName = Object.fromEntries(result.items.map((i) => [i.name, i]));
+
+    expect(byName.Underwear.targetBag).toBe("Trolley");
+    expect(byName.Socks.targetBag).toBe("Trolley");
+    // factor = trolleyCount / numPeople = 1 -> unchanged quantities.
+    expect(byName.Underwear.quantity).toBe(35);
+    expect(byName.Socks.quantity).toBe(35);
+    // With no checked room there must be no Suitcase-targeted Clothing left.
+    result.items.forEach((item) => {
+      if (item.category.toLowerCase() === "clothing") {
+        expect(item.targetBag).not.toBe("Suitcase");
+      }
+    });
+  });
+
+  it("scales trolley-reassigned Clothing by trolleyCount / numPeople (never the 0.5 hack)", async () => {
+    const result = await generatePackingList({ ...baseArgs, days: 5, numPeople: 4, trolleyCount: 1, checkedSuitcaseCount: 0 });
+    const byName = Object.fromEntries(result.items.map((i) => [i.name, i]));
+
+    // Baseline 20; factor = 1/4 -> 5. Under the old 0.5 hack this was 3
+    // (max(0, 0.5)/4) with targetBag still "Suitcase".
+    expect(byName.Underwear.targetBag).toBe("Trolley");
+    expect(byName.Underwear.quantity).toBe(5);
+  });
+
+  it("falls back to the Backpack when there are neither checked suitcases nor trolleys", async () => {
+    const result = await generatePackingList({ ...baseArgs, days: 5, numPeople: 4, trolleyCount: 0, checkedSuitcaseCount: 0 });
+    const byName = Object.fromEntries(result.items.map((i) => [i.name, i]));
+
+    expect(byName.Underwear.targetBag).toBe("Backpack");
+    // Backpack re-homing keeps the quantity unscaled (factor 1) — the
+    // per-traveler backpack limit is not proportional to the zero trolley
+    // count (Shiri review, PR #143: the old dead ternary floored this to 1).
+    expect(byName.Underwear.quantity).toBe(20);
+  });
+
   it("never scales a Suitcase Clothing item's quantity below 1", async () => {
-    const result = await generatePackingList({ ...baseArgs, days: 1, numPeople: 10, trolleyCount: 1, vacationType: "Beach Vacation" });
+    const result = await generatePackingList({ ...baseArgs, days: 1, numPeople: 10, trolleyCount: 1, checkedSuitcaseCount: 1, vacationType: "Beach Vacation" });
     const swimsuit = result.items.find((item) => item.name === "Swimsuit");
 
     expect(swimsuit.quantity).toBeGreaterThanOrEqual(1);
   });
 
-  it("does not scale Backpack items or non-Clothing categories by trolleyCount", async () => {
-    const result = await generatePackingList({ ...baseArgs, days: 5, numPeople: 4, trolleyCount: 1 });
+  it("does not scale Backpack items or non-Clothing categories by luggage counts", async () => {
+    const result = await generatePackingList({ ...baseArgs, days: 5, numPeople: 4, trolleyCount: 1, checkedSuitcaseCount: 1 });
     const byName = Object.fromEntries(result.items.map((i) => [i.name, i]));
 
     expect(byName.Toothpaste.targetBag).toBe("Backpack");
@@ -112,19 +151,87 @@ describe("geminiService.generatePackingList - mock mode", () => {
     expect(byName["Phone Charger"].quantity).toBe(4); // Electronics, unaffected by luggage rule
   });
 
-  it("treats 0 declared trolleys as backpack-overflow room, not zero suitcase capacity", async () => {
-    const result = await generatePackingList({ ...baseArgs, days: 5, numPeople: 4, trolleyCount: 0 });
+  it("does not scale Backpack items even on a backpacks-only trip", async () => {
+    const result = await generatePackingList({ ...baseArgs, days: 5, numPeople: 4, trolleyCount: 0, checkedSuitcaseCount: 0 });
     const byName = Object.fromEntries(result.items.map((i) => [i.name, i]));
 
-    // factor = max(0, 0.5) / 4 = 0.125 -> round(20 * 0.125) = 3 (not 0).
-    expect(byName.Underwear.quantity).toBe(3);
+    expect(byName["Phone Charger"].quantity).toBe(4); // never re-targeted, never scaled
   });
 
-  it("leaves quantities untouched when trolleyCount is not provided (backward compatible)", async () => {
+  it("treats 0 checked suitcases with 0 trolleys as a true backpacks-only trip (no phantom capacity)", async () => {
+    const result = await generatePackingList({ ...baseArgs, days: 5, numPeople: 4, trolleyCount: 0, checkedSuitcaseCount: 0 });
+    const byName = Object.fromEntries(result.items.map((i) => [i.name, i]));
+
+    // Under the old Math.max(checked, 0.5) hack this was 3 with the item
+    // still tagged "Suitcase" — a bag that did not exist. The re-homing to
+    // Backpack is unscaled (factor 1), so the baseline 20 survives.
+    expect(byName.Underwear.targetBag).toBe("Backpack");
+    expect(byName.Underwear.quantity).toBe(20);
+  });
+
+  it("re-homes EVERY Suitcase-tagged item (any category) when there are 0 checked suitcases — beach-trip regression (expert review, PR #143)", async () => {
+    const result = await generatePackingList({
+      ...baseArgs,
+      days: 7,
+      numPeople: 7,
+      vacationType: "Beach Vacation",
+      trolleyCount: 7,
+      checkedSuitcaseCount: 0,
+    });
+    const byName = Object.fromEntries(result.items.map((i) => [i.name, i]));
+
+    // Nothing may remain tagged "Suitcase" — the bag does not exist.
+    const stranded = result.items.filter((i) => i.targetBag === "Suitcase");
+    expect(stranded).toEqual([]);
+
+    // Clothing re-homed to the Trolley keeps capacity scaling (7/7 = 1).
+    expect(byName.Underwear.targetBag).toBe("Trolley");
+    expect(byName.Underwear.quantity).toBeGreaterThanOrEqual(1);
+
+    // Non-clothing items keep their absolute quantities when re-homed.
+    expect(byName.Sunscreen.targetBag).toBe("Trolley");
+    expect(byName.Sunscreen.quantity).toBe(1); // mock baseline: shared item, unscaled
+    expect(byName["Beach Towel"].targetBag).toBe("Trolley");
+    expect(byName["Beach Towel"].quantity).toBe(7); // mock baseline: numPeople, unscaled
+  });
+
+  it("re-homes non-clothing Suitcase items to the Backpack when even the trolley count is 0", async () => {
+    const result = await generatePackingList({
+      ...baseArgs,
+      days: 7,
+      numPeople: 7,
+      vacationType: "Beach Vacation",
+      trolleyCount: 0,
+      checkedSuitcaseCount: 0,
+    });
+    const byName = Object.fromEntries(result.items.map((i) => [i.name, i]));
+
+    expect(result.items.filter((i) => i.targetBag === "Suitcase")).toEqual([]);
+    expect(byName.Sunscreen.targetBag).toBe("Backpack");
+    // Non-clothing re-homing is never scaled.
+    expect(byName.Sunscreen.quantity).toBe(1);
+    expect(byName.Underwear.targetBag).toBe("Backpack"); // backpack re-homing is unscaled (factor 1)
+    expect(byName.Underwear.quantity).toBe(49); // 7 days * 7 people, unscaled
+  });
+
+  it("keeps non-clothing baseline quantities untouched while Clothing re-homes scale (misnamed before: expert review round 2)", async () => {
+    const result = await generatePackingList({ ...baseArgs, days: 5, numPeople: 4, trolleyCount: 2, checkedSuitcaseCount: 0 });
+    const trolleyItems = result.items.filter((i) => i.targetBag === "Trolley");
+    expect(trolleyItems.length).toBeGreaterThan(0);
+    // Only Clothing re-homed FROM Suitcase scales with trolley capacity; any
+    // item whose quantity equals its per-person baseline (e.g. Phone Charger
+    // 4 = numPeople, tagged Backpack) must be untouched by the luggage rules.
+    const byName = Object.fromEntries(result.items.map((i) => [i.name, i]));
+    expect(byName["Phone Charger"].quantity).toBe(4);
+    expect(byName["Phone Charger"].targetBag).toBe("Backpack");
+  });
+
+  it("leaves quantities untouched when neither luggage count is provided (backward compatible)", async () => {
     const result = await generatePackingList({ ...baseArgs, days: 5, numPeople: 4 });
     const byName = Object.fromEntries(result.items.map((i) => [i.name, i]));
 
     expect(byName.Underwear.quantity).toBe(20); // days * numPeople, no scaling applied
+    expect(byName.Underwear.targetBag).toBe("Suitcase"); // unchanged target bag
   });
 
   it("does not pack overnight-only clothing or toiletries for a one-day trip", async () => {
@@ -248,6 +355,37 @@ describe("geminiService.generatePackingList - real API path (mocked SDK)", () =>
     expect(prompt).toContain("3 backpack(s)");
   });
 
+  it("re-homes a non-clothing Trolley-tagged item to the Backpack when no trolley is declared (expert review round 2, PR #143)", async () => {
+    enableRealPath();
+    // Simulate Gemini tagging a non-clothing item "Trolley" — the prompt
+    // invites exactly this for bulky shared gear.
+    mockGenerateContent.mockResolvedValue({
+      response: {
+        text: () =>
+          JSON.stringify([
+            { name: "Hair Dryer", category: "Toiletries", quantity: 1, targetBag: "Trolley" },
+            { name: "Rain Jacket", category: "Clothing", quantity: 4, targetBag: "Trolley" },
+          ]),
+      },
+    });
+
+    // 0 checked suitcases AND 0 trolleys: nothing may remain in either bag.
+    const none = await generatePackingList({ ...baseArgs, numPeople: 4, trolleyCount: 0, checkedSuitcaseCount: 0 });
+    expect(none.isMock).toBe(false);
+    expect(none.items.filter((i) => i.targetBag === "Trolley" || i.targetBag === "Suitcase")).toEqual([]);
+    const hairDryerNone = none.items.find((i) => i.name === "Hair Dryer");
+    expect(hairDryerNone.targetBag).toBe("Backpack");
+    expect(hairDryerNone.quantity).toBe(1); // non-clothing: quantity untouched
+
+    // Checked suitcases present but 0 trolleys: the Trolley-tagged item still
+    // cannot stay in a bag that does not exist.
+    const withChecked = await generatePackingList({ ...baseArgs, numPeople: 4, trolleyCount: 0, checkedSuitcaseCount: 2 });
+    expect(withChecked.items.filter((i) => i.targetBag === "Trolley")).toEqual([]);
+    const hairDryerChecked = withChecked.items.find((i) => i.name === "Hair Dryer");
+    expect(hairDryerChecked.targetBag).toBe("Backpack");
+    expect(hairDryerChecked.quantity).toBe(1);
+  });
+
   it("omits the luggage line from the prompt when trolleyCount is not provided", async () => {
     enableRealPath();
     mockGenerateContent.mockResolvedValue({
@@ -274,8 +412,26 @@ describe("geminiService.generatePackingList - real API path (mocked SDK)", () =>
       checkedSuitcaseCount: 1,
     });
 
-    // factor = max(1, 0.5) / 4 = 0.25 -> round(20 * 0.25) = 5.
+    // factor = checkedSuitcaseCount / numPeople = 0.25 -> round(20 * 0.25) = 5.
     expect(result.items[0].quantity).toBe(5);
+  });
+
+  it("re-targets live Suitcase Clothing output to the Trolley when checkedSuitcaseCount is 0", async () => {
+    enableRealPath();
+    const aiItems = [{ name: "Shirts", category: "Clothing", quantity: 20, targetBag: "Suitcase" }];
+    mockGenerateContent.mockResolvedValue({
+      response: { text: () => JSON.stringify(aiItems) },
+    });
+
+    const result = await generatePackingList({
+      ...baseArgs,
+      numPeople: 4,
+      trolleyCount: 2,
+      checkedSuitcaseCount: 0,
+    });
+
+    expect(result.items[0].targetBag).toBe("Trolley");
+    expect(result.items[0].quantity).toBe(10); // factor = 2/4
   });
 
   it("enforces one-day duration rules on otherwise valid live model output", async () => {

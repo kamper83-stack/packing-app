@@ -121,7 +121,7 @@ export default function TripView() {
 
   // Checklist filters (Issue #43): narrow the list by target bag and by
   // whether an item is still to pack or already packed.
-  const [bagFilter, setBagFilter] = useState("All"); // "All" | "Backpack" | "Suitcase"
+  const [bagFilter, setBagFilter] = useState("All"); // "All" | "Backpack" | "Trolley" | "Suitcase"
   const [statusFilter, setStatusFilter] = useState("All"); // "All" | "ToPack" | "Packed"
   const [editing, setEditing] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
@@ -153,7 +153,7 @@ export default function TripView() {
         passengerComposition: data.passengerComposition || { ...emptyComposition(), men: data.numPeople || 1 },
         vacationType: data.vacationType || "City Trip",
         trolleyCount: typeof data.trolleyCount === "number" ? data.trolleyCount : 1,
-        checkedSuitcaseCount: typeof data.checkedSuitcaseCount === "number" ? data.checkedSuitcaseCount : 1,
+        checkedSuitcaseCount: typeof data.checkedSuitcaseCount === "number" ? data.checkedSuitcaseCount : 0,
       });
     } catch (err) {
       setError("Failed to fetch trip details.");
@@ -515,8 +515,14 @@ export default function TripView() {
                   <Luggage size={16} /> Trolley (cabin) and checked suitcases
                 </span>
                 <span className="block mt-1 text-xs">
-                  Trolley: {typeof trip.trolleyCount === "number" ? trip.trolleyCount : 1}; checked suitcases: {typeof trip.checkedSuitcaseCount === "number" ? trip.checkedSuitcaseCount : 1}. Cabin trolley and checked luggage limits apply separately.
-                  {typeof trip.checkedSuitcaseCount === "number" && trip.checkedSuitcaseCount < trip.numPeople && (
+                  Trolley: {typeof trip.trolleyCount === "number" ? trip.trolleyCount : 1}; checked suitcases: {typeof trip.checkedSuitcaseCount === "number" ? trip.checkedSuitcaseCount : 0}. Cabin trolley and checked luggage limits apply separately.
+                  {typeof trip.checkedSuitcaseCount === "number" && trip.checkedSuitcaseCount === 0 && typeof trip.trolleyCount === "number" && trip.trolleyCount > 0 && (
+                    <> No checked suitcases — bulky clothing items were assigned to the cabin trolley.</>
+                  )}
+                  {typeof trip.checkedSuitcaseCount === "number" && trip.checkedSuitcaseCount === 0 && typeof trip.trolleyCount === "number" && trip.trolleyCount === 0 && (
+                    <> Backpacks-only trip — everything was assigned to the cabin backpack.</>
+                  )}
+                  {typeof trip.checkedSuitcaseCount === "number" && trip.checkedSuitcaseCount > 0 && trip.checkedSuitcaseCount < trip.numPeople && (
                     <> Fewer checked suitcases than travelers — quantities were trimmed to fit.</>
                   )}
                 </span>
@@ -571,6 +577,7 @@ export default function TripView() {
                   >
                     <option value="All">All bags</option>
                     <option value="Backpack">Cabin / backpack</option>
+                    <option value="Trolley">Trolley (cabin)</option>
                     <option value="Suitcase">Checked suitcase</option>
                   </select>
                 </div>
@@ -630,6 +637,10 @@ export default function TripView() {
                             <span className="badge shrink-0 border-line bg-paper text-muted">
                               {item.targetBag === "Suitcase" ? (
                                 <><Luggage size={12} /> Suitcase</>
+                              ) : item.targetBag === "Trolley" ? (
+                                <>
+                                  <Luggage size={12} /> Trolley (cabin)
+                                </>
                               ) : (
                                 <><Backpack size={12} /> Backpack</>
                               )}
@@ -702,6 +713,7 @@ export default function TripView() {
                     onChange={(e) => setCustomBag(e.target.value)}
                   >
                     <option value="Suitcase">Suitcase</option>
+                    <option value="Trolley">Trolley (cabin)</option>
                     <option value="Backpack">Backpack</option>
                   </select>
                 </div>

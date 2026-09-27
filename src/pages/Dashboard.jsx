@@ -432,7 +432,7 @@ export default function Dashboard() {
                           {typeof trip.trolleyCount === "number" && (
                             <span className="inline-flex items-center gap-1.5">
                               <Luggage size={14} />
-                              {trip.trolleyCount} trolley{trip.trolleyCount === 1 ? "" : "s"} · {typeof trip.checkedSuitcaseCount === "number" ? trip.checkedSuitcaseCount : 1} checked suitcase{(trip.checkedSuitcaseCount ?? 1) === 1 ? "" : "s"}
+                              {trip.trolleyCount} trolley{trip.trolleyCount === 1 ? "" : "s"} · {typeof trip.checkedSuitcaseCount === "number" ? trip.checkedSuitcaseCount : 0} checked suitcase{(trip.checkedSuitcaseCount ?? 0) === 1 ? "" : "s"}
                             </span>
                           )}
                         </div>
