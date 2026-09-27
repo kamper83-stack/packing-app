@@ -214,7 +214,7 @@ describe("geminiService.generatePackingList - mock mode", () => {
     expect(byName.Underwear.quantity).toBe(49); // 7 days * 7 people, unscaled
   });
 
-  it("never scales items Gemini tagged Trolley from the start", async () => {
+  it("keeps non-clothing baseline quantities untouched while Clothing re-homes scale (misnamed before: expert review round 2)", async () => {
     const result = await generatePackingList({ ...baseArgs, days: 5, numPeople: 4, trolleyCount: 2, checkedSuitcaseCount: 0 });
     const trolleyItems = result.items.filter((i) => i.targetBag === "Trolley");
     expect(trolleyItems.length).toBeGreaterThan(0);
@@ -353,6 +353,37 @@ describe("geminiService.generatePackingList - real API path (mocked SDK)", () =>
     expect(prompt).toContain("2 trolley(s)");
     expect(prompt).toContain("4 checked suitcase(s)");
     expect(prompt).toContain("3 backpack(s)");
+  });
+
+  it("re-homes a non-clothing Trolley-tagged item to the Backpack when no trolley is declared (expert review round 2, PR #143)", async () => {
+    enableRealPath();
+    // Simulate Gemini tagging a non-clothing item "Trolley" — the prompt
+    // invites exactly this for bulky shared gear.
+    mockGenerateContent.mockResolvedValue({
+      response: {
+        text: () =>
+          JSON.stringify([
+            { name: "Hair Dryer", category: "Toiletries", quantity: 1, targetBag: "Trolley" },
+            { name: "Rain Jacket", category: "Clothing", quantity: 4, targetBag: "Trolley" },
+          ]),
+      },
+    });
+
+    // 0 checked suitcases AND 0 trolleys: nothing may remain in either bag.
+    const none = await generatePackingList({ ...baseArgs, numPeople: 4, trolleyCount: 0, checkedSuitcaseCount: 0 });
+    expect(none.isMock).toBe(false);
+    expect(none.items.filter((i) => i.targetBag === "Trolley" || i.targetBag === "Suitcase")).toEqual([]);
+    const hairDryerNone = none.items.find((i) => i.name === "Hair Dryer");
+    expect(hairDryerNone.targetBag).toBe("Backpack");
+    expect(hairDryerNone.quantity).toBe(1); // non-clothing: quantity untouched
+
+    // Checked suitcases present but 0 trolleys: the Trolley-tagged item still
+    // cannot stay in a bag that does not exist.
+    const withChecked = await generatePackingList({ ...baseArgs, numPeople: 4, trolleyCount: 0, checkedSuitcaseCount: 2 });
+    expect(withChecked.items.filter((i) => i.targetBag === "Trolley")).toEqual([]);
+    const hairDryerChecked = withChecked.items.find((i) => i.name === "Hair Dryer");
+    expect(hairDryerChecked.targetBag).toBe("Backpack");
+    expect(hairDryerChecked.quantity).toBe(1);
   });
 
   it("omits the luggage line from the prompt when trolleyCount is not provided", async () => {

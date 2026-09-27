@@ -101,21 +101,21 @@ function applyLuggageRules(items, checkedSuitcaseCount, trolleyCount, numPeople)
       };
     }
 
+    // A Trolley-tagged item with no trolley declared cannot exist as such:
+    // it still has to be carried, so it falls to the personal backpack
+    // rather than vanishing (or lying on the UI). Applies to ANY category —
+    // a Toiletries "Hair Dryer" tagged Trolley by Gemini must re-home just
+    // like Clothing does (expert review, PR #143 round 2).
+    if (item.targetBag === "Trolley" && trolleyCount === 0) {
+      return { ...item, targetBag: "Backpack" };
+    }
+
     if (item.category.toLowerCase() !== "clothing") return item;
 
     if (item.targetBag === "Suitcase") {
       if (checkedSuitcaseCount >= numPeople) return item;
       const factor = checkedSuitcaseCount / numPeople;
       return { ...item, quantity: Math.max(1, Math.round(item.quantity * factor)) };
-    }
-
-    if (item.targetBag === "Trolley") {
-      if (trolleyCount === 0) {
-        // Same reasoning when a trolley-targeted item exists but no trolley
-        // was declared: it still has to be carried, so it falls to the
-        // personal backpack rather than vanishing.
-        return { ...item, targetBag: "Backpack" };
-      }
     }
 
     return item;
