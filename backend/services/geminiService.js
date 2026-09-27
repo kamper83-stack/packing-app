@@ -78,24 +78,33 @@ function applyLuggageRules(items, checkedSuitcaseCount, trolleyCount, numPeople)
     return items;
   }
   return items.map((item) => {
+    // Re-homing (below) applies to ANY category tagged "Suitcase" — a
+    // beach trip's Sunscreen/Beach Towel are just as un-storable when no
+    // checked suitcase exists as Clothing is. Only quantity scaling stays
+    // Clothing-specific: Clothing quantities are per-traveler counts that
+    // scale with real bag capacity, while other categories' quantities are
+    // absolute and must survive re-homing untouched.
+
+    if (item.targetBag === "Suitcase" && checkedSuitcaseCount === 0) {
+      // No checked luggage exists: the item belongs in the trolley (or the
+      // backpack when even the trolley count is 0). A backpack-only
+      // re-homing keeps the quantity unscaled (factor 1) — the personal
+      // backpack's 8–10 kg limit applies per traveler, not proportionally
+      // to the (zero) trolley count.
+      const receiverBag = trolleyCount > 0 ? "Trolley" : "Backpack";
+      const isClothing = item.category.toLowerCase() === "clothing";
+      const factor = receiverBag === "Backpack" ? 1 : isClothing ? trolleyCount / numPeople : 1;
+      return {
+        ...item,
+        targetBag: receiverBag,
+        quantity: isClothing ? Math.max(1, Math.round(item.quantity * factor)) : item.quantity,
+      };
+    }
+
     if (item.category.toLowerCase() !== "clothing") return item;
 
     if (item.targetBag === "Suitcase") {
       if (checkedSuitcaseCount >= numPeople) return item;
-      if (checkedSuitcaseCount === 0) {
-        // No checked luggage exists: bulky cabin clothing belongs in the
-        // trolley (or the backpack when even the trolley count is 0). A
-        // backpack-only re-homing keeps the quantity unscaled (factor 1) —
-        // the personal backpack's 8–10 kg limit applies per traveler, not
-        // proportionally to the (zero) trolley count.
-        const receiverBag = trolleyCount > 0 ? "Trolley" : "Backpack";
-        const factor = receiverBag === "Backpack" ? 1 : trolleyCount / numPeople;
-        return {
-          ...item,
-          targetBag: receiverBag,
-          quantity: Math.max(1, Math.round(item.quantity * factor)),
-        };
-      }
       const factor = checkedSuitcaseCount / numPeople;
       return { ...item, quantity: Math.max(1, Math.round(item.quantity * factor)) };
     }
@@ -195,7 +204,7 @@ async function generatePackingList({
   const backpackCount = numPeople;
   const luggageLine =
     trolleyCount !== undefined && trolleyCount !== null
-      ? `Luggage: ${trolleyCount} trolley(s) (cabin) + ${effectiveCheckedSuitcaseCount ?? 1} checked suitcase(s) + ${backpackCount} backpack(s), one per traveler (cabin).`
+      ? `Luggage: ${trolleyCount} trolley(s) (cabin) + ${effectiveCheckedSuitcaseCount ?? 0} checked suitcase(s) + ${backpackCount} backpack(s), one per traveler (cabin).`
       : null;
 
   const useMocks = process.env.USE_MOCKS === "true" || !process.env.GEMINI_API_KEY;

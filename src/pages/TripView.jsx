@@ -153,7 +153,7 @@ export default function TripView() {
         passengerComposition: data.passengerComposition || { ...emptyComposition(), men: data.numPeople || 1 },
         vacationType: data.vacationType || "City Trip",
         trolleyCount: typeof data.trolleyCount === "number" ? data.trolleyCount : 1,
-        checkedSuitcaseCount: typeof data.checkedSuitcaseCount === "number" ? data.checkedSuitcaseCount : 1,
+        checkedSuitcaseCount: typeof data.checkedSuitcaseCount === "number" ? data.checkedSuitcaseCount : 0,
       });
     } catch (err) {
       setError("Failed to fetch trip details.");

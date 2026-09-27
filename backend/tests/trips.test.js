@@ -849,6 +849,16 @@ describe("Trips API Endpoints (Issue #6)", () => {
         isMock: false,
       });
 
+      // Read the stored counts instead of hard-coding them: whatever order
+      // earlier tests in this suite updated the shared editableTripId row to,
+      // this refresh must forward the trip's CURRENT persisted counts.
+      const before = await request(app)
+        .get(`/api/trips/${editableTripId}`)
+        .set("Authorization", `Bearer ${tokenA}`);
+      expect(before.status).toBe(200);
+      const storedTrolleyCount = before.body.trolleyCount;
+      const storedCheckedSuitcaseCount = before.body.checkedSuitcaseCount;
+
       const res = await request(app)
         .post(`/api/trips/${editableTripId}/weather`)
         .set("Authorization", `Bearer ${tokenA}`);
@@ -865,8 +875,8 @@ describe("Trips API Endpoints (Issue #6)", () => {
           airline: "Wizz Air",
           weatherSummary: forecast,
           baggageAllowance: expect.objectContaining({ cabin: expect.any(Object) }),
-          trolleyCount: 4,
-          checkedSuitcaseCount: 2, // the value my earlier preserve-test left on the shared trip
+          trolleyCount: storedTrolleyCount,
+          checkedSuitcaseCount: storedCheckedSuitcaseCount,
         })
       );
       expect(res.body.weatherData).toEqual(forecast);

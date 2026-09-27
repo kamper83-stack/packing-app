@@ -169,6 +169,63 @@ describe("geminiService.generatePackingList - mock mode", () => {
     expect(byName.Underwear.quantity).toBe(20);
   });
 
+  it("re-homes EVERY Suitcase-tagged item (any category) when there are 0 checked suitcases — beach-trip regression (expert review, PR #143)", async () => {
+    const result = await generatePackingList({
+      ...baseArgs,
+      days: 7,
+      numPeople: 7,
+      vacationType: "Beach Vacation",
+      trolleyCount: 7,
+      checkedSuitcaseCount: 0,
+    });
+    const byName = Object.fromEntries(result.items.map((i) => [i.name, i]));
+
+    // Nothing may remain tagged "Suitcase" — the bag does not exist.
+    const stranded = result.items.filter((i) => i.targetBag === "Suitcase");
+    expect(stranded).toEqual([]);
+
+    // Clothing re-homed to the Trolley keeps capacity scaling (7/7 = 1).
+    expect(byName.Underwear.targetBag).toBe("Trolley");
+    expect(byName.Underwear.quantity).toBeGreaterThanOrEqual(1);
+
+    // Non-clothing items keep their absolute quantities when re-homed.
+    expect(byName.Sunscreen.targetBag).toBe("Trolley");
+    expect(byName.Sunscreen.quantity).toBe(1); // mock baseline: shared item, unscaled
+    expect(byName["Beach Towel"].targetBag).toBe("Trolley");
+    expect(byName["Beach Towel"].quantity).toBe(7); // mock baseline: numPeople, unscaled
+  });
+
+  it("re-homes non-clothing Suitcase items to the Backpack when even the trolley count is 0", async () => {
+    const result = await generatePackingList({
+      ...baseArgs,
+      days: 7,
+      numPeople: 7,
+      vacationType: "Beach Vacation",
+      trolleyCount: 0,
+      checkedSuitcaseCount: 0,
+    });
+    const byName = Object.fromEntries(result.items.map((i) => [i.name, i]));
+
+    expect(result.items.filter((i) => i.targetBag === "Suitcase")).toEqual([]);
+    expect(byName.Sunscreen.targetBag).toBe("Backpack");
+    // Non-clothing re-homing is never scaled.
+    expect(byName.Sunscreen.quantity).toBe(1);
+    expect(byName.Underwear.targetBag).toBe("Backpack"); // backpack re-homing is unscaled (factor 1)
+    expect(byName.Underwear.quantity).toBe(49); // 7 days * 7 people, unscaled
+  });
+
+  it("never scales items Gemini tagged Trolley from the start", async () => {
+    const result = await generatePackingList({ ...baseArgs, days: 5, numPeople: 4, trolleyCount: 2, checkedSuitcaseCount: 0 });
+    const trolleyItems = result.items.filter((i) => i.targetBag === "Trolley");
+    expect(trolleyItems.length).toBeGreaterThan(0);
+    // Only Clothing re-homed FROM Suitcase scales with trolley capacity; any
+    // item whose quantity equals its per-person baseline (e.g. Phone Charger
+    // 4 = numPeople, tagged Backpack) must be untouched by the luggage rules.
+    const byName = Object.fromEntries(result.items.map((i) => [i.name, i]));
+    expect(byName["Phone Charger"].quantity).toBe(4);
+    expect(byName["Phone Charger"].targetBag).toBe("Backpack");
+  });
+
   it("leaves quantities untouched when neither luggage count is provided (backward compatible)", async () => {
     const result = await generatePackingList({ ...baseArgs, days: 5, numPeople: 4 });
     const byName = Object.fromEntries(result.items.map((i) => [i.name, i]));

@@ -399,7 +399,7 @@ router.post("/", async (req, res) => {
   if (checkedSuitcaseCountResult.error) {
     return res.status(400).json({ error: checkedSuitcaseCountResult.error });
   }
-  const cleanCheckedSuitcaseCount = checkedSuitcaseCountResult.value ?? DEFAULT_TROLLEY_COUNT;
+  const cleanCheckedSuitcaseCount = checkedSuitcaseCountResult.value ?? 0;
 
   // Persist the canonical airport-city spelling so stored destinations stay
   // consistent regardless of the submitted casing/whitespace.
