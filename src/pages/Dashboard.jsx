@@ -26,6 +26,9 @@ const DATE_INPUT_YEAR_WINDOW_AHEAD = 2;
 // called at render time so the pickers always anchor to the actual current
 // day: the earliest selectable date IS today, nothing before it.
 const todayDate = () => new Date().toISOString().split("T")[0];
+// dateMin(startValue): end-date floor = max(start, today). The START
+// input pins min to today so any future day stays re-selectable
+// (review: flooring the start at its own value locked the user out).
 const DATE_INPUT_MIN = (startValue) => startValue || todayDate();
 const DATE_INPUT_MAX = () => {
   const year = new Date().getFullYear();
@@ -242,7 +245,7 @@ export default function Dashboard() {
                   <input
                     type="date"
                     required
-                    min={DATE_INPUT_MIN(startDate)}
+                    min={todayDate()}
                     max={DATE_INPUT_MAX()}
                     className="input w-full min-w-0"
                     value={startDate}
