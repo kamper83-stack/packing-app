@@ -20,10 +20,17 @@ import useDocumentTitle from "../utils/useDocumentTitle";
 // old/far-future year is harder to pick in the first place. Window must
 // match backend/routes/trips.js's YEAR_WINDOW_YEARS_AHEAD.
 const DATE_INPUT_YEAR_WINDOW_AHEAD = 2;
-const currentYearNow = new Date().getFullYear();
-const currentDateNow = new Date().toISOString().split("T")[0];
-const DATE_INPUT_MIN = currentDateNow;
-const DATE_INPUT_MAX = `${currentYearNow + DATE_INPUT_YEAR_WINDOW_AHEAD}-12-31`;
+
+// A module-level "today" goes stale in long-lived tabs and across midnight,
+// letting mobile users pick a past date (user report). These helpers are
+// called at render time so the pickers always anchor to the actual current
+// day: the earliest selectable date IS today, nothing before it.
+const todayDate = () => new Date().toISOString().split("T")[0];
+const DATE_INPUT_MIN = (startValue) => startValue || todayDate();
+const DATE_INPUT_MAX = () => {
+  const year = new Date().getFullYear();
+  return `${year + DATE_INPUT_YEAR_WINDOW_AHEAD}-12-31`;
+};
 
 export default function Dashboard() {
   useDocumentTitle("Dashboard");
@@ -235,8 +242,8 @@ export default function Dashboard() {
                   <input
                     type="date"
                     required
-                    min={DATE_INPUT_MIN}
-                    max={DATE_INPUT_MAX}
+                    min={DATE_INPUT_MIN(startDate)}
+                    max={DATE_INPUT_MAX()}
                     className="input w-full min-w-0"
                     value={startDate}
                     onKeyDown={(e) => {
@@ -251,7 +258,12 @@ export default function Dashboard() {
                       skipEndDateAutoOpenRef.current = false;
                     }}
                     onChange={(e) => {
-                      const nextStart = e.target.value;
+                      let nextStart = e.target.value;
+                      // Absolute guard: any date that has already happened
+                      // (before today 00:00 local) is rejected even if the
+                      // native picker allowed it (stale tab / manual typing).
+                      const today = todayDate();
+                      if (nextStart && nextStart < today) nextStart = today;
                       setStartDate(nextStart);
                       // Start the return-date picker at the selected departure
                       // date, while preserving a later return date if one exists.
@@ -279,11 +291,20 @@ export default function Dashboard() {
                     ref={endDateRef}
                     type="date"
                     required
-                    min={startDate || DATE_INPUT_MIN}
-                    max={DATE_INPUT_MAX}
+                    min={DATE_INPUT_MIN(startDate)}
+                    max={DATE_INPUT_MAX()}
                     className="input w-full min-w-0"
                     value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
+                    onChange={(e) => {
+                      let nextEnd = e.target.value;
+                      // Same absolute guard as the start date: the end date
+                      // can never land in the past, even via manual typing.
+                      const floor = startDate || todayDate();
+                      const today = todayDate();
+                      const earliest = floor > today ? floor : today;
+                      if (nextEnd && nextEnd < earliest) nextEnd = earliest;
+                      setEndDate(nextEnd);
+                    }}
                   />
                 </div>
               </div>

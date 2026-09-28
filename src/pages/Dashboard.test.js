@@ -30,6 +30,12 @@ const renderDashboard = () =>
     </MemoryRouter>
   );
 
+// Dates used by form-fill tests must be in the FUTURE: after the mobile
+// date fix (#131 follow-up), the create form rejects any past date at
+// onChange level — the earliest selectable day is today.
+const FUTURE_START = "2026-10-01";
+const FUTURE_END = "2026-10-05";
+
 // Fill the minimum required fields of the "Plan a New Trip" form.
 // `passengers` overrides individual passenger-composition counts (defaults
 // to a single adult woman so submission passes the "at least one" check).
@@ -44,8 +50,8 @@ const fillTripForm = async (container, passengers = { women: 1 }) => {
   fireEvent.change(screen.getByLabelText("City"), { target: { value: "Rome" } });
 
   const dateInputs = container.querySelectorAll('input[type="date"]');
-  fireEvent.change(dateInputs[0], { target: { value: "2026-09-01" } });
-  fireEvent.change(dateInputs[1], { target: { value: "2026-09-05" } });
+  fireEvent.change(dateInputs[0], { target: { value: FUTURE_START } });
+  fireEvent.change(dateInputs[1], { target: { value: FUTURE_END } });
   for (const [key, value] of Object.entries(passengers)) {
     const label = { infants: /תינוקות/, children: /ילדים/, women: /נשים/, men: /גברים/ }[key];
     if (!label) continue;
@@ -69,8 +75,8 @@ describe("Dashboard (Issue #9)", () => {
       {
         id: "t1",
         destination: "Barcelona",
-        startDate: "2026-09-01",
-        endDate: "2026-09-05",
+        startDate: "2026-10-01",
+        endDate: "2026-10-05",
         airline: "EL AL",
         numPeople: 2,
         passengerComposition: { infants: 0, children: 0, women: 1, men: 1 },
@@ -97,8 +103,8 @@ describe("Dashboard (Issue #9)", () => {
       {
         id: "t1",
         destination: "Barcelona",
-        startDate: "2026-09-01",
-        endDate: "2026-09-05",
+        startDate: "2026-10-01",
+        endDate: "2026-10-05",
         airline: "EL AL",
         numPeople: 2,
         vacationType: "Beach Vacation",
@@ -120,8 +126,8 @@ describe("Dashboard (Issue #9)", () => {
       {
         id: "t1",
         destination: "Barcelona",
-        startDate: "2026-09-01",
-        endDate: "2026-09-05",
+        startDate: "2026-10-01",
+        endDate: "2026-10-05",
         airline: "EL AL",
         numPeople: 2,
         vacationType: "Beach Vacation",
@@ -166,8 +172,8 @@ describe("Dashboard (Issue #9)", () => {
       {
         id: "legacy1",
         destination: "Legacy Town",
-        startDate: "2026-09-01",
-        endDate: "2026-09-05",
+        startDate: "2026-10-01",
+        endDate: "2026-10-05",
         airline: "EL AL",
         numPeople: 4,
         vacationType: "City Trip",
@@ -202,8 +208,8 @@ describe("Dashboard (Issue #9)", () => {
       expect(api.createTrip).toHaveBeenCalledWith(
         expect.objectContaining({
           destination: "Rome",
-          startDate: "2026-09-01",
-          endDate: "2026-09-05",
+          startDate: "2026-10-01",
+          endDate: "2026-10-05",
           airline: "EL AL",
           passengerComposition: { infants: 1, children: 2, women: 1, men: 1 },
           vacationType: "City Trip",
@@ -309,10 +315,10 @@ describe("Dashboard (Issue #9)", () => {
     const [startInput, endInput] = dateInputs;
 
     startInput.focus();
-    fireEvent.change(startInput, { target: { value: "2026-09-22" } });
+    fireEvent.change(startInput, { target: { value: FUTURE_START } });
 
-    expect(endInput).toHaveValue("2026-09-22");
-    expect(endInput).toHaveAttribute("min", "2026-09-22");
+    expect(endInput).toHaveValue(FUTURE_START);
+    expect(endInput).toHaveAttribute("min", FUTURE_START);
     expect(endInput).toHaveFocus();
   });
 
@@ -356,10 +362,10 @@ describe("Dashboard (Issue #9)", () => {
     const dateInputs = container.querySelectorAll('input[type="date"]');
     const [startInput, endInput] = dateInputs;
 
-    fireEvent.change(endInput, { target: { value: "2026-09-03" } });
+    fireEvent.change(endInput, { target: { value: "2026-10-03" } });
     // Choosing a start date after the current end date snaps the end date to it.
-    fireEvent.change(startInput, { target: { value: "2026-09-10" } });
-    expect(endInput).toHaveValue("2026-09-10");
+    fireEvent.change(startInput, { target: { value: "2026-10-10" } });
+    expect(endInput).toHaveValue("2026-10-10");
   });
 
   // ---- Airline is no longer a user-chosen field (backend still requires it) ----
