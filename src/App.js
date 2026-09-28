@@ -12,6 +12,13 @@ function ProtectedRoute({ children }) {
   return token ? children : <Navigate to="/login" replace />;
 }
 
+// Authenticated users should never see the auth screens — send them
+// straight to the dashboard (Phase 1, Issue #145 acceptance).
+function PublicRoute({ children }) {
+  const token = localStorage.getItem("token");
+  return token ? <Navigate to="/dashboard" replace /> : children;
+}
+
 // Redirect home route
 function HomeRedirect() {
   const token = localStorage.getItem("token");
@@ -22,8 +29,8 @@ function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
+        <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+        <Route path="/signup" element={<PublicRoute><Signup /></PublicRoute>} />
         <Route
           path="/dashboard"
           element={
