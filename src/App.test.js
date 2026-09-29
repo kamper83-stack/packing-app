@@ -48,3 +48,25 @@ test("lets an authenticated user into the dashboard", async () => {
 
   expect(await screen.findByText(/plan a new trip/i)).toBeInTheDocument();
 });
+
+test("redirects an authenticated user away from /login to the dashboard (Issue #145)", async () => {
+  localStorage.setItem("token", "jwt-abc");
+  api.getTrips.mockResolvedValue([]);
+  window.history.pushState({}, "", "/login");
+
+  render(<App />);
+
+  expect(await screen.findByText(/plan a new trip/i)).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: /welcome back/i })).not.toBeInTheDocument();
+});
+
+test("redirects an authenticated user away from /signup to the dashboard (Issue #145)", async () => {
+  localStorage.setItem("token", "jwt-abc");
+  api.getTrips.mockResolvedValue([]);
+  window.history.pushState({}, "", "/signup");
+
+  render(<App />);
+
+  expect(await screen.findByText(/plan a new trip/i)).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: /create your account/i })).not.toBeInTheDocument();
+});
