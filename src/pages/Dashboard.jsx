@@ -33,10 +33,16 @@ const todayDate = () => {
   const d = new Date();
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split("T")[0];
 };
-// dateMin(startValue): end-date floor = max(start, today). The START
-// input pins min to today so any future day stays re-selectable
-// (review: flooring the start at its own value locked the user out).
-const DATE_INPUT_MIN = (startValue) => startValue || todayDate();
+// dateMin(startValue): end-date floor = max(start, today). A start date
+// chosen yesterday can go stale overnight with no onChange, so the floor
+// itself is floored at today — it can never name a past day
+// (review: expert on PR #144). The START input pins min to today so any
+// future day stays re-selectable (review: flooring the start at its own
+// value locked the user out).
+const DATE_INPUT_MIN = (startValue) => {
+  const today = todayDate();
+  return startValue && startValue > today ? startValue : today;
+};
 const DATE_INPUT_MAX = () => {
   const year = new Date().getFullYear();
   return `${year + DATE_INPUT_YEAR_WINDOW_AHEAD}-12-31`;
@@ -63,6 +69,21 @@ export default function Dashboard() {
   const [trolleyCount, setTrolleyCount] = useState(1);
   const [checkedSuitcaseCount, setCheckedSuitcaseCount] = useState(1);
   const [creating, setCreating] = useState(false);
+
+  // A tab left open across local midnight never re-renders on its own, so
+  // the native min attributes computed at render time would keep naming
+  // yesterday (review: expert on PR #144). Re-render when the tab regains
+  // visibility or focus so todayDate() is recomputed for the actual day.
+  const [, setDayTick] = useState(0);
+  useEffect(() => {
+    const refreshDayBounds = () => setDayTick((t) => t + 1);
+    document.addEventListener("visibilitychange", refreshDayBounds);
+    window.addEventListener("focus", refreshDayBounds);
+    return () => {
+      document.removeEventListener("visibilitychange", refreshDayBounds);
+      window.removeEventListener("focus", refreshDayBounds);
+    };
+  }, []);
 
   const navigate = useNavigate();
 
@@ -142,12 +163,22 @@ export default function Dashboard() {
     }
     const cleanCheckedSuitcaseCount = Math.min(MAX_TROLLEY_COUNT, Number(checkedSuitcaseValue));
 
+    // A tab that crossed local midnight with no onChange can hold selected
+    // dates that are now in the past. Reconcile with the same floor the
+    // inputs enforce instead of sending stale dates to the backend
+    // (review: expert on PR #144).
+    const today = todayDate();
+    const safeStartDate = !startDate || startDate < today ? today : startDate;
+    const safeEndDate = !endDate || endDate < safeStartDate ? safeStartDate : endDate;
+    if (safeStartDate !== startDate) setStartDate(safeStartDate);
+    if (safeEndDate !== endDate) setEndDate(safeEndDate);
+
     setCreating(true);
     try {
       const newTrip = await api.createTrip({
         destination,
-        startDate,
-        endDate,
+        startDate: safeStartDate,
+        endDate: safeEndDate,
         // The backend always requires a non-empty airline (it drives baggage
         // allowance into the packing prompt); the UI no longer collects it, so
         // send a fixed default rather than a user-chosen field.

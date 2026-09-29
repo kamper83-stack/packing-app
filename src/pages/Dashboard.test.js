@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import Dashboard from "./Dashboard";
 import { api } from "../services/api";
@@ -418,6 +418,74 @@ describe("Dashboard (Issue #9)", () => {
     fireEvent.change(startInput, { target: { value: FUTURE_START } });
     // Regression: min must stay today so an earlier-but-future day remains selectable.
     expect(startInput).toHaveAttribute("min", localToday());
+  });
+
+  // ---- Stale-tab / midnight rollover (review: expert on PR #144) ----
+  // A tab left open across local midnight fires no onChange and (without the
+  // visibility/focus refresh) no re-render either, so render-time min
+  // attributes and already-selected values can silently go stale.
+
+  it("refreshes min bounds when the tab regains visibility after midnight (PR #144)", async () => {
+    api.getTrips.mockResolvedValue([]);
+
+    const { container } = renderDashboard();
+    await screen.findByText(/plan a new trip/i);
+
+    const [startInput, endInput] = container.querySelectorAll('input[type="date"]');
+    expect(startInput).toHaveAttribute("min", localToday());
+
+    // Freeze the clock just before local midnight, pick today, then cross
+    // into the next day with the tab idle (no date change fires).
+    const beforeMidnight = new Date();
+    beforeMidnight.setHours(23, 58, 0, 0);
+    jest.useFakeTimers();
+    try {
+      jest.setSystemTime(beforeMidnight);
+      fireEvent.change(startInput, { target: { value: localToday() } });
+      expect(startInput).toHaveValue(localToday());
+
+      jest.setSystemTime(new Date(beforeMidnight.getTime() + 5 * 60000));
+      const rolledToday = localToday();
+      act(() => {
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+
+      // Both mins now name the new day; the end floor is max(start, today),
+      // so the yesterday-selected start cannot drag it into the past.
+      expect(startInput).toHaveAttribute("min", rolledToday);
+      expect(endInput).toHaveAttribute("min", rolledToday);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("reconciles stale selected dates to today on submit after midnight (PR #144)", async () => {
+    api.getTrips.mockResolvedValue([]);
+    api.createTrip.mockResolvedValue({ id: "t1" });
+
+    const { container } = renderDashboard();
+    await screen.findByText(/plan a new trip/i);
+
+    await fillTripForm(container);
+
+    // The tab sits idle for 40 days: both selected dates are now in the
+    // past and no onChange will ever fire for them.
+    jest.useFakeTimers();
+    try {
+      jest.setSystemTime(new Date(Date.now() + 40 * 86400000));
+      const rolledToday = localToday();
+
+      fireEvent.submit(container.querySelector("form"));
+
+      // The submit-time reconciliation clamps to the same floor the inputs
+      // enforce instead of sending stale dates to the backend.
+      expect(api.createTrip).toHaveBeenCalledTimes(1);
+      const payload = api.createTrip.mock.calls[0][0];
+      expect(payload.startDate).toBe(rolledToday);
+      expect(payload.endDate).toBe(rolledToday);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   // ---- Airline is no longer a user-chosen field (backend still requires it) ----
