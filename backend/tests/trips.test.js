@@ -833,6 +833,232 @@ describe("Trips API Endpoints (Issue #6)", () => {
         before.body.PackingItems.map((item) => item.id).sort()
       );
     });
+
+    // Issue #146: PUT is a PARTIAL update. An omitted field must preserve the
+    // trip's stored value (the omitted-field semantics PR #143 introduced for
+    // the luggage counts, now applied to every writable field); a provided
+    // field is validated and written; an invalid provided value is rejected
+    // rather than silently coerced. Each test starts from its own freshly
+    // created trip so the shared editableTripId (mutated above) is untouched.
+    describe("partial-update field preservation (Issue #146)", () => {
+      const baseTrip = {
+        destination: "Barcelona",
+        startDate: "2026-10-10",
+        endDate: "2026-10-14",
+        airline: "EL AL",
+        vacationType: "Beach",
+        passengerComposition: { infants: 0, children: 0, women: 2, men: 1 },
+        trolleyCount: 2,
+        checkedSuitcaseCount: 3,
+      };
+
+      async function createBaseTrip() {
+        const res = await request(app)
+          .post("/api/trips")
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send(baseTrip);
+        expect(res.status).toBe(201);
+        return res.body;
+      }
+
+      it("preserves every writable field when the update body is empty", async () => {
+        const trip = await createBaseTrip();
+        const res = await request(app)
+          .put(`/api/trips/${trip.id}`)
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send({});
+
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual(
+          expect.objectContaining({
+            destination: "Barcelona",
+            startDate: "2026-10-10",
+            endDate: "2026-10-14",
+            airline: "EL AL",
+            vacationType: "Beach",
+            numPeople: 3,
+            passengerComposition: baseTrip.passengerComposition,
+            trolleyCount: 2,
+            checkedSuitcaseCount: 3,
+          })
+        );
+      });
+
+      it("updates only the destination and preserves the rest", async () => {
+        const trip = await createBaseTrip();
+        const res = await request(app)
+          .put(`/api/trips/${trip.id}`)
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send({ destination: "Rome" });
+
+        expect(res.status).toBe(200);
+        expect(res.body.destination).toBe("Rome");
+        expect(res.body.startDate).toBe("2026-10-10");
+        expect(res.body.endDate).toBe("2026-10-14");
+        expect(res.body.airline).toBe("EL AL");
+        expect(res.body.vacationType).toBe("Beach");
+        expect(res.body.numPeople).toBe(3);
+        expect(res.body.trolleyCount).toBe(2);
+        expect(res.body.checkedSuitcaseCount).toBe(3);
+      });
+
+      it("updates only the airline and preserves the rest", async () => {
+        const trip = await createBaseTrip();
+        const res = await request(app)
+          .put(`/api/trips/${trip.id}`)
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send({ airline: "Wizz Air" });
+
+        expect(res.status).toBe(200);
+        expect(res.body.airline).toBe("Wizz Air");
+        expect(res.body.destination).toBe("Barcelona");
+        expect(res.body.vacationType).toBe("Beach");
+        expect(res.body.numPeople).toBe(3);
+      });
+
+      it("updates only the vacationType and preserves the rest", async () => {
+        const trip = await createBaseTrip();
+        const res = await request(app)
+          .put(`/api/trips/${trip.id}`)
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send({ vacationType: "City Trip" });
+
+        expect(res.status).toBe(200);
+        expect(res.body.vacationType).toBe("City Trip");
+        expect(res.body.airline).toBe("EL AL");
+        expect(res.body.destination).toBe("Barcelona");
+      });
+
+      it("updates only the passengerComposition and its derived numPeople, preserving the rest", async () => {
+        const trip = await createBaseTrip();
+        const res = await request(app)
+          .put(`/api/trips/${trip.id}`)
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send({ passengerComposition: { infants: 1, children: 0, women: 1, men: 0 } });
+
+        expect(res.status).toBe(200);
+        expect(res.body.numPeople).toBe(2);
+        expect(res.body.passengerComposition).toEqual({ infants: 1, children: 0, women: 1, men: 0 });
+        expect(res.body.destination).toBe("Barcelona");
+        expect(res.body.trolleyCount).toBe(2);
+        expect(res.body.checkedSuitcaseCount).toBe(3);
+      });
+
+      it("updates only the dates and preserves the rest", async () => {
+        const trip = await createBaseTrip();
+        const res = await request(app)
+          .put(`/api/trips/${trip.id}`)
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send({ startDate: "2026-10-11", endDate: "2026-10-13" });
+
+        expect(res.status).toBe(200);
+        expect(res.body.startDate).toBe("2026-10-11");
+        expect(res.body.endDate).toBe("2026-10-13");
+        expect(res.body.destination).toBe("Barcelona");
+        expect(res.body.numPeople).toBe(3);
+      });
+
+      it("keeps custom items across a partial update", async () => {
+        const trip = await createBaseTrip();
+        const custom = await request(app)
+          .post(`/api/trips/${trip.id}/custom-item`)
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send({ name: "Passport", category: "Documents", quantity: 1, targetBag: "Backpack" });
+        expect(custom.status).toBe(201);
+
+        const res = await request(app)
+          .put(`/api/trips/${trip.id}`)
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send({ vacationType: "City Trip" });
+
+        expect(res.status).toBe(200);
+        expect(res.body.PackingItems).toEqual(
+          expect.arrayContaining([expect.objectContaining({ id: custom.body.id, isCustom: true })])
+        );
+      });
+
+      it("validates the effective date range so a lone startDate cannot pass the stored endDate", async () => {
+        const trip = await createBaseTrip(); // stored endDate 2026-10-14
+        const res = await request(app)
+          .put(`/api/trips/${trip.id}`)
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send({ startDate: "2026-10-20" });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error).toMatch(/end date cannot be before start date/i);
+      });
+
+      it("rejects a provided destination that is not an airport city", async () => {
+        const trip = await createBaseTrip();
+        const res = await request(app)
+          .put(`/api/trips/${trip.id}`)
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send({ destination: "Atlantis" });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error).toMatch(/airport/i);
+      });
+
+      it("rejects a provided blank airline instead of preserving the stored one", async () => {
+        const trip = await createBaseTrip();
+        const res = await request(app)
+          .put(`/api/trips/${trip.id}`)
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send({ airline: "   " });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error).toMatch(/all trip fields must be filled/i);
+      });
+
+      it("rejects a provided invalid date", async () => {
+        const trip = await createBaseTrip();
+        const res = await request(app)
+          .put(`/api/trips/${trip.id}`)
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send({ startDate: "not-a-date" });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error).toMatch(/invalid start or end date/i);
+      });
+
+      it("rejects a provided invalid passengerComposition", async () => {
+        const trip = await createBaseTrip();
+        const res = await request(app)
+          .put(`/api/trips/${trip.id}`)
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send({ passengerComposition: { infants: 0, children: 0, women: 0, men: 0 } });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error).toMatch(/passenger composition/i);
+      });
+    });
+  });
+
+  // Issue #146 acceptance: every trips CRUD path rejects an unauthenticated
+  // request. POST's 401 is covered above; this closes the gap for the read,
+  // update and delete paths.
+  describe("auth-failure paths (Issue #146)", () => {
+    it("rejects listing trips without a token", async () => {
+      const res = await request(app).get("/api/trips");
+      expect(res.status).toBe(401);
+    });
+
+    it("rejects fetching a single trip without a token", async () => {
+      const res = await request(app).get(`/api/trips/${editableTripId}`);
+      expect(res.status).toBe(401);
+    });
+
+    it("rejects updating a trip without a token", async () => {
+      const res = await request(app)
+        .put(`/api/trips/${editableTripId}`)
+        .send({ airline: "EL AL" });
+      expect(res.status).toBe(401);
+    });
+
+    it("rejects deleting a trip without a token", async () => {
+      const res = await request(app).delete(`/api/trips/${editableTripId}`);
+      expect(res.status).toBe(401);
+    });
   });
 
   describe("POST /api/trips/:id/weather", () => {
