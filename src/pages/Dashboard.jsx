@@ -25,7 +25,14 @@ const DATE_INPUT_YEAR_WINDOW_AHEAD = 2;
 // letting mobile users pick a past date (user report). These helpers are
 // called at render time so the pickers always anchor to the actual current
 // day: the earliest selectable date IS today, nothing before it.
-const todayDate = () => new Date().toISOString().split("T")[0];
+// Local calendar day — NOT UTC. toISOString() is UTC-based, so between local
+// midnight and ~02:00–03:00 it still names yesterday-local and both the min
+// attributes and the onChange guards below would briefly permit a past date:
+// the exact bug this change closes (review: shirikyky on PR #144).
+const todayDate = () => {
+  const d = new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split("T")[0];
+};
 // dateMin(startValue): end-date floor = max(start, today). The START
 // input pins min to today so any future day stays re-selectable
 // (review: flooring the start at its own value locked the user out).

@@ -43,6 +43,13 @@ const daysFromNow = (n) => {
 const FUTURE_START = daysFromNow(30);
 const FUTURE_END = daysFromNow(34);
 
+// Local "today" as the Dashboard computes it (timezone-shifted, not UTC).
+// Used to assert the past-date clamp without hardcoding calendar dates.
+const localToday = () => {
+  const d = new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split("T")[0];
+};
+
 // Fill the minimum required fields of the "Plan a New Trip" form.
 // `passengers` overrides individual passenger-composition counts (defaults
 // to a single adult woman so submission passes the "at least one" check).
@@ -374,6 +381,43 @@ describe("Dashboard (Issue #9)", () => {
     fireEvent.change(endInput, { target: { value: daysFromNow(35) } });
     fireEvent.change(startInput, { target: { value: laterStart } });
     expect(endInput).toHaveValue(laterStart);
+  });
+
+  it("clamps a past start date to local today (past-date guard regression, PR #144)", async () => {
+    api.getTrips.mockResolvedValue([]);
+
+    const { container } = renderDashboard();
+    await screen.findByText(/plan a new trip/i);
+
+    const [startInput] = container.querySelectorAll('input[type="date"]');
+    // Unambiguously past in every timezone (not just yesterday-local).
+    fireEvent.change(startInput, { target: { value: daysFromNow(-5) } });
+    expect(startInput).toHaveValue(localToday());
+  });
+
+  it("floors a past end date to the chosen future start date (PR #144)", async () => {
+    api.getTrips.mockResolvedValue([]);
+
+    const { container } = renderDashboard();
+    await screen.findByText(/plan a new trip/i);
+
+    const [startInput, endInput] = container.querySelectorAll('input[type="date"]');
+    fireEvent.change(startInput, { target: { value: FUTURE_START } });
+    fireEvent.change(endInput, { target: { value: daysFromNow(-5) } });
+    expect(endInput).toHaveValue(FUTURE_START);
+  });
+
+  it("keeps the start input min pinned to local today after a start date is chosen (PR #144)", async () => {
+    api.getTrips.mockResolvedValue([]);
+
+    const { container } = renderDashboard();
+    await screen.findByText(/plan a new trip/i);
+
+    const [startInput] = container.querySelectorAll('input[type="date"]');
+    expect(startInput).toHaveAttribute("min", localToday());
+    fireEvent.change(startInput, { target: { value: FUTURE_START } });
+    // Regression: min must stay today so an earlier-but-future day remains selectable.
+    expect(startInput).toHaveAttribute("min", localToday());
   });
 
   // ---- Airline is no longer a user-chosen field (backend still requires it) ----
