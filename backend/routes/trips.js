@@ -507,7 +507,17 @@ router.post("/", async (req, res) => {
 router.put("/:id", async (req, res) => {
   const { destination, startDate, endDate, airline, passengerComposition, vacationType, trolleyCount, checkedSuitcaseCount } = req.body;
 
-  const trip = await Trip.findOne({ where: { id: req.params.id, userId: req.user.id } });
+  // Wrap the initial lookup like every other DB call in this file: Express 4
+  // does not forward an async-handler rejection to the global error handler
+  // (server.js), so an unwrapped findOne failure would hang the request
+  // instead of returning a clean 500.
+  let trip;
+  try {
+    trip = await Trip.findOne({ where: { id: req.params.id, userId: req.user.id } });
+  } catch (error) {
+    console.error("Update and regenerate trip error:", error);
+    return res.status(500).json({ error: "Failed to update trip and regenerate packing list." });
+  }
   if (!trip) return res.status(404).json({ error: "Trip not found." });
 
   // Destination: a provided value must be a known airport city; when omitted

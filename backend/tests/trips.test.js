@@ -4,7 +4,7 @@ process.env.USE_MOCKS = "true";
 
 const request = require("supertest");
 const app = require("../server");
-const { sequelize, PackingItem } = require("../models");
+const { sequelize, Trip, PackingItem } = require("../models");
 const weatherService = require("../services/weatherService");
 const geminiService = require("../services/geminiService");
 
@@ -832,6 +832,21 @@ describe("Trips API Endpoints (Issue #6)", () => {
       expect(after.body.PackingItems.map((item) => item.id).sort()).toEqual(
         before.body.PackingItems.map((item) => item.id).sort()
       );
+    });
+
+    it("returns 500 (not a hung request) when the initial trip lookup fails", async () => {
+      // The lookup runs before the main try/catch; Express 4 does not forward
+      // an async-handler rejection to the global error handler, so an unwrapped
+      // findOne failure would hang. It must be caught and answered with 500.
+      jest.spyOn(Trip, "findOne").mockRejectedValueOnce(new Error("db down"));
+
+      const res = await request(app)
+        .put(`/api/trips/${editableTripId}`)
+        .set("Authorization", `Bearer ${tokenA}`)
+        .send({ vacationType: "City Trip" });
+
+      expect(res.status).toBe(500);
+      expect(res.body.error).toMatch(/failed to update trip/i);
     });
 
     // Issue #146: PUT is a PARTIAL update. An omitted field must preserve the
