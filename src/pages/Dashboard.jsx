@@ -81,8 +81,12 @@ export default function Dashboard() {
   const [, setDayTick] = useState(0);
   const reconcileStaleDates = useCallback(() => {
     const today = todayDate();
-    const safeStart = !startDate || startDate < today ? today : startDate;
-    const safeEnd = !endDate || endDate < safeStart ? safeStart : endDate;
+    // Preserve untouched (empty) fields: auto-filling them with today would
+    // silently defeat the native required validation (review: expert on PR
+    // #144). Only dates the user already chose are reconciled.
+    const safeStart = !startDate || startDate >= today ? startDate : today;
+    const floor = safeStart || today;
+    const safeEnd = !endDate || endDate >= floor ? endDate : floor;
     if (safeStart !== startDate) setStartDate(safeStart);
     if (safeEnd !== endDate) setEndDate(safeEnd);
   }, [startDate, endDate]);
@@ -180,10 +184,13 @@ export default function Dashboard() {
     // A tab that crossed local midnight with no onChange can hold selected
     // dates that are now in the past. Reconcile with the same floor the
     // inputs enforce instead of sending stale dates to the backend
-    // (review: expert on PR #144).
+    // (review: expert on PR #144). Untouched (empty) fields stay empty so
+    // no date is ever invented for the user — the backend then rejects the
+    // payload instead of creating a trip with unchosen dates.
     const today = todayDate();
-    const safeStartDate = !startDate || startDate < today ? today : startDate;
-    const safeEndDate = !endDate || endDate < safeStartDate ? safeStartDate : endDate;
+    const safeStartDate = !startDate || startDate >= today ? startDate : today;
+    const safeFloor = safeStartDate || today;
+    const safeEndDate = !endDate || endDate >= safeFloor ? endDate : safeFloor;
     if (safeStartDate !== startDate) setStartDate(safeStartDate);
     if (safeEndDate !== endDate) setEndDate(safeEndDate);
 

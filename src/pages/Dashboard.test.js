@@ -500,6 +500,53 @@ describe("Dashboard (Issue #9)", () => {
     }
   });
 
+  it("preserves empty date fields on tab refresh (PR #144)", async () => {
+    api.getTrips.mockResolvedValue([]);
+
+    const { container } = renderDashboard();
+    await screen.findByText(/plan a new trip/i);
+
+    // The user opened the form but chose no dates yet.
+    const [startInput, endInput] = container.querySelectorAll('input[type="date"]');
+    expect(startInput).toHaveValue("");
+    expect(endInput).toHaveValue("");
+
+    // Switching tabs and coming back must not auto-fill today: that would
+    // silently defeat the native required validation and let an accidental
+    // submit create a trip with unchosen dates.
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(startInput).toHaveValue("");
+    expect(endInput).toHaveValue("");
+  });
+
+  it("does not invent dates for empty fields on submit (PR #144)", async () => {
+    api.getTrips.mockResolvedValue([]);
+    api.createTrip.mockResolvedValue({ id: "t1" });
+
+    const { container } = renderDashboard();
+    await screen.findByText(/plan a new trip/i);
+
+    // Destination + passengers filled, dates deliberately left empty.
+    const countrySelect = await screen.findByLabelText("Country");
+    await waitFor(() =>
+      expect(screen.getByLabelText("Country").querySelectorAll("option").length).toBeGreaterThan(1)
+    );
+    fireEvent.change(countrySelect, { target: { value: "Italy" } });
+    fireEvent.change(screen.getByLabelText("City"), { target: { value: "Rome" } });
+    fireEvent.change(screen.getByLabelText(/נשים/), { target: { value: "1" } });
+
+    // fireEvent.submit bypasses native validation (as jsdom always does),
+    // which is exactly what exposes invented dates if the code fills them.
+    fireEvent.submit(container.querySelector("form"));
+
+    await waitFor(() => expect(api.createTrip).toHaveBeenCalledTimes(1));
+    const payload = api.createTrip.mock.calls[0][0];
+    expect(payload.startDate).toBe("");
+    expect(payload.endDate).toBe("");
+  });
+
   // ---- Airline is no longer a user-chosen field (backend still requires it) ----
 
   it("does not offer an airline selector in the create form", async () => {
