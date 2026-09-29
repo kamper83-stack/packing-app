@@ -454,12 +454,16 @@ describe("Dashboard (Issue #9)", () => {
       // so the yesterday-selected start cannot drag it into the past.
       expect(startInput).toHaveAttribute("min", rolledToday);
       expect(endInput).toHaveAttribute("min", rolledToday);
+      // The yesterday-selected start is reconciled to the new day as well:
+      // otherwise it would sit below the refreshed min and the browser's
+      // native validation would block a normal "Create trip" click.
+      expect(startInput).toHaveValue(rolledToday);
     } finally {
       jest.useRealTimers();
     }
   });
 
-  it("reconciles stale selected dates to today on submit after midnight (PR #144)", async () => {
+  it("submits reconciled dates through a normal button click after midnight (PR #144)", async () => {
     api.getTrips.mockResolvedValue([]);
     api.createTrip.mockResolvedValue({ id: "t1" });
 
@@ -469,16 +473,24 @@ describe("Dashboard (Issue #9)", () => {
     await fillTripForm(container);
 
     // The tab sits idle for 40 days: both selected dates are now in the
-    // past and no onChange will ever fire for them.
+    // past and no onChange will ever fire for them. Returning to the tab
+    // reconciles the values (so native validation lets the submit through)
+    // before the user clicks the real submit button.
     jest.useFakeTimers();
     try {
       jest.setSystemTime(new Date(Date.now() + 40 * 86400000));
       const rolledToday = localToday();
 
-      fireEvent.submit(container.querySelector("form"));
+      act(() => {
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
 
-      // The submit-time reconciliation clamps to the same floor the inputs
-      // enforce instead of sending stale dates to the backend.
+      const [startInput, endInput] = container.querySelectorAll('input[type="date"]');
+      expect(startInput).toHaveValue(rolledToday);
+      expect(endInput).toHaveValue(rolledToday);
+
+      fireEvent.click(screen.getByRole("button", { name: /create trip/i }));
+
       expect(api.createTrip).toHaveBeenCalledTimes(1);
       const payload = api.createTrip.mock.calls[0][0];
       expect(payload.startDate).toBe(rolledToday);

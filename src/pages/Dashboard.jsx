@@ -73,17 +73,31 @@ export default function Dashboard() {
   // A tab left open across local midnight never re-renders on its own, so
   // the native min attributes computed at render time would keep naming
   // yesterday (review: expert on PR #144). Re-render when the tab regains
-  // visibility or focus so todayDate() is recomputed for the actual day.
+  // visibility or focus so todayDate() is recomputed for the actual day —
+  // and reconcile already-selected dates at the same moment. Reconciliation
+  // cannot wait for submit: a stale value below the refreshed min fails the
+  // browser's native form validation, which blocks handleCreateTrip from
+  // ever running on a normal "Create trip" click.
   const [, setDayTick] = useState(0);
+  const reconcileStaleDates = useCallback(() => {
+    const today = todayDate();
+    const safeStart = !startDate || startDate < today ? today : startDate;
+    const safeEnd = !endDate || endDate < safeStart ? safeStart : endDate;
+    if (safeStart !== startDate) setStartDate(safeStart);
+    if (safeEnd !== endDate) setEndDate(safeEnd);
+  }, [startDate, endDate]);
   useEffect(() => {
-    const refreshDayBounds = () => setDayTick((t) => t + 1);
+    const refreshDayBounds = () => {
+      setDayTick((t) => t + 1);
+      reconcileStaleDates();
+    };
     document.addEventListener("visibilitychange", refreshDayBounds);
     window.addEventListener("focus", refreshDayBounds);
     return () => {
       document.removeEventListener("visibilitychange", refreshDayBounds);
       window.removeEventListener("focus", refreshDayBounds);
     };
-  }, []);
+  }, [reconcileStaleDates]);
 
   const navigate = useNavigate();
 
