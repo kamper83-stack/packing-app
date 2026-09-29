@@ -95,9 +95,25 @@ export default function Dashboard() {
       setDayTick((t) => t + 1);
       reconcileStaleDates();
     };
+    // A tab left open, visible AND focused across local midnight receives
+    // neither visibilitychange nor focus, so re-render would never happen
+    // and yesterday would stay selectable (review: expert on PR #144).
+    // Arm a one-shot timer for the coming local midnight; it re-arms itself.
+    let midnightTimer;
+    const armMidnightRefresh = () => {
+      const now = new Date();
+      const nextMidnight = new Date(now);
+      nextMidnight.setHours(24, 0, 0, 0);
+      midnightTimer = setTimeout(() => {
+        refreshDayBounds();
+        armMidnightRefresh();
+      }, nextMidnight.getTime() - now.getTime());
+    };
+    armMidnightRefresh();
     document.addEventListener("visibilitychange", refreshDayBounds);
     window.addEventListener("focus", refreshDayBounds);
     return () => {
+      clearTimeout(midnightTimer);
       document.removeEventListener("visibilitychange", refreshDayBounds);
       window.removeEventListener("focus", refreshDayBounds);
     };

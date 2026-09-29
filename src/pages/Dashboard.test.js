@@ -34,7 +34,11 @@ const renderDashboard = () =>
 // (CI goes red once the real calendar passes them) because the onChange
 // guard clamps any past value to today. +30/+34 days keeps every date
 // future-proof indefinitely.
-const isoDate = (d) => d.toISOString().split("T")[0];
+// Local calendar day formatter (timezone-shifted, not UTC): the Dashboard
+// computes "today" in local time, so test fixtures must too — a UTC format
+// can name a different day around midnight outside UTC (expert on PR #144).
+const isoDate = (d) =>
+  new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split("T")[0];
 const daysFromNow = (n) => {
   const d = new Date();
   d.setDate(d.getDate() + n);
@@ -495,6 +499,40 @@ describe("Dashboard (Issue #9)", () => {
       const payload = api.createTrip.mock.calls[0][0];
       expect(payload.startDate).toBe(rolledToday);
       expect(payload.endDate).toBe(rolledToday);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("refreshes min bounds at midnight while the tab stays visible (PR #144)", async () => {
+    api.getTrips.mockResolvedValue([]);
+
+    // Mount under a fake clock just before local midnight so the effect arms
+    // its midnight timer in fake time. The static form renders immediately;
+    // flushing microtasks lets the mocked API calls settle.
+    const beforeMidnight = new Date();
+    beforeMidnight.setHours(23, 58, 0, 0);
+    jest.useFakeTimers();
+    try {
+      jest.setSystemTime(beforeMidnight);
+      const { container } = renderDashboard();
+      await act(async () => {});
+      screen.getByText(/plan a new trip/i);
+
+      const [startInput, endInput] = container.querySelectorAll('input[type="date"]');
+      expect(startInput).toHaveAttribute("min", localToday());
+      fireEvent.change(startInput, { target: { value: localToday() } });
+
+      // Cross midnight with the tab open, visible and focused: no
+      // visibilitychange, no focus, no interaction — only the timer fires.
+      act(() => {
+        jest.advanceTimersByTime(5 * 60000);
+      });
+
+      const rolledToday = localToday();
+      expect(startInput).toHaveAttribute("min", rolledToday);
+      expect(endInput).toHaveAttribute("min", rolledToday);
+      expect(startInput).toHaveValue(rolledToday);
     } finally {
       jest.useRealTimers();
     }
