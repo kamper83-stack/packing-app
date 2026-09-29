@@ -318,7 +318,7 @@ describe("Dashboard (Issue #9)", () => {
     const { container } = renderDashboard();
     await screen.findByText(/plan a new trip/i);
 
-    const today = new Date().toISOString().split("T")[0];
+    const today = localToday();
     const dateInputs = container.querySelectorAll('input[type="date"]');
     expect(dateInputs[0]).toHaveAttribute("min", today);
     expect(dateInputs[1]).toHaveAttribute("min", today);
