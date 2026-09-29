@@ -484,63 +484,91 @@ router.post("/", async (req, res) => {
   }
 });
 
-// PUT /api/trips/:id - Edit trip details and regenerate weather + packing list.
+// PUT /api/trips/:id — update a trip and regenerate its weather + packing list.
+//
+// Partial-update semantics (Issue #146): every writable field is
+// preserve-if-omitted. A field absent from the request body keeps the trip's
+// stored value; only a field actually present in the body can change it. This
+// generalises the count-preservation fix from PR #143 (which applied it to
+// trolleyCount / checkedSuitcaseCount) to *all* writable fields — destination,
+// startDate, endDate, airline, passengerComposition and vacationType — so no
+// writable field is ever silently coerced to a default or blanked on a partial
+// edit.
+//
+// This endpoint is intentionally a "regenerate the trip" operation, not a bare
+// field patch: it always re-derives the weather forecast and the AI packing
+// list from the trip's fields. Regeneration needs a *complete* set of inputs,
+// so we resolve each field (the provided value, else the stored value) into a
+// full set first, then validate the resolved values, then regenerate. An
+// explicitly provided value is validated exactly as a create would validate it
+// — a blank/whitespace string, an implausible date, an unknown city, an invalid
+// composition or an out-of-range count is still a 400, never a silent no-op.
 router.put("/:id", async (req, res) => {
-  const { destination, startDate, endDate, airline, passengerComposition, vacationType, trolleyCount, checkedSuitcaseCount } = req.body;
-  if (![destination, startDate, endDate, airline, vacationType].every((value) => typeof value === "string" && value.trim())) {
-    return res.status(400).json({ error: "All trip fields must be filled." });
-  }
-  if (!isValidDate(startDate) || !isValidDate(endDate)) {
-    return res.status(400).json({ error: "Invalid start or end date." });
-  }
-  const startYearError = plausibleYearError("startDate", startDate);
-  const endYearError = plausibleYearError("endDate", endDate);
-  // Unlike creating a trip, editing one must not enforce pastDateError: the
-  // trip may already be in progress or just finished, and the user should
-  // still be able to tweak details and regenerate the packing list for it
-  // (PR #124 review). Only implausible years and end-before-start are blocked.
-  const dateError = startYearError || endYearError;
-  if (dateError) return res.status(400).json({ error: dateError });
-  if (new Date(endDate) < new Date(startDate)) {
-    return res.status(400).json({ error: "End date cannot be before start date." });
-  }
-  const days = Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)) + 1;
-  if (days > MAX_TRIP_DAYS) {
-    return res.status(400).json({ error: `Trip duration cannot exceed ${MAX_TRIP_DAYS} days.` });
-  }
-  const cityMatch = canonicalCity(destination);
-  if (!cityMatch) return res.status(400).json({ error: "Please choose a destination city that has an airport." });
-  const composition = validatePassengerComposition(passengerComposition);
-  if (!composition) return res.status(400).json({ error: "Invalid passenger composition." });
-  const numPeople = Object.values(composition).reduce((sum, count) => sum + count, 0);
-  if (numPeople > MAX_NUM_PEOPLE) {
-    return res.status(400).json({ error: `Number of people cannot exceed ${MAX_NUM_PEOPLE}.` });
-  }
-  const trolleyCountResult = resolveTrolleyCount(trolleyCount);
-  if (trolleyCountResult.error) {
-    return res.status(400).json({ error: trolleyCountResult.error });
-  }
-  // On update, an omitted checkedSuitcaseCount must preserve the trip's
-  // stored value (same semantics as trolleyCount above). Passing the raw
-  // value through keeps `?? trip.checkedSuitcaseCount` alive; only an
-  // explicit value can overwrite it. (The `?? 0` default lives in the POST
-  // handler — applying it here silently wiped stored counts on edit.)
-  const checkedSuitcaseCountResult = resolveLuggageCount(checkedSuitcaseCount, "Checked suitcase");
-  if (checkedSuitcaseCountResult.error) {
-    return res.status(400).json({ error: checkedSuitcaseCountResult.error });
-  }
-
   try {
     const trip = await Trip.findOne({ where: { id: req.params.id, userId: req.user.id } });
     if (!trip) return res.status(404).json({ error: "Trip not found." });
-    // Omitting trolleyCount on an update keeps the trip's existing value
-    // instead of silently resetting it to the create-time default.
+
+    const { destination, startDate, endDate, airline, passengerComposition, vacationType, trolleyCount, checkedSuitcaseCount } = req.body;
+
+    // Resolve each writable field against the trip's stored value. `undefined`
+    // (the JSON body simply omitted the key) means "keep what's stored"; any
+    // other value — including "" or null — is treated as an intended change and
+    // must pass the same validation below that a create applies.
+    const resolvedDestination = destination === undefined ? trip.destination : destination;
+    const resolvedStartDate = startDate === undefined ? trip.startDate : startDate;
+    const resolvedEndDate = endDate === undefined ? trip.endDate : endDate;
+    const resolvedAirline = airline === undefined ? trip.airline : airline;
+    const resolvedVacationType = vacationType === undefined ? trip.vacationType : vacationType;
+    const resolvedComposition = passengerComposition === undefined ? trip.passengerComposition : passengerComposition;
+
+    if (![resolvedDestination, resolvedStartDate, resolvedEndDate, resolvedAirline, resolvedVacationType].every((value) => typeof value === "string" && value.trim())) {
+      return res.status(400).json({ error: "All trip fields must be filled." });
+    }
+    if (!isValidDate(resolvedStartDate) || !isValidDate(resolvedEndDate)) {
+      return res.status(400).json({ error: "Invalid start or end date." });
+    }
+    const startYearError = plausibleYearError("startDate", resolvedStartDate);
+    const endYearError = plausibleYearError("endDate", resolvedEndDate);
+    // Unlike creating a trip, editing one must not enforce pastDateError: the
+    // trip may already be in progress or just finished, and the user should
+    // still be able to tweak details and regenerate the packing list for it
+    // (PR #124 review). Only implausible years and end-before-start are blocked.
+    const dateError = startYearError || endYearError;
+    if (dateError) return res.status(400).json({ error: dateError });
+    if (new Date(resolvedEndDate) < new Date(resolvedStartDate)) {
+      return res.status(400).json({ error: "End date cannot be before start date." });
+    }
+    const days = Math.ceil((new Date(resolvedEndDate) - new Date(resolvedStartDate)) / (1000 * 60 * 60 * 24)) + 1;
+    if (days > MAX_TRIP_DAYS) {
+      return res.status(400).json({ error: `Trip duration cannot exceed ${MAX_TRIP_DAYS} days.` });
+    }
+    const cityMatch = canonicalCity(resolvedDestination);
+    if (!cityMatch) return res.status(400).json({ error: "Please choose a destination city that has an airport." });
+    const composition = validatePassengerComposition(resolvedComposition);
+    if (!composition) return res.status(400).json({ error: "Invalid passenger composition." });
+    const numPeople = Object.values(composition).reduce((sum, count) => sum + count, 0);
+    if (numPeople > MAX_NUM_PEOPLE) {
+      return res.status(400).json({ error: `Number of people cannot exceed ${MAX_NUM_PEOPLE}.` });
+    }
+    const trolleyCountResult = resolveTrolleyCount(trolleyCount);
+    if (trolleyCountResult.error) {
+      return res.status(400).json({ error: trolleyCountResult.error });
+    }
+    const checkedSuitcaseCountResult = resolveLuggageCount(checkedSuitcaseCount, "Checked suitcase");
+    if (checkedSuitcaseCountResult.error) {
+      return res.status(400).json({ error: checkedSuitcaseCountResult.error });
+    }
+
+    // Counts follow the same preserve-if-omitted rule as the resolved* fields
+    // above: an omitted count keeps the trip's existing value instead of
+    // resetting it to the create-time default (the PR #143 regression). The
+    // `?? 0` create-time default deliberately lives only in the POST handler.
     const cleanTrolleyCount = trolleyCountResult.value ?? trip.trolleyCount ?? DEFAULT_TROLLEY_COUNT;
     const cleanCheckedSuitcaseCount = checkedSuitcaseCountResult.value ?? trip.checkedSuitcaseCount ?? 0;
     const cleanDestination = cityMatch;
-    const cleanAirline = airline.trim();
-    const cleanVacationType = vacationType.trim();
-    const weatherInfo = await weatherService.getForecast(cleanDestination, startDate, endDate, countryOf(cleanDestination));
+    const cleanAirline = resolvedAirline.trim();
+    const cleanVacationType = resolvedVacationType.trim();
+    const weatherInfo = await weatherService.getForecast(cleanDestination, resolvedStartDate, resolvedEndDate, countryOf(cleanDestination));
     const airlineInfo = airlines[cleanAirline] || {
       cabin: { weightKg: 8, dimensionsCm: "Unknown", count: 1 },
       checked: { weightKg: 23, dimensionsCm: "Unknown", count: 1 },
@@ -561,8 +589,8 @@ router.put("/:id", async (req, res) => {
     await sequelize.transaction(async (transaction) => {
       await trip.update({
         destination: cleanDestination,
-        startDate,
-        endDate,
+        startDate: resolvedStartDate,
+        endDate: resolvedEndDate,
         airline: cleanAirline,
         numPeople,
         trolleyCount: cleanTrolleyCount,

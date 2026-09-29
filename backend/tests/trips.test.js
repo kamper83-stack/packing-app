@@ -781,6 +781,150 @@ describe("Trips API Endpoints (Issue #6)", () => {
       expect(res.body.error).toMatch(/trolley suitcase count/i);
     });
 
+    // Issue #146: PUT is a partial update — every writable field is
+    // preserve-if-omitted (generalising the count fix from PR #143), and an
+    // explicitly-provided value is still validated (never silently coerced).
+    describe("partial update preserves omitted writable fields (Issue #146)", () => {
+      // A self-contained trip with known, non-default values so each case can
+      // assert exactly what stayed and what changed.
+      const seed = {
+        destination: "Rome",
+        startDate: "2026-11-10",
+        endDate: "2026-11-14",
+        airline: "Wizz Air",
+        passengerComposition: { infants: 0, children: 1, women: 2, men: 1 },
+        vacationType: "Beach Vacation",
+        trolleyCount: 2,
+        checkedSuitcaseCount: 3,
+      };
+
+      async function createSeedTrip() {
+        const res = await request(app)
+          .post("/api/trips")
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send(seed);
+        expect(res.status).toBe(201);
+        return res.body.id;
+      }
+
+      it("keeps every stored field when the body is empty (pure regenerate)", async () => {
+        const id = await createSeedTrip();
+        const res = await request(app)
+          .put(`/api/trips/${id}`)
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send({});
+
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual(
+          expect.objectContaining({
+            destination: "Rome",
+            startDate: "2026-11-10",
+            endDate: "2026-11-14",
+            airline: "Wizz Air",
+            vacationType: "Beach Vacation",
+            numPeople: 4,
+            trolleyCount: 2,
+            checkedSuitcaseCount: 3,
+            passengerComposition: seed.passengerComposition,
+          })
+        );
+      });
+
+      it("changes only the provided field and preserves the rest, regenerating from resolved values", async () => {
+        const id = await createSeedTrip();
+        const generationSpy = jest.spyOn(geminiService, "generatePackingList");
+
+        const res = await request(app)
+          .put(`/api/trips/${id}`)
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send({ vacationType: "City Trip" });
+
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual(
+          expect.objectContaining({
+            vacationType: "City Trip", // the only change
+            destination: "Rome",
+            startDate: "2026-11-10",
+            endDate: "2026-11-14",
+            airline: "Wizz Air",
+            numPeople: 4,
+            trolleyCount: 2,
+            checkedSuitcaseCount: 3,
+          })
+        );
+        // Regeneration ran with the resolved (stored) fields, not blanks/defaults.
+        expect(generationSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            destination: "Rome",
+            vacationType: "City Trip",
+            airline: "Wizz Air",
+            numPeople: 4,
+            trolleyCount: 2,
+            checkedSuitcaseCount: 3,
+          })
+        );
+      });
+
+      it("preserves destination when only airline is provided", async () => {
+        const id = await createSeedTrip();
+        const res = await request(app)
+          .put(`/api/trips/${id}`)
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send({ airline: "EL AL" });
+
+        expect(res.status).toBe(200);
+        expect(res.body.destination).toBe("Rome");
+        expect(res.body.airline).toBe("EL AL");
+      });
+
+      it("preserves start/end dates when only destination is provided", async () => {
+        const id = await createSeedTrip();
+        const res = await request(app)
+          .put(`/api/trips/${id}`)
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send({ destination: "Lisbon" });
+
+        expect(res.status).toBe(200);
+        expect(res.body.destination).toBe("Lisbon");
+        expect(res.body.startDate).toBe("2026-11-10");
+        expect(res.body.endDate).toBe("2026-11-14");
+      });
+
+      it("preserves passengerComposition (and numPeople) when omitted", async () => {
+        const id = await createSeedTrip();
+        const res = await request(app)
+          .put(`/api/trips/${id}`)
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send({ vacationType: "City Trip" });
+
+        expect(res.status).toBe(200);
+        expect(res.body.passengerComposition).toEqual(seed.passengerComposition);
+        expect(res.body.numPeople).toBe(4);
+      });
+
+      it("still rejects an explicitly blank destination rather than silently keeping the stored one", async () => {
+        const id = await createSeedTrip();
+        const res = await request(app)
+          .put(`/api/trips/${id}`)
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send({ destination: "   " });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error).toMatch(/all trip fields must be filled/i);
+      });
+
+      it("still rejects an explicitly invalid passengerComposition on a partial update", async () => {
+        const id = await createSeedTrip();
+        const res = await request(app)
+          .put(`/api/trips/${id}`)
+          .set("Authorization", `Bearer ${tokenA}`)
+          .send({ passengerComposition: { infants: 0, children: 0, women: 0, men: 0 } });
+
+        expect(res.status).toBe(400);
+        expect(res.body.error).toMatch(/passenger composition/i);
+      });
+    });
+
     it("does not allow another user to edit the trip", async () => {
       const res = await request(app)
         .put(`/api/trips/${editableTripId}`)
