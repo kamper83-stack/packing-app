@@ -185,9 +185,10 @@ Production deployment is **manual, not automatic**. The former GitHub Actions
 CD workflow (SSH into the VPS after a push to `main`, `git pull`, rewrite the
 deploy environment) is disabled — see `.github/workflows/deploy.yml`, which now
 refuses to run. Deployments follow the SHA-pinned manual procedure in
-`AGENTS.md` ("Manual production deploy — controlled procedure"): a current
-independent `expert` APPROVE naming the exact full SHA, a fresh database
-backup, a clean detached build worktree, and post-deploy smoke checks.
+`AGENTS.md` ("Manual production deploy — controlled procedure"): an exact full
+SHA from `main` (already covered by the PR's review APPROVE — no separate deploy
+approval), a fresh database backup, a clean detached build worktree, and
+post-deploy smoke checks.
 Any host-level reverse proxy, firewall, or additional port mapping on the VPS
 is operational state outside this repository and must be documented only after
 checking the live VPS.

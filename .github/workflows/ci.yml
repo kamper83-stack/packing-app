@@ -45,8 +45,8 @@ jobs:
           cd backend
           npm test
 
-      # PR #140: jev_pr_review.py is a required step in the AGENTS.md merge
-      # gate, so its own tests must run in CI - not just locally. Stdlib only
+      # PR #140: jev_pr_review.py is an optional advisory tool in AGENTS.md;
+      # its own tests still run in CI - not just locally. Stdlib only
       # (unittest/json/subprocess/urllib), no extra install needed.
       - name: Run Jev PR-review script unit tests
         run: python3 -m unittest discover -s scripts -p "test_*.py" -v

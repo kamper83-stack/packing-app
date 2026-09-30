@@ -20,5 +20,5 @@ jobs:
       - name: Refuse unsafe GitHub Actions production deployment
         run: |
           echo "::error::GitHub Actions production deployment is intentionally disabled pending a safe SHA-pinned implementation."
-          echo "Use the manual SHA-pinned procedure in AGENTS.md only after a current expert deploy APPROVE for the exact artifact and a fresh database backup."
+          echo "Use the manual SHA-pinned procedure in AGENTS.md for an exact SHA on main (reviewed at merge time) with a fresh database backup."
           exit 1
