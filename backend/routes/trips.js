@@ -485,74 +485,138 @@ router.post("/", async (req, res) => {
 });
 
 // PUT /api/trips/:id - Edit trip details and regenerate weather + packing list.
+// PUT /api/trips/:id — partial update, then regenerate.
+//
+// Semantics (Issue #146): this is a PARTIAL update, not a full replace. Every
+// writable field is optional; an omitted (undefined) field preserves the
+// trip's stored value, and only an explicitly provided field is validated and
+// written. This generalises the omitted-field preservation PR #143 introduced
+// for trolleyCount/checkedSuitcaseCount to destination, startDate, endDate,
+// airline, vacationType and passengerComposition, so no writable field is ever
+// silently coerced to a create-time default on a partial edit. A field that IS
+// present must still be valid (non-empty string / known airport city / valid
+// composition / in-range count / valid date); an invalid provided value is
+// rejected with 400 rather than ignored.
+//
+// The packing list is always regenerated from the EFFECTIVE field set (stored
+// values merged with the provided changes), preserving the existing contract
+// that an edit refreshes weather and the AI-generated items while keeping the
+// user's custom items. The trip is loaded first so preserved values come from
+// storage and a non-owner (or unknown id) gets a 404 before any field-level
+// validation detail is computed.
 router.put("/:id", async (req, res) => {
   const { destination, startDate, endDate, airline, passengerComposition, vacationType, trolleyCount, checkedSuitcaseCount } = req.body;
-  if (![destination, startDate, endDate, airline, vacationType].every((value) => typeof value === "string" && value.trim())) {
+
+  // Wrap the initial lookup like every other DB call in this file: Express 4
+  // does not forward an async-handler rejection to the global error handler
+  // (server.js), so an unwrapped findOne failure would hang the request
+  // instead of returning a clean 500.
+  let trip;
+  try {
+    trip = await Trip.findOne({ where: { id: req.params.id, userId: req.user.id } });
+  } catch (error) {
+    console.error("Update and regenerate trip error:", error);
+    return res.status(500).json({ error: "Failed to update trip and regenerate packing list." });
+  }
+  if (!trip) return res.status(404).json({ error: "Trip not found." });
+
+  // Destination: a provided value must be a known airport city; when omitted
+  // the stored (already-canonical) destination is kept.
+  let effectiveDestination = trip.destination;
+  if (destination !== undefined) {
+    const cityMatch = canonicalCity(destination);
+    if (!cityMatch) return res.status(400).json({ error: "Please choose a destination city that has an airport." });
+    effectiveDestination = cityMatch;
+  }
+
+  // Airline / vacationType: a provided value must be a non-empty string.
+  if (airline !== undefined && (typeof airline !== "string" || !airline.trim())) {
     return res.status(400).json({ error: "All trip fields must be filled." });
   }
-  if (!isValidDate(startDate) || !isValidDate(endDate)) {
-    return res.status(400).json({ error: "Invalid start or end date." });
+  const effectiveAirline = airline !== undefined ? airline.trim() : trip.airline;
+  if (vacationType !== undefined && (typeof vacationType !== "string" || !vacationType.trim())) {
+    return res.status(400).json({ error: "All trip fields must be filled." });
   }
-  const startYearError = plausibleYearError("startDate", startDate);
-  const endYearError = plausibleYearError("endDate", endDate);
-  // Unlike creating a trip, editing one must not enforce pastDateError: the
-  // trip may already be in progress or just finished, and the user should
-  // still be able to tweak details and regenerate the packing list for it
-  // (PR #124 review). Only implausible years and end-before-start are blocked.
-  const dateError = startYearError || endYearError;
-  if (dateError) return res.status(400).json({ error: dateError });
-  if (new Date(endDate) < new Date(startDate)) {
+  const effectiveVacationType = vacationType !== undefined ? vacationType.trim() : trip.vacationType;
+
+  // Dates: a provided date must be a valid calendar date within the plausible
+  // year window. An omitted date keeps the stored value WITHOUT re-validating
+  // it — an existing trip may legitimately sit outside today's window, and
+  // editing one must not enforce pastDateError anyway (PR #124 review). Only
+  // implausible years and an inverted/too-long range are blocked.
+  let effectiveStartDate = trip.startDate;
+  if (startDate !== undefined) {
+    if (typeof startDate !== "string" || !startDate.trim() || !isValidDate(startDate)) {
+      return res.status(400).json({ error: "Invalid start or end date." });
+    }
+    const startYearError = plausibleYearError("startDate", startDate);
+    if (startYearError) return res.status(400).json({ error: startYearError });
+    effectiveStartDate = startDate;
+  }
+  let effectiveEndDate = trip.endDate;
+  if (endDate !== undefined) {
+    if (typeof endDate !== "string" || !endDate.trim() || !isValidDate(endDate)) {
+      return res.status(400).json({ error: "Invalid start or end date." });
+    }
+    const endYearError = plausibleYearError("endDate", endDate);
+    if (endYearError) return res.status(400).json({ error: endYearError });
+    effectiveEndDate = endDate;
+  }
+  // Cross-field date checks run on the EFFECTIVE pair so changing only one
+  // endpoint can never persist a range that is inverted or exceeds the cap.
+  if (new Date(effectiveEndDate) < new Date(effectiveStartDate)) {
     return res.status(400).json({ error: "End date cannot be before start date." });
   }
-  const days = Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)) + 1;
+  const days = Math.ceil((new Date(effectiveEndDate) - new Date(effectiveStartDate)) / (1000 * 60 * 60 * 24)) + 1;
   if (days > MAX_TRIP_DAYS) {
     return res.status(400).json({ error: `Trip duration cannot exceed ${MAX_TRIP_DAYS} days.` });
   }
-  const cityMatch = canonicalCity(destination);
-  if (!cityMatch) return res.status(400).json({ error: "Please choose a destination city that has an airport." });
-  const composition = validatePassengerComposition(passengerComposition);
-  if (!composition) return res.status(400).json({ error: "Invalid passenger composition." });
-  const numPeople = Object.values(composition).reduce((sum, count) => sum + count, 0);
-  if (numPeople > MAX_NUM_PEOPLE) {
-    return res.status(400).json({ error: `Number of people cannot exceed ${MAX_NUM_PEOPLE}.` });
+
+  // Passenger composition: a provided value is validated and drives numPeople;
+  // when omitted the stored composition and numPeople are preserved as-is.
+  // Legacy trips created via the numPeople-only path may have no stored
+  // composition, so the stored value is trusted rather than re-validated.
+  let effectiveComposition = trip.passengerComposition || null;
+  let effectiveNumPeople = trip.numPeople;
+  if (passengerComposition !== undefined) {
+    const composition = validatePassengerComposition(passengerComposition);
+    if (!composition) return res.status(400).json({ error: "Invalid passenger composition." });
+    const total = Object.values(composition).reduce((sum, count) => sum + count, 0);
+    if (total > MAX_NUM_PEOPLE) {
+      return res.status(400).json({ error: `Number of people cannot exceed ${MAX_NUM_PEOPLE}.` });
+    }
+    effectiveComposition = composition;
+    effectiveNumPeople = total;
   }
+
+  // Luggage counts: omitted-field preservation as introduced in PR #143. An
+  // omitted count keeps the trip's stored value instead of resetting it to a
+  // create-time default; only an explicit value can overwrite it.
   const trolleyCountResult = resolveTrolleyCount(trolleyCount);
   if (trolleyCountResult.error) {
     return res.status(400).json({ error: trolleyCountResult.error });
   }
-  // On update, an omitted checkedSuitcaseCount must preserve the trip's
-  // stored value (same semantics as trolleyCount above). Passing the raw
-  // value through keeps `?? trip.checkedSuitcaseCount` alive; only an
-  // explicit value can overwrite it. (The `?? 0` default lives in the POST
-  // handler — applying it here silently wiped stored counts on edit.)
   const checkedSuitcaseCountResult = resolveLuggageCount(checkedSuitcaseCount, "Checked suitcase");
   if (checkedSuitcaseCountResult.error) {
     return res.status(400).json({ error: checkedSuitcaseCountResult.error });
   }
+  const cleanTrolleyCount = trolleyCountResult.value ?? trip.trolleyCount ?? DEFAULT_TROLLEY_COUNT;
+  const cleanCheckedSuitcaseCount = checkedSuitcaseCountResult.value ?? trip.checkedSuitcaseCount ?? 0;
 
   try {
-    const trip = await Trip.findOne({ where: { id: req.params.id, userId: req.user.id } });
-    if (!trip) return res.status(404).json({ error: "Trip not found." });
-    // Omitting trolleyCount on an update keeps the trip's existing value
-    // instead of silently resetting it to the create-time default.
-    const cleanTrolleyCount = trolleyCountResult.value ?? trip.trolleyCount ?? DEFAULT_TROLLEY_COUNT;
-    const cleanCheckedSuitcaseCount = checkedSuitcaseCountResult.value ?? trip.checkedSuitcaseCount ?? 0;
-    const cleanDestination = cityMatch;
-    const cleanAirline = airline.trim();
-    const cleanVacationType = vacationType.trim();
-    const weatherInfo = await weatherService.getForecast(cleanDestination, startDate, endDate, countryOf(cleanDestination));
-    const airlineInfo = airlines[cleanAirline] || {
+    const weatherInfo = await weatherService.getForecast(effectiveDestination, effectiveStartDate, effectiveEndDate, countryOf(effectiveDestination));
+    const airlineInfo = airlines[effectiveAirline] || {
       cabin: { weightKg: 8, dimensionsCm: "Unknown", count: 1 },
       checked: { weightKg: 23, dimensionsCm: "Unknown", count: 1 },
       isEstimated: true,
     };
     const aiResult = await geminiService.generatePackingList({
-      destination: cleanDestination,
+      destination: effectiveDestination,
       days,
-      numPeople,
-      passengerComposition: composition,
-      vacationType: cleanVacationType,
-      airline: cleanAirline,
+      numPeople: effectiveNumPeople,
+      ...(effectiveComposition ? { passengerComposition: effectiveComposition } : {}),
+      vacationType: effectiveVacationType,
+      airline: effectiveAirline,
       weatherSummary: weatherInfo.forecast,
       baggageAllowance: airlineInfo,
       trolleyCount: cleanTrolleyCount,
@@ -560,15 +624,15 @@ router.put("/:id", async (req, res) => {
     });
     await sequelize.transaction(async (transaction) => {
       await trip.update({
-        destination: cleanDestination,
-        startDate,
-        endDate,
-        airline: cleanAirline,
-        numPeople,
+        destination: effectiveDestination,
+        startDate: effectiveStartDate,
+        endDate: effectiveEndDate,
+        airline: effectiveAirline,
+        numPeople: effectiveNumPeople,
         trolleyCount: cleanTrolleyCount,
         checkedSuitcaseCount: cleanCheckedSuitcaseCount,
-        passengerComposition: composition,
-        vacationType: cleanVacationType,
+        ...(effectiveComposition ? { passengerComposition: effectiveComposition } : {}),
+        vacationType: effectiveVacationType,
         weatherData: weatherInfo.forecast,
         weatherSource: weatherInfo.isMixed ? "mixed" : weatherInfo.isSeasonal ? "seasonal" : weatherInfo.isMock ? "mock" : "live",
         weatherProvider: weatherInfo.isMixed ? "mixed" : weatherInfo.isSeasonal ? "seasonal" : weatherInfo.isMock ? "mock" : "google",
