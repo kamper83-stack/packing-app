@@ -20,10 +20,33 @@ import useDocumentTitle from "../utils/useDocumentTitle";
 // old/far-future year is harder to pick in the first place. Window must
 // match backend/routes/trips.js's YEAR_WINDOW_YEARS_AHEAD.
 const DATE_INPUT_YEAR_WINDOW_AHEAD = 2;
-const currentYearNow = new Date().getFullYear();
-const currentDateNow = new Date().toISOString().split("T")[0];
-const DATE_INPUT_MIN = currentDateNow;
-const DATE_INPUT_MAX = `${currentYearNow + DATE_INPUT_YEAR_WINDOW_AHEAD}-12-31`;
+
+// A module-level "today" goes stale in long-lived tabs and across midnight,
+// letting mobile users pick a past date (user report). These helpers are
+// called at render time so the pickers always anchor to the actual current
+// day: the earliest selectable date IS today, nothing before it.
+// Local calendar day — NOT UTC. toISOString() is UTC-based, so between local
+// midnight and ~02:00–03:00 it still names yesterday-local and both the min
+// attributes and the onChange guards below would briefly permit a past date:
+// the exact bug this change closes (review: shirikyky on PR #144).
+const todayDate = () => {
+  const d = new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split("T")[0];
+};
+// dateMin(startValue): end-date floor = max(start, today). A start date
+// chosen yesterday can go stale overnight with no onChange, so the floor
+// itself is floored at today — it can never name a past day
+// (review: expert on PR #144). The START input pins min to today so any
+// future day stays re-selectable (review: flooring the start at its own
+// value locked the user out).
+const DATE_INPUT_MIN = (startValue) => {
+  const today = todayDate();
+  return startValue && startValue > today ? startValue : today;
+};
+const DATE_INPUT_MAX = () => {
+  const year = new Date().getFullYear();
+  return `${year + DATE_INPUT_YEAR_WINDOW_AHEAD}-12-31`;
+};
 
 export default function Dashboard() {
   useDocumentTitle("Dashboard");
@@ -46,6 +69,55 @@ export default function Dashboard() {
   const [trolleyCount, setTrolleyCount] = useState(1);
   const [checkedSuitcaseCount, setCheckedSuitcaseCount] = useState(1);
   const [creating, setCreating] = useState(false);
+
+  // A tab left open across local midnight never re-renders on its own, so
+  // the native min attributes computed at render time would keep naming
+  // yesterday (review: expert on PR #144). Re-render when the tab regains
+  // visibility or focus so todayDate() is recomputed for the actual day —
+  // and reconcile already-selected dates at the same moment. Reconciliation
+  // cannot wait for submit: a stale value below the refreshed min fails the
+  // browser's native form validation, which blocks handleCreateTrip from
+  // ever running on a normal "Create trip" click.
+  const [, setDayTick] = useState(0);
+  const reconcileStaleDates = useCallback(() => {
+    const today = todayDate();
+    // Preserve untouched (empty) fields: auto-filling them with today would
+    // silently defeat the native required validation (review: expert on PR
+    // #144). Only dates the user already chose are reconciled.
+    const safeStart = !startDate || startDate >= today ? startDate : today;
+    const floor = safeStart || today;
+    const safeEnd = !endDate || endDate >= floor ? endDate : floor;
+    if (safeStart !== startDate) setStartDate(safeStart);
+    if (safeEnd !== endDate) setEndDate(safeEnd);
+  }, [startDate, endDate]);
+  useEffect(() => {
+    const refreshDayBounds = () => {
+      setDayTick((t) => t + 1);
+      reconcileStaleDates();
+    };
+    // A tab left open, visible AND focused across local midnight receives
+    // neither visibilitychange nor focus, so re-render would never happen
+    // and yesterday would stay selectable (review: expert on PR #144).
+    // Arm a one-shot timer for the coming local midnight; it re-arms itself.
+    let midnightTimer;
+    const armMidnightRefresh = () => {
+      const now = new Date();
+      const nextMidnight = new Date(now);
+      nextMidnight.setHours(24, 0, 0, 0);
+      midnightTimer = setTimeout(() => {
+        refreshDayBounds();
+        armMidnightRefresh();
+      }, nextMidnight.getTime() - now.getTime());
+    };
+    armMidnightRefresh();
+    document.addEventListener("visibilitychange", refreshDayBounds);
+    window.addEventListener("focus", refreshDayBounds);
+    return () => {
+      clearTimeout(midnightTimer);
+      document.removeEventListener("visibilitychange", refreshDayBounds);
+      window.removeEventListener("focus", refreshDayBounds);
+    };
+  }, [reconcileStaleDates]);
 
   const navigate = useNavigate();
 
@@ -125,12 +197,25 @@ export default function Dashboard() {
     }
     const cleanCheckedSuitcaseCount = Math.min(MAX_TROLLEY_COUNT, Number(checkedSuitcaseValue));
 
+    // A tab that crossed local midnight with no onChange can hold selected
+    // dates that are now in the past. Reconcile with the same floor the
+    // inputs enforce instead of sending stale dates to the backend
+    // (review: expert on PR #144). Untouched (empty) fields stay empty so
+    // no date is ever invented for the user — the backend then rejects the
+    // payload instead of creating a trip with unchosen dates.
+    const today = todayDate();
+    const safeStartDate = !startDate || startDate >= today ? startDate : today;
+    const safeFloor = safeStartDate || today;
+    const safeEndDate = !endDate || endDate >= safeFloor ? endDate : safeFloor;
+    if (safeStartDate !== startDate) setStartDate(safeStartDate);
+    if (safeEndDate !== endDate) setEndDate(safeEndDate);
+
     setCreating(true);
     try {
       const newTrip = await api.createTrip({
         destination,
-        startDate,
-        endDate,
+        startDate: safeStartDate,
+        endDate: safeEndDate,
         // The backend always requires a non-empty airline (it drives baggage
         // allowance into the packing prompt); the UI no longer collects it, so
         // send a fixed default rather than a user-chosen field.
@@ -235,8 +320,8 @@ export default function Dashboard() {
                   <input
                     type="date"
                     required
-                    min={DATE_INPUT_MIN}
-                    max={DATE_INPUT_MAX}
+                    min={todayDate()}
+                    max={DATE_INPUT_MAX()}
                     className="input w-full min-w-0"
                     value={startDate}
                     onKeyDown={(e) => {
@@ -251,7 +336,12 @@ export default function Dashboard() {
                       skipEndDateAutoOpenRef.current = false;
                     }}
                     onChange={(e) => {
-                      const nextStart = e.target.value;
+                      let nextStart = e.target.value;
+                      // Absolute guard: any date that has already happened
+                      // (before today 00:00 local) is rejected even if the
+                      // native picker allowed it (stale tab / manual typing).
+                      const today = todayDate();
+                      if (nextStart && nextStart < today) nextStart = today;
                       setStartDate(nextStart);
                       // Start the return-date picker at the selected departure
                       // date, while preserving a later return date if one exists.
@@ -279,11 +369,20 @@ export default function Dashboard() {
                     ref={endDateRef}
                     type="date"
                     required
-                    min={startDate || DATE_INPUT_MIN}
-                    max={DATE_INPUT_MAX}
+                    min={DATE_INPUT_MIN(startDate)}
+                    max={DATE_INPUT_MAX()}
                     className="input w-full min-w-0"
                     value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
+                    onChange={(e) => {
+                      let nextEnd = e.target.value;
+                      // Same absolute guard as the start date: the end date
+                      // can never land in the past, even via manual typing.
+                      const floor = startDate || todayDate();
+                      const today = todayDate();
+                      const earliest = floor > today ? floor : today;
+                      if (nextEnd && nextEnd < earliest) nextEnd = earliest;
+                      setEndDate(nextEnd);
+                    }}
                   />
                 </div>
               </div>

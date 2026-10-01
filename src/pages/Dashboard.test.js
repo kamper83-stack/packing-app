@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import Dashboard from "./Dashboard";
 import { api } from "../services/api";
@@ -30,6 +30,30 @@ const renderDashboard = () =>
     </MemoryRouter>
   );
 
+// Test dates must be derived from the live clock: hardcoded dates decay
+// (CI goes red once the real calendar passes them) because the onChange
+// guard clamps any past value to today. +30/+34 days keeps every date
+// future-proof indefinitely.
+// Local calendar day formatter (timezone-shifted, not UTC): the Dashboard
+// computes "today" in local time, so test fixtures must too — a UTC format
+// can name a different day around midnight outside UTC (expert on PR #144).
+const isoDate = (d) =>
+  new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split("T")[0];
+const daysFromNow = (n) => {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return isoDate(d);
+};
+const FUTURE_START = daysFromNow(30);
+const FUTURE_END = daysFromNow(34);
+
+// Local "today" as the Dashboard computes it (timezone-shifted, not UTC).
+// Used to assert the past-date clamp without hardcoding calendar dates.
+const localToday = () => {
+  const d = new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split("T")[0];
+};
+
 // Fill the minimum required fields of the "Plan a New Trip" form.
 // `passengers` overrides individual passenger-composition counts (defaults
 // to a single adult woman so submission passes the "at least one" check).
@@ -44,8 +68,8 @@ const fillTripForm = async (container, passengers = { women: 1 }) => {
   fireEvent.change(screen.getByLabelText("City"), { target: { value: "Rome" } });
 
   const dateInputs = container.querySelectorAll('input[type="date"]');
-  fireEvent.change(dateInputs[0], { target: { value: "2026-09-01" } });
-  fireEvent.change(dateInputs[1], { target: { value: "2026-09-05" } });
+  fireEvent.change(dateInputs[0], { target: { value: FUTURE_START } });
+  fireEvent.change(dateInputs[1], { target: { value: FUTURE_END } });
   for (const [key, value] of Object.entries(passengers)) {
     const label = { infants: /תינוקות/, children: /ילדים/, women: /נשים/, men: /גברים/ }[key];
     if (!label) continue;
@@ -69,8 +93,8 @@ describe("Dashboard (Issue #9)", () => {
       {
         id: "t1",
         destination: "Barcelona",
-        startDate: "2026-09-01",
-        endDate: "2026-09-05",
+        startDate: FUTURE_START,
+        endDate: FUTURE_END,
         airline: "EL AL",
         numPeople: 2,
         passengerComposition: { infants: 0, children: 0, women: 1, men: 1 },
@@ -97,8 +121,8 @@ describe("Dashboard (Issue #9)", () => {
       {
         id: "t1",
         destination: "Barcelona",
-        startDate: "2026-09-01",
-        endDate: "2026-09-05",
+        startDate: FUTURE_START,
+        endDate: FUTURE_END,
         airline: "EL AL",
         numPeople: 2,
         vacationType: "Beach Vacation",
@@ -120,8 +144,8 @@ describe("Dashboard (Issue #9)", () => {
       {
         id: "t1",
         destination: "Barcelona",
-        startDate: "2026-09-01",
-        endDate: "2026-09-05",
+        startDate: FUTURE_START,
+        endDate: FUTURE_END,
         airline: "EL AL",
         numPeople: 2,
         vacationType: "Beach Vacation",
@@ -142,8 +166,8 @@ describe("Dashboard (Issue #9)", () => {
       {
         id: "t1",
         destination: "Barcelona",
-        startDate: "2026-10-01",
-        endDate: "2026-10-05",
+        startDate: FUTURE_START,
+        endDate: FUTURE_END,
         airline: "EL AL",
         numPeople: 1,
         vacationType: "City Trip",
@@ -166,8 +190,8 @@ describe("Dashboard (Issue #9)", () => {
       {
         id: "legacy1",
         destination: "Legacy Town",
-        startDate: "2026-09-01",
-        endDate: "2026-09-05",
+        startDate: FUTURE_START,
+        endDate: FUTURE_END,
         airline: "EL AL",
         numPeople: 4,
         vacationType: "City Trip",
@@ -202,8 +226,8 @@ describe("Dashboard (Issue #9)", () => {
       expect(api.createTrip).toHaveBeenCalledWith(
         expect.objectContaining({
           destination: "Rome",
-          startDate: "2026-09-01",
-          endDate: "2026-09-05",
+          startDate: FUTURE_START,
+          endDate: FUTURE_END,
           airline: "EL AL",
           passengerComposition: { infants: 1, children: 2, women: 1, men: 1 },
           vacationType: "City Trip",
@@ -294,7 +318,7 @@ describe("Dashboard (Issue #9)", () => {
     const { container } = renderDashboard();
     await screen.findByText(/plan a new trip/i);
 
-    const today = new Date().toISOString().split("T")[0];
+    const today = localToday();
     const dateInputs = container.querySelectorAll('input[type="date"]');
     expect(dateInputs[0]).toHaveAttribute("min", today);
     expect(dateInputs[1]).toHaveAttribute("min", today);
@@ -309,10 +333,10 @@ describe("Dashboard (Issue #9)", () => {
     const [startInput, endInput] = dateInputs;
 
     startInput.focus();
-    fireEvent.change(startInput, { target: { value: "2026-09-22" } });
+    fireEvent.change(startInput, { target: { value: FUTURE_START } });
 
-    expect(endInput).toHaveValue("2026-09-22");
-    expect(endInput).toHaveAttribute("min", "2026-09-22");
+    expect(endInput).toHaveValue(FUTURE_START);
+    expect(endInput).toHaveAttribute("min", FUTURE_START);
     expect(endInput).toHaveFocus();
   });
 
@@ -325,11 +349,11 @@ describe("Dashboard (Issue #9)", () => {
     const [startInput, endInput] = container.querySelectorAll('input[type="date"]');
     startInput.focus();
     fireEvent.keyDown(startInput, { key: "ArrowRight" });
-    fireEvent.change(startInput, { target: { value: "2026-10-22" } });
+    fireEvent.change(startInput, { target: { value: FUTURE_START } });
 
     expect(startInput).toHaveFocus();
     expect(endInput).not.toHaveFocus();
-    expect(endInput).toHaveValue("2026-10-22");
+    expect(endInput).toHaveValue(FUTURE_START);
   });
 
   it("does not let month-only arrow navigation suppress a later date selection", async () => {
@@ -342,7 +366,7 @@ describe("Dashboard (Issue #9)", () => {
     startInput.focus();
     fireEvent.keyDown(startInput, { key: "PageDown" });
     fireEvent.keyUp(startInput, { key: "PageDown" });
-    fireEvent.change(startInput, { target: { value: "2026-11-22" } });
+    fireEvent.change(startInput, { target: { value: daysFromNow(45) } });
 
     expect(endInput).toHaveFocus();
   });
@@ -356,10 +380,209 @@ describe("Dashboard (Issue #9)", () => {
     const dateInputs = container.querySelectorAll('input[type="date"]');
     const [startInput, endInput] = dateInputs;
 
-    fireEvent.change(endInput, { target: { value: "2026-09-03" } });
+    const laterStart = daysFromNow(40);
     // Choosing a start date after the current end date snaps the end date to it.
-    fireEvent.change(startInput, { target: { value: "2026-09-10" } });
-    expect(endInput).toHaveValue("2026-09-10");
+    fireEvent.change(endInput, { target: { value: daysFromNow(35) } });
+    fireEvent.change(startInput, { target: { value: laterStart } });
+    expect(endInput).toHaveValue(laterStart);
+  });
+
+  it("clamps a past start date to local today (past-date guard regression, PR #144)", async () => {
+    api.getTrips.mockResolvedValue([]);
+
+    const { container } = renderDashboard();
+    await screen.findByText(/plan a new trip/i);
+
+    const [startInput] = container.querySelectorAll('input[type="date"]');
+    // Unambiguously past in every timezone (not just yesterday-local).
+    fireEvent.change(startInput, { target: { value: daysFromNow(-5) } });
+    expect(startInput).toHaveValue(localToday());
+  });
+
+  it("floors a past end date to the chosen future start date (PR #144)", async () => {
+    api.getTrips.mockResolvedValue([]);
+
+    const { container } = renderDashboard();
+    await screen.findByText(/plan a new trip/i);
+
+    const [startInput, endInput] = container.querySelectorAll('input[type="date"]');
+    fireEvent.change(startInput, { target: { value: FUTURE_START } });
+    fireEvent.change(endInput, { target: { value: daysFromNow(-5) } });
+    expect(endInput).toHaveValue(FUTURE_START);
+  });
+
+  it("keeps the start input min pinned to local today after a start date is chosen (PR #144)", async () => {
+    api.getTrips.mockResolvedValue([]);
+
+    const { container } = renderDashboard();
+    await screen.findByText(/plan a new trip/i);
+
+    const [startInput] = container.querySelectorAll('input[type="date"]');
+    expect(startInput).toHaveAttribute("min", localToday());
+    fireEvent.change(startInput, { target: { value: FUTURE_START } });
+    // Regression: min must stay today so an earlier-but-future day remains selectable.
+    expect(startInput).toHaveAttribute("min", localToday());
+  });
+
+  // ---- Stale-tab / midnight rollover (review: expert on PR #144) ----
+  // A tab left open across local midnight fires no onChange and (without the
+  // visibility/focus refresh) no re-render either, so render-time min
+  // attributes and already-selected values can silently go stale.
+
+  it("refreshes min bounds when the tab regains visibility after midnight (PR #144)", async () => {
+    api.getTrips.mockResolvedValue([]);
+
+    const { container } = renderDashboard();
+    await screen.findByText(/plan a new trip/i);
+
+    const [startInput, endInput] = container.querySelectorAll('input[type="date"]');
+    expect(startInput).toHaveAttribute("min", localToday());
+
+    // Freeze the clock just before local midnight, pick today, then cross
+    // into the next day with the tab idle (no date change fires).
+    const beforeMidnight = new Date();
+    beforeMidnight.setHours(23, 58, 0, 0);
+    jest.useFakeTimers();
+    try {
+      jest.setSystemTime(beforeMidnight);
+      fireEvent.change(startInput, { target: { value: localToday() } });
+      expect(startInput).toHaveValue(localToday());
+
+      jest.setSystemTime(new Date(beforeMidnight.getTime() + 5 * 60000));
+      const rolledToday = localToday();
+      act(() => {
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+
+      // Both mins now name the new day; the end floor is max(start, today),
+      // so the yesterday-selected start cannot drag it into the past.
+      expect(startInput).toHaveAttribute("min", rolledToday);
+      expect(endInput).toHaveAttribute("min", rolledToday);
+      // The yesterday-selected start is reconciled to the new day as well:
+      // otherwise it would sit below the refreshed min and the browser's
+      // native validation would block a normal "Create trip" click.
+      expect(startInput).toHaveValue(rolledToday);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("submits reconciled dates through a normal button click after midnight (PR #144)", async () => {
+    api.getTrips.mockResolvedValue([]);
+    api.createTrip.mockResolvedValue({ id: "t1" });
+
+    const { container } = renderDashboard();
+    await screen.findByText(/plan a new trip/i);
+
+    await fillTripForm(container);
+
+    // The tab sits idle for 40 days: both selected dates are now in the
+    // past and no onChange will ever fire for them. Returning to the tab
+    // reconciles the values (so native validation lets the submit through)
+    // before the user clicks the real submit button.
+    jest.useFakeTimers();
+    try {
+      jest.setSystemTime(new Date(Date.now() + 40 * 86400000));
+      const rolledToday = localToday();
+
+      act(() => {
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+
+      const [startInput, endInput] = container.querySelectorAll('input[type="date"]');
+      expect(startInput).toHaveValue(rolledToday);
+      expect(endInput).toHaveValue(rolledToday);
+
+      fireEvent.click(screen.getByRole("button", { name: /create trip/i }));
+
+      expect(api.createTrip).toHaveBeenCalledTimes(1);
+      const payload = api.createTrip.mock.calls[0][0];
+      expect(payload.startDate).toBe(rolledToday);
+      expect(payload.endDate).toBe(rolledToday);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("refreshes min bounds at midnight while the tab stays visible (PR #144)", async () => {
+    api.getTrips.mockResolvedValue([]);
+
+    // Mount under a fake clock just before local midnight so the effect arms
+    // its midnight timer in fake time. The static form renders immediately;
+    // flushing microtasks lets the mocked API calls settle.
+    const beforeMidnight = new Date();
+    beforeMidnight.setHours(23, 58, 0, 0);
+    jest.useFakeTimers();
+    try {
+      jest.setSystemTime(beforeMidnight);
+      const { container } = renderDashboard();
+      await act(async () => {});
+      screen.getByText(/plan a new trip/i);
+
+      const [startInput, endInput] = container.querySelectorAll('input[type="date"]');
+      expect(startInput).toHaveAttribute("min", localToday());
+      fireEvent.change(startInput, { target: { value: localToday() } });
+
+      // Cross midnight with the tab open, visible and focused: no
+      // visibilitychange, no focus, no interaction — only the timer fires.
+      act(() => {
+        jest.advanceTimersByTime(5 * 60000);
+      });
+
+      const rolledToday = localToday();
+      expect(startInput).toHaveAttribute("min", rolledToday);
+      expect(endInput).toHaveAttribute("min", rolledToday);
+      expect(startInput).toHaveValue(rolledToday);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("preserves empty date fields on tab refresh (PR #144)", async () => {
+    api.getTrips.mockResolvedValue([]);
+
+    const { container } = renderDashboard();
+    await screen.findByText(/plan a new trip/i);
+
+    // The user opened the form but chose no dates yet.
+    const [startInput, endInput] = container.querySelectorAll('input[type="date"]');
+    expect(startInput).toHaveValue("");
+    expect(endInput).toHaveValue("");
+
+    // Switching tabs and coming back must not auto-fill today: that would
+    // silently defeat the native required validation and let an accidental
+    // submit create a trip with unchosen dates.
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(startInput).toHaveValue("");
+    expect(endInput).toHaveValue("");
+  });
+
+  it("does not invent dates for empty fields on submit (PR #144)", async () => {
+    api.getTrips.mockResolvedValue([]);
+    api.createTrip.mockResolvedValue({ id: "t1" });
+
+    const { container } = renderDashboard();
+    await screen.findByText(/plan a new trip/i);
+
+    // Destination + passengers filled, dates deliberately left empty.
+    const countrySelect = await screen.findByLabelText("Country");
+    await waitFor(() =>
+      expect(screen.getByLabelText("Country").querySelectorAll("option").length).toBeGreaterThan(1)
+    );
+    fireEvent.change(countrySelect, { target: { value: "Italy" } });
+    fireEvent.change(screen.getByLabelText("City"), { target: { value: "Rome" } });
+    fireEvent.change(screen.getByLabelText(/נשים/), { target: { value: "1" } });
+
+    // fireEvent.submit bypasses native validation (as jsdom always does),
+    // which is exactly what exposes invented dates if the code fills them.
+    fireEvent.submit(container.querySelector("form"));
+
+    await waitFor(() => expect(api.createTrip).toHaveBeenCalledTimes(1));
+    const payload = api.createTrip.mock.calls[0][0];
+    expect(payload.startDate).toBe("");
+    expect(payload.endDate).toBe("");
   });
 
   // ---- Airline is no longer a user-chosen field (backend still requires it) ----

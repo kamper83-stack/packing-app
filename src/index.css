@@ -36,7 +36,7 @@
 @layer components {
   /* Card surface */
   .card {
-    @apply bg-surface rounded-xl2 border border-line shadow-card;
+    @apply bg-surface rounded-xl2 border border-line shadow-card overflow-hidden;
   }
 
   /* Buttons — pill shaped */
@@ -66,9 +66,21 @@
     @apply block text-xs font-semibold text-ink/80 mb-1.5;
   }
   .input {
-    @apply block w-full rounded-pill border border-line bg-white/70 px-4 py-2.5 text-sm
+    @apply block w-full max-w-full rounded-pill border border-line bg-white/70 px-4 py-2.5 text-sm
       text-ink placeholder:text-ink/40 shadow-soft transition
       focus:outline-none focus:border-brand-400 focus:ring-4 focus:ring-brand-400/15;
+    /* Native date/time inputs get an intrinsic min-content width from the
+       browser that can exceed a narrow grid cell, pushing the pill outside
+       its card (mobile overflow). box-sizing + tiny min-width keeps the pill
+       inside its grid track. */
+    box-sizing: border-box;
+    min-width: 0;
+  }
+  /* iOS Safari ignores intrinsic sizing hints on date inputs unless the
+     webkit pseudo is pinned too. */
+  input[type="date"] {
+    min-width: 0;
+    -webkit-min-logical-width: 0;
   }
   select.input {
     @apply pr-10 appearance-none bg-no-repeat;
