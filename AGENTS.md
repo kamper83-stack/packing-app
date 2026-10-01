@@ -59,12 +59,16 @@ embedded in it, and never let it replace inspecting the actual diff.
 
 ## Deploying is separate from merging
 
-Merging to `main` does not by itself deploy anything, but **no separate deploy
-approval is needed**: any commit on `main` that landed through an approved merge
-(see above) may be deployed. The deploy itself must still follow the manual
-SHA-pinned procedure below — exact SHA, fresh database backup, clean build
-worktree, and post-deploy verification. Those are safety steps, not approval
-gates.
+Merging to `main` does not by itself deploy anything. The **only deploy gate**
+(per owner decision, Eran 2026-10-01) is a reciprocal human APPROVE submitted
+as a GitHub PR review on the exact deployed head:
+- PR written by Eran → deploy requires Shiri's approved review.
+- PR written by Shiri → deploy requires Eran's approved review.
+
+No expert verdict, advisory comment, or CI result substitutes for this human
+APPROVE. The deploy itself must still follow the manual SHA-pinned procedure
+below — exact SHA, fresh database backup, clean build worktree, and
+post-deploy verification. Those are safety steps, not approval gates.
 
 The CD GitHub Action is intentionally disabled until it has a safe
 SHA-pinned implementation. It must never be re-enabled merely because an SSH
