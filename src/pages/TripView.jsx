@@ -62,6 +62,21 @@ const DAY_PROVIDER_LABELS = {
   seasonal: "Seasonal",
 };
 
+// Issue #147: per-bag packing progress. The overall bar answers "how much is
+// left?" but not "which bag still needs work?" — so each bag type that holds
+// items gets its own progress card. The three buckets mirror the checklist
+// badge logic below (Suitcase | Trolley | everything-else → Backpack) so the
+// per-bag totals always sum back to the overall item count, and a legacy or
+// unexpected targetBag is grouped with the cabin backpack rather than dropped.
+const BAG_TYPES = [
+  { key: "Backpack", label: "Backpack", Icon: Backpack },
+  { key: "Trolley", label: "Trolley (cabin)", Icon: Luggage },
+  { key: "Suitcase", label: "Checked suitcase", Icon: Luggage },
+];
+
+const bagBucketOf = (item) =>
+  item.targetBag === "Suitcase" ? "Suitcase" : item.targetBag === "Trolley" ? "Trolley" : "Backpack";
+
 function WeatherSourceBadge({ source }) {
   const badge = WEATHER_SOURCE_BADGES[source];
   if (!badge) return null;
@@ -295,6 +310,17 @@ export default function TripView() {
   // filters, so the user keeps a stable sense of how much is left to pack.
   const packedCount = items.filter((i) => i.isPacked).length;
   const progressPercent = items.length ? Math.round((packedCount / items.length) * 100) : 0;
+
+  // Per-bag progress (Issue #147): same all-items basis as the overall bar
+  // (filters don't shrink it), bucketed with bagBucketOf so the counts always
+  // reconcile with the overall total. Only bag types that actually hold items
+  // are surfaced, so a trolley-only or backpacks-only trip shows no empty card.
+  const bagProgress = BAG_TYPES.map((bag) => {
+    const bagItems = items.filter((item) => bagBucketOf(item) === bag.key);
+    const packed = bagItems.filter((item) => item.isPacked).length;
+    const total = bagItems.length;
+    return { ...bag, packed, total, percent: total ? Math.round((packed / total) * 100) : 0 };
+  }).filter((bag) => bag.total > 0);
 
   // Apply the bag + status filters (Issue #43) before grouping, so both the
   // visible items and their category sections update together.
@@ -545,6 +571,43 @@ export default function TripView() {
               style={{ width: `${progressPercent}%` }}
             ></div>
           </div>
+
+          {/* Per-bag progress (Issue #147): one card per bag type that holds
+              items, so the traveler can see at a glance which bag still needs
+              work — not just the overall figure. */}
+          {bagProgress.length > 0 && (
+            <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {bagProgress.map((bag) => {
+                const { Icon } = bag;
+                return (
+                  <div key={bag.key} className="p-3 bg-paper border border-line rounded-xl">
+                    <div className="flex justify-between items-center text-xs font-semibold text-ink mb-2 gap-2">
+                      <span className="inline-flex items-center gap-1.5 min-w-0">
+                        <Icon size={14} className="shrink-0" aria-hidden="true" />
+                        <span className="truncate">{bag.label}</span>
+                      </span>
+                      <span className="text-muted shrink-0">
+                        {bag.packed}/{bag.total}
+                      </span>
+                    </div>
+                    <div
+                      className="w-full bg-line rounded-full h-2 overflow-hidden"
+                      role="progressbar"
+                      aria-label={`${bag.label} packing progress`}
+                      aria-valuenow={bag.percent}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                    >
+                      <div
+                        className="bg-brand-500 h-2 rounded-full transition-all duration-500"
+                        style={{ width: `${bag.percent}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Packing List */}

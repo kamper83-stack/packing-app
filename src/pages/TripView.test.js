@@ -213,6 +213,104 @@ describe("TripView (Issue #10)", () => {
     expect(container.textContent).toContain("1 of 2 items");
   });
 
+  // Issue #147: per-bag packing progress. Each bag type that holds items gets
+  // its own progress bar, on the same all-items basis as the overall bar.
+  describe("per-bag packing progress (Issue #147)", () => {
+    const multiBagTrip = {
+      ...sampleTrip,
+      PackingItems: [
+        // Backpack: 1 of 2 packed -> 50%
+        { id: "b1", name: "Passport", category: "Documents", quantity: 1, targetBag: "Backpack", isPacked: true },
+        { id: "b2", name: "Charger", category: "Electronics", quantity: 1, targetBag: "Backpack", isPacked: false },
+        // Trolley: 0 of 1 packed -> 0%
+        { id: "t1i", name: "Jacket", category: "Clothing", quantity: 1, targetBag: "Trolley", isPacked: false },
+        // Suitcase: 2 of 2 packed -> 100%
+        { id: "s1", name: "Shirts", category: "Clothing", quantity: 3, targetBag: "Suitcase", isPacked: true },
+        { id: "s2", name: "Shoes", category: "Clothing", quantity: 1, targetBag: "Suitcase", isPacked: true },
+      ],
+    };
+
+    it("renders a progress bar per bag type with each bag's own packed/total", async () => {
+      api.getTrip.mockResolvedValue(multiBagTrip);
+
+      renderTripView();
+      await screen.findByText(/Passport/);
+
+      const backpackBar = screen.getByRole("progressbar", { name: /backpack packing progress/i });
+      const trolleyBar = screen.getByRole("progressbar", { name: /trolley \(cabin\) packing progress/i });
+      const suitcaseBar = screen.getByRole("progressbar", { name: /checked suitcase packing progress/i });
+
+      expect(backpackBar).toHaveAttribute("aria-valuenow", "50");
+      expect(trolleyBar).toHaveAttribute("aria-valuenow", "0");
+      expect(suitcaseBar).toHaveAttribute("aria-valuenow", "100");
+
+      // The per-bag counts (1/2, 0/1, 2/2) are shown as text next to each bar.
+      expect(screen.getByText("1/2")).toBeInTheDocument();
+      expect(screen.getByText("0/1")).toBeInTheDocument();
+      expect(screen.getByText("2/2")).toBeInTheDocument();
+    });
+
+    it("only shows bag cards for bag types that actually hold items", async () => {
+      // Backpacks-only trip: no Trolley or Suitcase card should appear.
+      api.getTrip.mockResolvedValue({
+        ...sampleTrip,
+        PackingItems: [
+          { id: "b1", name: "Passport", category: "Documents", quantity: 1, targetBag: "Backpack", isPacked: true },
+        ],
+      });
+
+      renderTripView();
+      await screen.findByText(/Passport/);
+
+      expect(screen.getByRole("progressbar", { name: /backpack packing progress/i })).toBeInTheDocument();
+      expect(screen.queryByRole("progressbar", { name: /trolley \(cabin\) packing progress/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("progressbar", { name: /checked suitcase packing progress/i })).not.toBeInTheDocument();
+    });
+
+    it("buckets an unknown targetBag with the cabin backpack so counts reconcile", async () => {
+      api.getTrip.mockResolvedValue({
+        ...sampleTrip,
+        PackingItems: [
+          { id: "u1", name: "Mystery", category: "Accessories", quantity: 1, targetBag: "Unknown", isPacked: true },
+          { id: "b1", name: "Charger", category: "Electronics", quantity: 1, targetBag: "Backpack", isPacked: false },
+        ],
+      });
+
+      renderTripView();
+      await screen.findByText(/Charger/);
+
+      // Unknown + Backpack items fold into one Backpack card: 1 of 2 packed.
+      const backpackBar = screen.getByRole("progressbar", { name: /backpack packing progress/i });
+      expect(backpackBar).toHaveAttribute("aria-valuenow", "50");
+      expect(screen.getByText("1/2")).toBeInTheDocument();
+    });
+
+    it("updates a bag's progress when an item in it is toggled packed", async () => {
+      api.getTrip.mockResolvedValue(multiBagTrip);
+      // Toggling the unpacked Trolley item to packed -> Trolley bar 0% -> 100%.
+      api.updateItem.mockResolvedValue({
+        id: "t1i", name: "Jacket", category: "Clothing", quantity: 1, targetBag: "Trolley", isPacked: true,
+      });
+
+      renderTripView();
+      await screen.findByText(/Jacket/);
+
+      const trolleyBar = screen.getByRole("progressbar", { name: /trolley \(cabin\) packing progress/i });
+      expect(trolleyBar).toHaveAttribute("aria-valuenow", "0");
+
+      // Toggle the Jacket checkbox specifically via its row.
+      const jacketRow = screen.getByText(/Jacket/).closest("div");
+      const checkbox = jacketRow.querySelector('input[type="checkbox"]');
+      fireEvent.click(checkbox);
+
+      await waitFor(() =>
+        expect(
+          screen.getByRole("progressbar", { name: /trolley \(cabin\) packing progress/i })
+        ).toHaveAttribute("aria-valuenow", "100")
+      );
+    });
+  });
+
   it("shows a live weather badge when the forecast came from Google Weather (Issue #36)", async () => {
     api.getTrip.mockResolvedValue({ ...sampleTrip, weatherSource: "live" });
 
