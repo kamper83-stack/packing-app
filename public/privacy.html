@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#c67139" />
+    <meta name="robots" content="index,follow" />
+    <title>Privacy Policy — PackPlanner</title>
+    <style>
+      :root {
+        --brand: #c67139;
+        --ink: #1f2430;
+        --muted: #5b6475;
+        --bg: #ffffff;
+        --card: #faf6f2;
+        --border: #e7ddd3;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 0 16px 64px;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Helvetica, Arial, sans-serif;
+        line-height: 1.6;
+      }
+      .wrap { max-width: 760px; margin: 0 auto; }
+      header {
+        padding: 32px 0 16px;
+        border-bottom: 3px solid var(--brand);
+        margin-bottom: 24px;
+      }
+      h1 { font-size: 1.9rem; margin: 0 0 4px; color: var(--brand); }
+      h2 { font-size: 1.2rem; margin: 32px 0 8px; }
+      .meta { color: var(--muted); font-size: 0.9rem; }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 12px 0;
+        font-size: 0.95rem;
+      }
+      th, td {
+        text-align: left;
+        padding: 8px 10px;
+        border: 1px solid var(--border);
+        vertical-align: top;
+      }
+      th { background: var(--card); }
+      a { color: var(--brand); }
+      .note {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin: 16px 0;
+      }
+      footer {
+        margin-top: 40px;
+        padding-top: 16px;
+        border-top: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <h1>PackPlanner — Privacy Policy</h1>
+        <p class="meta">Last updated: 2026-10-04</p>
+      </header>
+
+      <p>
+        PackPlanner ("the app", "we") helps travelers build a smart packing
+        list for a trip. This policy explains what personal data the app
+        collects, why, who it is shared with, and the choices you have. It is
+        written to match what the application actually does.
+      </p>
+
+      <h2>1. Data we collect</h2>
+      <table>
+        <thead>
+          <tr><th>Data</th><th>Why</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Email address</td>
+            <td>Account identity and sign-in.</td>
+          </tr>
+          <tr>
+            <td>Password (stored only as a one-way hash)</td>
+            <td>Authentication. We never store your password in plain text.</td>
+          </tr>
+          <tr>
+            <td>
+              Trip details — destination, start/end dates, airline, number and
+              composition of travelers, luggage counts, trip type, and the
+              generated packing list
+            </td>
+            <td>To generate and save your packing plan.</td>
+          </tr>
+          <tr>
+            <td>Weather forecast cached with a trip</td>
+            <td>To show packing-relevant conditions for your destination.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        We do <strong>not</strong> collect precise location, microphone, or
+        camera data, and the app contains no advertising.
+      </p>
+
+      <h2>2. Third-party services</h2>
+      <p>
+        To produce suggestions and forecasts, trip details you enter are sent
+        to the following services. Your email and password are never sent to
+        them.
+      </p>
+      <table>
+        <thead>
+          <tr><th>Service</th><th>What is sent</th><th>Purpose</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Google Gemini (generative AI)</td>
+            <td>Destination, dates, traveler counts, trip type, luggage counts</td>
+            <td>Generate the packing-list suggestions</td>
+          </tr>
+          <tr>
+            <td>Google weather forecast API</td>
+            <td>Destination and trip dates</td>
+            <td>Retrieve the forecast for your destination</td>
+          </tr>
+          <tr>
+            <td>Skyscanner Flights (via RapidAPI)</td>
+            <td>Route (origin/destination) and dates</td>
+            <td>Optional flight lookups</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>
+        Each provider processes this data under its own privacy policy. We send
+        only the trip fields each feature needs, never account credentials.
+      </p>
+
+      <h2>3. Data retention</h2>
+      <p>
+        Your account and trips are kept until you delete them or ask us to
+        delete your account. Weather forecasts are cached alongside the trip
+        they belong to.
+      </p>
+
+      <h2>4. Your rights — access and deletion</h2>
+      <p>
+        You can view and delete individual trips from within the app. You may
+        request deletion of your entire account and all associated trips and
+        packing items; self-service account deletion is being added to the app.
+        Until it ships, email the contact below and we will delete your account
+        and its data.
+      </p>
+
+      <h2>5. Security</h2>
+      <p>
+        Traffic is served over HTTPS. Passwords are stored only as salted
+        one-way hashes. API responses containing your data are never stored in
+        the browser's offline cache.
+      </p>
+
+      <h2>6. Children</h2>
+      <p>
+        PackPlanner is a general-audience travel utility and is not directed to
+        children under 13.
+      </p>
+
+      <h2>7. Changes</h2>
+      <p>
+        We may update this policy; material changes will be reflected by the
+        "Last updated" date above.
+      </p>
+
+      <h2>8. Contact</h2>
+      <p>
+        Questions or deletion requests:
+        <a href="mailto:privacy@packing.erankam.dev">privacy@packing.erankam.dev</a>.
+      </p>
+
+      <div class="note" dir="rtl" lang="he">
+        <strong>תקציר בעברית:</strong> PackPlanner אוסף כתובת אימייל, hash של
+        סיסמה ונתוני נסיעה (יעד, תאריכים, חברת תעופה, הרכב נוסעים, מטען וסוג
+        חופשה). פרטי הנסיעה נשלחים ל-Google Gemini, לשירות מזג האוויר של Google
+        ול-RapidAPI (Skyscanner) לצורך יצירת רשימת האריזה והתחזית — לעולם לא
+        האימייל או הסיסמה. ניתן למחוק נסיעות מהאפליקציה ולבקש מחיקת חשבון מלאה
+        בכתובת
+        <a href="mailto:privacy@packing.erankam.dev">privacy@packing.erankam.dev</a>.
+      </div>
+
+      <footer>
+        <p><a href="/">&larr; Back to PackPlanner</a></p>
+      </footer>
+    </div>
+  </body>
+</html>
