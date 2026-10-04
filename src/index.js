@@ -10,6 +10,7 @@ import '@fontsource/figtree/800.css';
 import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
+import { registerServiceWorker } from './serviceWorkerRegistration';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
@@ -22,3 +23,7 @@ root.render(
 // to log results (for example: reportWebVitals(console.log))
 // or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
 reportWebVitals();
+
+// Production only (see serviceWorkerRegistration): enables the installable,
+// offline-capable app shell required for PWA / TWA distribution (issue #157).
+registerServiceWorker();
