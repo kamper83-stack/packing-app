@@ -43,6 +43,15 @@ export const api = {
 
   getMe: () => request("/auth/me"),
 
+  // Self-service account deletion (Issue #160). Re-sends the current password
+  // for confirmation; the backend verifies it before permanently removing the
+  // account and all of its trips/items.
+  deleteAccount: (password) =>
+    request("/auth/me", {
+      method: "DELETE",
+      body: JSON.stringify({ password }),
+    }),
+
   getTrips: () => request("/trips"),
 
   getTrip: (id) => request(`/trips/${id}`),

@@ -12,6 +12,7 @@ import {
 } from "../utils/passengers";
 import { DEFAULT_AIRLINE, MAX_TROLLEY_COUNT } from "../utils/luggage";
 import DestinationPicker from "../components/DestinationPicker";
+import DeleteAccount from "../components/DeleteAccount";
 import Logo from "../components/Logo";
 import useDocumentTitle from "../utils/useDocumentTitle";
 
@@ -273,6 +274,7 @@ export default function Dashboard() {
                 <LogOut size={16} />
                 <span className="hidden sm:inline">Logout</span>
               </button>
+              <DeleteAccount />
             </div>
           </div>
         </div>

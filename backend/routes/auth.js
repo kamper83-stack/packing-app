@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { User } = require("../models");
+const { User, Trip, PackingItem, sequelize } = require("../models");
 const authMiddleware = require("../middleware/auth");
 const { JWT_SECRET } = require("../config/jwt");
 
@@ -120,6 +120,60 @@ router.get("/me", authMiddleware, async (req, res) => {
     await reconcileAdmin(user);
     res.json(publicUser(user));
   } catch (error) {
+    res.status(500).json({ error: "Internal server error." });
+  }
+});
+
+// DELETE /api/auth/me — self-service account deletion (Issue #160 /
+// StoreReadiness A5 / gap G4). Required by Apple Guideline 5.1.1(v) and
+// recommended by Google Play: a user must be able to delete their own account
+// and data from inside the app, not only an admin.
+//
+// Re-authentication is mandatory: the current password must be supplied in the
+// body and verified, so a leaked/forgotten-open session cannot nuke the
+// account. Deletion then removes the user with all of their trips and the
+// trips' packing items inside a single transaction, mirroring the admin
+// delete-user flow: PackingItem rows are destroyed explicitly (SQLite ON
+// DELETE CASCADE is not enforced here) so no orphan items are left behind, and
+// the transaction guarantees we never delete trips while leaving the user, or
+// vice versa.
+router.delete("/me", authMiddleware, async (req, res) => {
+  const { password } = req.body || {};
+
+  if (typeof password !== "string" || password.length === 0) {
+    return res
+      .status(400)
+      .json({ error: "Your current password is required to delete your account." });
+  }
+
+  try {
+    const user = await User.findByPk(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ error: "Invalid password." });
+    }
+
+    await sequelize.transaction(async (transaction) => {
+      const trips = await Trip.findAll({
+        where: { userId: user.id },
+        attributes: ["id"],
+        transaction,
+      });
+      const tripIds = trips.map((trip) => trip.id);
+      if (tripIds.length > 0) {
+        await PackingItem.destroy({ where: { tripId: tripIds }, transaction });
+      }
+      await Trip.destroy({ where: { userId: user.id }, transaction });
+      await user.destroy({ transaction });
+    });
+
+    res.json({ message: "Your account and all associated data have been deleted." });
+  } catch (error) {
+    console.error("Account deletion error:", error);
     res.status(500).json({ error: "Internal server error." });
   }
 });
