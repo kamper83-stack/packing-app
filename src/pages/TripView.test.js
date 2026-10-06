@@ -311,6 +311,82 @@ describe("TripView (Issue #10)", () => {
     });
   });
 
+  // Issue #147 (re-homing notices): when the declared luggage counts mean the
+  // backend had to move items out of their natural bag, the luggage-constraints
+  // card must say so, so the regenerated list's bag assignments aren't a
+  // surprise. The three notices are mutually exclusive and derive purely from
+  // the trip's stored trolleyCount / checkedSuitcaseCount / numPeople, so a
+  // well-provisioned trip shows none of them.
+  describe("re-homing notices (Issue #147)", () => {
+    it("surfaces the trolley re-homing notice for the 7-travelers / 7-trolleys / 0-checked acceptance case", async () => {
+      // Acceptance scenario from the issue: with no checked suitcases the
+      // backend re-homes every Suitcase-tagged item to the cabin trolley, and
+      // the UI must explain where those items went.
+      api.getTrip.mockResolvedValue({
+        ...sampleTrip,
+        numPeople: 7,
+        trolleyCount: 7,
+        checkedSuitcaseCount: 0,
+      });
+
+      const { container } = renderTripView();
+      await screen.findByRole("heading", { name: "Barcelona" });
+
+      expect(container.textContent).toContain("assigned to the cabin trolley");
+      // Not confused with the other two notices.
+      expect(container.textContent).not.toContain("Backpacks-only trip");
+      expect(container.textContent).not.toContain("quantities were trimmed to fit");
+    });
+
+    it("surfaces the backpacks-only notice when there are no trolleys and no checked suitcases", async () => {
+      api.getTrip.mockResolvedValue({
+        ...sampleTrip,
+        numPeople: 2,
+        trolleyCount: 0,
+        checkedSuitcaseCount: 0,
+      });
+
+      const { container } = renderTripView();
+      await screen.findByRole("heading", { name: "Barcelona" });
+
+      expect(container.textContent).toContain("Backpacks-only trip");
+      expect(container.textContent).toContain("everything was assigned to the cabin backpack");
+      expect(container.textContent).not.toContain("assigned to the cabin trolley");
+    });
+
+    it("surfaces the trimmed-quantities notice when there are fewer checked suitcases than travelers", async () => {
+      api.getTrip.mockResolvedValue({
+        ...sampleTrip,
+        numPeople: 4,
+        trolleyCount: 1,
+        checkedSuitcaseCount: 2,
+      });
+
+      const { container } = renderTripView();
+      await screen.findByRole("heading", { name: "Barcelona" });
+
+      expect(container.textContent).toContain("quantities were trimmed to fit");
+      expect(container.textContent).not.toContain("assigned to the cabin trolley");
+      expect(container.textContent).not.toContain("Backpacks-only trip");
+    });
+
+    it("shows no re-homing notice when checked suitcases cover every traveler", async () => {
+      api.getTrip.mockResolvedValue({
+        ...sampleTrip,
+        numPeople: 2,
+        trolleyCount: 1,
+        checkedSuitcaseCount: 2,
+      });
+
+      const { container } = renderTripView();
+      await screen.findByRole("heading", { name: "Barcelona" });
+
+      expect(container.textContent).not.toContain("assigned to the cabin trolley");
+      expect(container.textContent).not.toContain("Backpacks-only trip");
+      expect(container.textContent).not.toContain("quantities were trimmed to fit");
+    });
+  });
+
   it("shows a live weather badge when the forecast came from Google Weather (Issue #36)", async () => {
     api.getTrip.mockResolvedValue({ ...sampleTrip, weatherSource: "live" });
 
