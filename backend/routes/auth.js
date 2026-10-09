@@ -4,7 +4,13 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { User, Trip, PackingItem, sequelize } = require("../models");
 const authMiddleware = require("../middleware/auth");
+const createAuthRateLimiter = require("../middleware/authRateLimit");
 const { JWT_SECRET } = require("../config/jwt");
+
+// Issue #161 / A7 / G6: throttle the credential endpoints against brute force.
+// One shared limiter so register + login draw from the same per-IP budget —
+// an attacker can't dodge the limit by alternating the two endpoints.
+const authRateLimiter = createAuthRateLimiter();
 
 // Email validation helper
 const isValidEmail = (email) => {
@@ -33,7 +39,7 @@ async function reconcileAdmin(user) {
 }
 
 // POST /api/auth/register
-router.post("/register", async (req, res) => {
+router.post("/register", authRateLimiter, async (req, res) => {
   const { email, password } = req.body;
   
   if (!email || !password) {
@@ -74,7 +80,7 @@ router.post("/register", async (req, res) => {
 });
 
 // POST /api/auth/login
-router.post("/login", async (req, res) => {
+router.post("/login", authRateLimiter, async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: "Email and password are required." });

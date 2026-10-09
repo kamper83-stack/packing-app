@@ -11,6 +11,12 @@ const requestLogger = require("./middleware/requestLogger");
 const app = express();
 const PORT = process.env.PORT || 5001;
 
+// Production runs behind the host nginx reverse proxy (see AGENTS.md network
+// topology), so the client IP arrives in X-Forwarded-For. Trust exactly one
+// proxy hop so req.ip reflects the real client — required for the per-IP auth
+// rate limiter (Issue #161) to bucket by caller instead of by the proxy.
+app.set("trust proxy", 1);
+
 // Middlewares
 app.use(cors());
 app.use(express.json());

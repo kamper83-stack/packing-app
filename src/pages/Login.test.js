@@ -61,6 +61,21 @@ describe("Login (Issue #5)", () => {
     expect(mockNavigate).not.toHaveBeenCalledWith("/dashboard");
   });
 
+  it("shows the rate-limit message when the server throttles with 429 (Issue #161)", async () => {
+    // The api helper turns a 429 body into Error(body.error), so the readable
+    // rate-limit message lands in the same error banner as any auth failure.
+    api.login.mockRejectedValue(
+      new Error("Too many attempts from this device. Please wait a minute and try again.")
+    );
+
+    renderLogin();
+    fillLoginForm();
+    fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
+
+    expect(await screen.findByText(/too many attempts/i)).toBeInTheDocument();
+    expect(localStorage.getItem("token")).toBeNull();
+  });
+
   it("links to the signup screen", () => {
     renderLogin();
     expect(screen.getByRole("link", { name: /sign up here/i })).toHaveAttribute("href", "/signup");
