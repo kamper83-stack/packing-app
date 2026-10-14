@@ -49,27 +49,27 @@ graph TD
 
 ### 🔹 שלב 1: אימות משתמשים מלא (ערן - Full-Stack Auth)
 * [x] **[Issue #4 - Backend]:** מודל `User`, הצפנת `bcrypt`, טוקן `JWT`, נתיבי `/api/auth/register`, `/api/auth/login`, ובדיקות אינטגרציה (נשלח ב-PR #16).
-* [ ] **[Issue #5 - Frontend]:** חיבור מסכי `Login.jsx` ו-`Signup.jsx` ל-API, שמירת הטוקן וניהול ניתוב מוגן (`ProtectedRoute`).
+* [x] **[Issue #5 - Frontend]:** חיבור מסכי `Login.jsx` ו-`Signup.jsx` ל-API, שמירת הטוקן וניהול ניתוב מוגן (`ProtectedRoute`).
 
 ---
 
 ### 🔹 שלב 2: ניהול נסיעות ודשבורד (שירי - Full-Stack Trips)
-* [ ] **[Issue #6 - Backend]:** מודל `Trip` ומודל `PackingItem` עם קשרים (`User hasMany Trips`, `Trip hasMany PackingItems`), ונתיבי ניהול נסיעות.
-* [ ] **[Issue #9 - Frontend]:** בניית דף ה-`Dashboard.jsx` וטופס פתיחת נסיעה חדשה.
+* [x] **[Issue #6 - Backend]:** מודל `Trip` ומודל `PackingItem` עם קשרים (`User hasMany Trips`, `Trip hasMany PackingItems`), ונתיבי ניהול נסיעות.
+* [x] **[Issue #9 - Frontend]:** בניית דף ה-`Dashboard.jsx` וטופס פתיחת נסיעה חדשה.
 
 ---
 
 ### 🔹 שלב 3: אריזה חכמה, מזג אוויר ובינה מלאכותית (שירי - Full-Stack Smart Packing)
 * [x] **[Issue #3 - UI]:** הגדרת Tailwind CSS (הושלם ונסגר).
-* [ ] **[Issue #7 & #8 - Services]:** אינטגרציה של WeatherAPI ומודל AI לגנרוט רשימות אריזה לפי יעד.
-* [ ] **[Issue #10 - Frontend]:** בניית `TripView.jsx` – צ'קליסט אינטראקטיבי, ווידג'ט מזג אוויר צבעוני, וחלוקה לפי סוגי מזוודות.
+* [x] **[Issue #7 & #8 - Services]:** אינטגרציה של WeatherAPI ומודל AI לגנרוט רשימות אריזה לפי יעד.
+* [x] **[Issue #10 - Frontend]:** בניית `TripView.jsx` – צ'קליסט אינטראקטיבי, ווידג'ט מזג אוויר צבעוני, וחלוקה לפי סוגי מזוודות.
 
 ---
 
 ### 🔹 שלב 4: אינטגרציה, DevOps והגשה (ערן & שירי)
-* [ ] בדיקות מקצה לקצה (CI Pipeline ירוק).
-* [ ] אימות העלאת הקונטיינרים ב-Docker Compose.
-* [ ] הכנת הדגמה סופית לפרויקט הגמר.
+* [x] בדיקות מקצה לקצה (CI Pipeline ירוק).
+* [x] אימות העלאת הקונטיינרים ב-Docker Compose.
+* [x] הכנת הדגמה סופית לפרויקט הגמר.
 
 ---
 
