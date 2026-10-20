@@ -6,8 +6,8 @@ This document turns the Phase 4 acceptance criteria into an executable,
 reviewable checklist. It is the **"final demo checklist"** deliverable for
 #148. The two remaining acceptance items — a documented E2E pass *with results*
 and a *release tag* for submission — are recorded here as steps to be executed
-and signed off by a human, because they touch production and the release
-process (see the notes under each section). Nothing in this file runs a
+and recorded (by an agent or a human), because they touch production and the
+release process (see the notes under each section). Nothing in this file runs a
 production deploy, cuts a tag, or transmits secrets.
 
 ---
@@ -39,9 +39,8 @@ Confirms the container image the demo depends on actually boots. Uses a local
 
 > This is a *build/boot* verification only. A real production deploy follows the
 > **manual, SHA-pinned procedure in `AGENTS.md`** (fresh DB backup, clean
-> detached build worktree, post-deploy smoke checks) and requires a current
-> independent `expert` deploy APPROVE naming the exact SHA. Do not deploy from
-> this checklist.
+> detached build worktree, exact SHA, post-deploy smoke checks). No human
+> approval is required. Do not deploy from this checklist.
 
 ## 3. End-to-end functional pass
 
@@ -93,20 +92,20 @@ Tester / date (UTC):            ____________________________________
       requires capturing the running UI).
 - [ ] Final demo narrative/checklist rehearsed against this document.
 
-## 6. Release tag (human + approval-gated)
+## 6. Release tag
 
 The submission tag is **not** cut automatically.
 
 - [ ] Confirm the demo commit is the intended `origin/main` tip.
-- [ ] Obtain the approvals the team process requires for the release/deploy of
-      that exact SHA (per `AGENTS.md`).
-- [ ] Cut and push the annotated release tag on the approved SHA, then link it
+- [ ] Confirm `lint-and-test` and `docker-build-test` passed for that exact SHA
+      (no human approval is required, per `AGENTS.md`).
+- [ ] Cut and push the annotated release tag on that SHA, then link it
       in #148.
 
 ```text
 Release tag:        ________________________________________________
 Tagged commit SHA:  ________________________________________________
-Approved by:        ________________________________________________
+Tagged by:          ________________________________________________
 ```
 
 ---
