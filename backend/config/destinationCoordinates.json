@@ -1,6 +1,20 @@
 {
   "_comment": "Static destination coordinates for Google Weather API. Airport coordinates use the route dataset; city-only destinations use Open-Meteo geocoding; Marrakech uses a city-center fallback because the geocoder omitted it. Do not call geocoding at runtime.",
   "destinations": {
+    "Abu Dhabi": {
+      "country": "United Arab Emirates",
+      "latitude": 24.433000564575195,
+      "longitude": 54.651100158691406,
+      "source": "OpenFlights airports.dat",
+      "airportCode": "AUH"
+    },
+    "Addis Ababa": {
+      "country": "Ethiopia",
+      "latitude": 8.97789001465,
+      "longitude": 38.799301147499996,
+      "source": "OpenFlights airports.dat",
+      "airportCode": "ADD"
+    },
     "Amsterdam": {
       "country": "Netherlands",
       "latitude": 52.308601,
@@ -21,6 +35,13 @@
       "longitude": 100.74700164794922,
       "source": "OpenFlights airport subset",
       "airportCode": "BKK"
+    },
+    "Baku": {
+      "country": "Azerbaijan",
+      "latitude": 40.467498779296875,
+      "longitude": 50.04669952392578,
+      "source": "OpenFlights airports.dat",
+      "airportCode": "GYD"
     },
     "Barcelona": {
       "country": "Spain",
@@ -106,6 +127,13 @@
       "longitude": -7.61138,
       "source": "Open-Meteo geocoding"
     },
+    "Cancun": {
+      "country": "Mexico",
+      "latitude": 21.036500930800003,
+      "longitude": -86.8770980835,
+      "source": "OpenFlights airports.dat",
+      "airportCode": "CUN"
+    },
     "Catania": {
       "country": "Italy",
       "latitude": 37.49223,
@@ -143,6 +171,13 @@
       "longitude": 55.30927,
       "source": "Open-Meteo geocoding"
     },
+    "Duesseldorf": {
+      "country": "Germany",
+      "latitude": 51.289501,
+      "longitude": 6.76678,
+      "source": "OpenFlights airports.dat",
+      "airportCode": "DUS"
+    },
     "Dublin": {
       "country": "Ireland",
       "latitude": 53.33306,
@@ -175,6 +210,13 @@
       "source": "OpenFlights airport subset",
       "airportCode": "GVA"
     },
+    "Guadalajara": {
+      "country": "Mexico",
+      "latitude": 20.521799087524414,
+      "longitude": -103.31099700927734,
+      "source": "OpenFlights airports.dat",
+      "airportCode": "GDL"
+    },
     "Hanoi": {
       "country": "Vietnam",
       "latitude": 21.0245,
@@ -194,6 +236,13 @@
       "longitude": 113.915001,
       "source": "OpenFlights airport subset",
       "airportCode": "HKG"
+    },
+    "Iasi": {
+      "country": "Romania",
+      "latitude": 47.17850112915039,
+      "longitude": 27.6205997467041,
+      "source": "OpenFlights airports.dat",
+      "airportCode": "IAS"
     },
     "Istanbul": {
       "country": "Turkey",
@@ -273,6 +322,13 @@
       "source": "OpenFlights airport subset",
       "airportCode": "MAD"
     },
+    "Mahe": {
+      "country": "Seychelles",
+      "latitude": -4.67434,
+      "longitude": 55.521801,
+      "source": "OpenFlights airports.dat",
+      "airportCode": "SEZ"
+    },
     "Marrakech": {
       "country": "Morocco",
       "latitude": 31.6295,
@@ -286,6 +342,13 @@
       "source": "OpenFlights airport subset",
       "airportCode": "MRS"
     },
+    "Mexico City": {
+      "country": "Mexico",
+      "latitude": 19.4363,
+      "longitude": -99.072098,
+      "source": "OpenFlights airports.dat",
+      "airportCode": "MEX"
+    },
     "Miami": {
       "country": "United States",
       "latitude": 25.77427,
@@ -297,6 +360,13 @@
       "latitude": 45.46427,
       "longitude": 9.18951,
       "source": "Open-Meteo geocoding"
+    },
+    "Monterrey": {
+      "country": "Mexico",
+      "latitude": 25.7784996033,
+      "longitude": -100.107002258,
+      "source": "OpenFlights airports.dat",
+      "airportCode": "MTY"
     },
     "Mumbai": {
       "country": "India",
@@ -402,6 +472,13 @@
       "longitude": 13.04399,
       "source": "Open-Meteo geocoding"
     },
+    "Samarkand": {
+      "country": "Uzbekistan",
+      "latitude": 39.70050048828125,
+      "longitude": 66.98380279541016,
+      "source": "OpenFlights airports.dat",
+      "airportCode": "SKD"
+    },
     "San Francisco": {
       "country": "United States",
       "latitude": 37.77493,
@@ -439,6 +516,20 @@
       "longitude": 23.411436080932617,
       "source": "OpenFlights airport subset",
       "airportCode": "SOF"
+    },
+    "Sochi": {
+      "country": "Russia",
+      "latitude": 43.449902,
+      "longitude": 39.9566,
+      "source": "OpenFlights airports.dat",
+      "airportCode": "AER"
+    },
+    "Tashkent": {
+      "country": "Uzbekistan",
+      "latitude": 41.257900238,
+      "longitude": 69.2811965942,
+      "source": "OpenFlights airports.dat",
+      "airportCode": "TAS"
     },
     "Tbilisi": {
       "country": "Georgia",
@@ -517,6 +608,13 @@
       "longitude": 20.967100143399996,
       "source": "OpenFlights airport subset",
       "airportCode": "WAW"
+    },
+    "Yerevan": {
+      "country": "Armenia",
+      "latitude": 40.1473007202,
+      "longitude": 44.3959007263,
+      "source": "OpenFlights airports.dat",
+      "airportCode": "EVN"
     },
     "Zagreb": {
       "country": "Croatia",

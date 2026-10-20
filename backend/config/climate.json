@@ -196,6 +196,48 @@
       18,
       19,
       20
+    ],
+    "subtropical_highland_north": [
+      14,
+      16,
+      18,
+      20,
+      20,
+      20,
+      19,
+      19,
+      18,
+      17,
+      16,
+      14
+    ],
+    "subtropical_highland_north_warm": [
+      16,
+      17,
+      20,
+      22,
+      24,
+      24,
+      22,
+      22,
+      22,
+      21,
+      18,
+      16
+    ],
+    "equatorial_highland": [
+      16,
+      18,
+      19,
+      19,
+      19,
+      18,
+      16,
+      16,
+      17,
+      17,
+      16,
+      16
     ]
   },
   "default": "temperate",
@@ -285,6 +327,20 @@
     "Boston": "continental",
     "Fort Lauderdale": "tropical_warm",
     "San Francisco": "warm_dry",
-    "Hanoi": "tropical_warm"
+    "Hanoi": "tropical_warm",
+    "Abu Dhabi": "desert_hot",
+    "Addis Ababa": "equatorial_highland",
+    "Baku": "humid_subtropical",
+    "Cancun": "tropical",
+    "Duesseldorf": "oceanic",
+    "Guadalajara": "subtropical_highland_north_warm",
+    "Iasi": "continental",
+    "Mahe": "tropical",
+    "Mexico City": "subtropical_highland_north",
+    "Monterrey": "subtropical_monsoon",
+    "Samarkand": "continental",
+    "Sochi": "humid_subtropical",
+    "Tashkent": "continental",
+    "Yerevan": "continental"
   }
 }

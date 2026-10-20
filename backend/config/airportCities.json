@@ -1,5 +1,5 @@
 {
-  "_comment": "Destinations reachable by a real, currently-bookable flight route from Ben Gurion Airport (TLV). Source of truth: backend/scripts/tlv-destinations-source.json (hand-maintained allow-list, researched 2026-09-22 — see that file's _meta block for method and sources). Regenerate with node backend/scripts/build-tlv-destinations.js after editing the source file. 42 countries, 82 cities.",
+  "_comment": "Destinations reachable by a real, currently-bookable flight route from Ben Gurion Airport (TLV). Source of truth: backend/scripts/tlv-destinations-source.json (hand-maintained allow-list, researched 2026-09-22 (original 82); 2026-10-20 (14 additions) — see that file's _meta block for method and sources). Regenerate with node backend/scripts/build-tlv-destinations.js after editing the source file. 49 countries, 96 cities.",
   "citiesByCountry": {
     "Albania": [
       "Tirana"
@@ -7,9 +7,15 @@
     "Argentina": [
       "Buenos Aires"
     ],
+    "Armenia": [
+      "Yerevan"
+    ],
     "Austria": [
       "Salzburg",
       "Vienna"
+    ],
+    "Azerbaijan": [
+      "Baku"
     ],
     "Belgium": [
       "Brussels"
@@ -38,6 +44,9 @@
     "Egypt": [
       "Sharm El Sheikh"
     ],
+    "Ethiopia": [
+      "Addis Ababa"
+    ],
     "France": [
       "Lyon",
       "Marseille",
@@ -50,6 +59,7 @@
     ],
     "Germany": [
       "Berlin",
+      "Duesseldorf",
       "Frankfurt",
       "Munich"
     ],
@@ -93,6 +103,12 @@
     "Lithuania": [
       "Vilnius"
     ],
+    "Mexico": [
+      "Cancun",
+      "Guadalajara",
+      "Mexico City",
+      "Monterrey"
+    ],
     "Moldova": [
       "Chisinau"
     ],
@@ -117,10 +133,17 @@
     ],
     "Romania": [
       "Bucharest",
-      "Cluj-Napoca"
+      "Cluj-Napoca",
+      "Iasi"
+    ],
+    "Russia": [
+      "Sochi"
     ],
     "Serbia": [
       "Belgrade"
+    ],
+    "Seychelles": [
+      "Mahe"
     ],
     "Slovakia": [
       "Bratislava"
@@ -151,6 +174,7 @@
       "Istanbul"
     ],
     "United Arab Emirates": [
+      "Abu Dhabi",
       "Dubai"
     ],
     "United Kingdom": [
@@ -163,6 +187,10 @@
       "Miami",
       "New York",
       "San Francisco"
+    ],
+    "Uzbekistan": [
+      "Samarkand",
+      "Tashkent"
     ],
     "Vietnam": [
       "Hanoi"
