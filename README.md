@@ -186,9 +186,10 @@ CD workflow (SSH into the VPS after a push to `main`, `git pull`, rewrite the
 deploy environment) is disabled — see `.github/workflows/deploy.yml`, which now
 refuses to run. Deployments follow the SHA-pinned manual procedure in
 `AGENTS.md` ("Manual production deploy — controlled procedure"): an exact full
-SHA from `main` (already covered by the PR's review APPROVE — no separate deploy
-approval), a fresh database backup, a clean detached build worktree, and
-post-deploy smoke checks.
+SHA from `main`, a fresh database backup, a clean detached build worktree, and
+post-deploy smoke checks. No human approval is required to merge or deploy:
+agents merge once `lint-and-test` and `docker-build-test` pass on the PR head,
+and may deploy autonomously using that procedure (owner decision, 2026-10-20).
 Any host-level reverse proxy, firewall, or additional port mapping on the VPS
 is operational state outside this repository and must be documented only after
 checking the live VPS.
